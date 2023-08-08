@@ -3,3 +3,5 @@ runs/
 __pycache__
 weights/
 traced_model.pt
+yolov7objtracking2
+*.mp4
