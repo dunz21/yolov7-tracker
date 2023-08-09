@@ -80,10 +80,11 @@ def select_device(device='', batch_size=None):
             p = torch.cuda.get_device_properties(i)
             s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
     else:
-        s += 'CPU\n'
+        s += "mps" if torch.backends.mps.is_available() else 'CPU\n'
+
 
     logger.info(s.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else s)  # emoji-safe
-    return torch.device('cuda:0' if cuda else 'cpu')
+    return torch.device('cuda:0' if cuda else "mps" if torch.backends.mps.is_available() else 'cpu')
 
 
 def time_synchronized():
