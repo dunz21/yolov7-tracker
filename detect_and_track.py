@@ -7,7 +7,8 @@ from pathlib import Path
 from numpy import random
 from random import randint
 import torch.backends.cudnn as cudnn
-
+from collections import Counter
+from collections import deque
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, check_requirements, \
@@ -18,14 +19,18 @@ from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, \
                 time_synchronized, TracedModel
 from utils.download_weights import download
-
+from intersect_ import *
 #For SORT tracking
 import skimage
 from sort import *
 
+# A Dictionary to keep data of tracking (MINI DASH)
+data_deque = {}
+
 #............................... Bounding Boxes Drawing ............................
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None,offset=(0, 0)):
+    [data_deque.pop(key) for key in set(data_deque) if key not in identities] # MINI DASH
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = [int(i) for i in box]
         x1 += offset[0]
@@ -34,6 +39,10 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
         y2 += offset[1]
         cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
+        if id not in set(data_deque):  
+          data_deque[id] = deque(maxlen= 100)
+
+          
         data = (int((box[0]+box[2])/2),(int((box[1]+box[3])/2)))
         label = str(id) + ":"+ names[cat]
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
@@ -41,7 +50,13 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
         cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255,144,30), -1)
         cv2.putText(img, label, (x1, y1 - 5),cv2.FONT_HERSHEY_SIMPLEX, 
                     0.6, [255, 255, 255], 1)
-        # cv2.circle(img, data, 6, color,-1)   #centroid of box
+        # cv2.circle(img, data, 6, (255,144,30),-1)   #centroid of box
+
+        #MIMI DASH
+        data_deque[id].appendleft(data) #appending left to speed up the check we will check the latest map
+        if len(data_deque[id]) >=2:
+            update_counter(centerpoints = data_deque[id], obj_name = names[cat])
+
         txt_str = ""
         if save_with_object_id:
             txt_str += "%i %i %f %f %f %f %f %f" % (
@@ -54,7 +69,42 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
     return img
 #..............................................................................
 
+#.............................................................................. Mini DASH
+lines  = [
+    {'Title' : 'Personas', 'Cords' : [(680,650), (950,450)]}
+]
 
+def update_counter(centerpoints, obj_name):
+    for line in lines:
+        p1 = Point(*centerpoints[0])
+        q1 = Point(*centerpoints[1])
+        p2 = Point(*line['Cords'][0])
+        q2 = Point(*line['Cords'][1])
+        if doIntersect(p1, q1, p2, q2):
+            object_counter[line['Title']].update([obj_name])
+            return True
+    return False
+
+#Draw the Lines
+def draw_lines(lines, img):
+    for line in lines:
+        img = cv2.line(img, line['Cords'][0], line['Cords'][1], (0,255,0), 3)
+    return img
+object_counter = {
+    'Personas' : Counter()
+}
+def draw_results(img):
+    height, width, _ = img.shape 
+    x = width - 300
+    y = 100
+    offset = 0
+    for line_name, line_counter in object_counter.items():
+        Text = line_name + " : " + ' '.join([f"{count}" for label, count in line_counter.items()])
+        cv2.rectangle(img, (x, y - 30), (x + len(Text) * 20, y + 10), (255, 255, 255), -1)
+        cv2.putText(img, Text, (x,y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3, cv2.LINE_AA)
+        y = y+offset
+    return img
+#.............................................................................. Mini DASH
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id= opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
@@ -200,23 +250,23 @@ def detect(save_img=False):
                 for track in tracks:
                     # color = compute_color_for_labels(id)
                     #draw colored tracks
-                    if colored_trk:
-                        [cv2.line(im0, (int(track.centroidarr[i][0]),
-                                    int(track.centroidarr[i][1])), 
-                                    (int(track.centroidarr[i+1][0]),
-                                    int(track.centroidarr[i+1][1])),
-                                    rand_color_list[track.id % amount_rand_color_prime], thickness=2) 
-                                    for i,_ in  enumerate(track.centroidarr) 
-                                      if i < len(track.centroidarr)-1 ] 
-                    #draw same color tracks
-                    else:
-                        [cv2.line(im0, (int(track.centroidarr[i][0]),
-                                    int(track.centroidarr[i][1])), 
-                                    (int(track.centroidarr[i+1][0]),
-                                    int(track.centroidarr[i+1][1])),
-                                    (255,0,0), thickness=2) 
-                                    for i,_ in  enumerate(track.centroidarr) 
-                                      if i < len(track.centroidarr)-1 ] 
+                    # if colored_trk:
+                    #     [cv2.line(im0, (int(track.centroidarr[i][0]),
+                    #                 int(track.centroidarr[i][1])), 
+                    #                 (int(track.centroidarr[i+1][0]),
+                    #                 int(track.centroidarr[i+1][1])),
+                    #                 rand_color_list[track.id % amount_rand_color_prime], thickness=2) 
+                    #                 for i,_ in  enumerate(track.centroidarr) 
+                    #                   if i < len(track.centroidarr)-1 ] 
+                    # #draw same color tracks
+                    # else:
+                    #     [cv2.line(im0, (int(track.centroidarr[i][0]),
+                    #                 int(track.centroidarr[i][1])), 
+                    #                 (int(track.centroidarr[i+1][0]),
+                    #                 int(track.centroidarr[i+1][1])),
+                    #                 (255,0,0), thickness=2) 
+                    #                 for i,_ in  enumerate(track.centroidarr) 
+                    #                   if i < len(track.centroidarr)-1 ] 
 
                     if save_txt and not save_with_object_id:
                         # Normalize coordinates
@@ -235,6 +285,8 @@ def detect(save_img=False):
                     identities = tracked_dets[:, 8]
                     categories = tracked_dets[:, 4]
                     draw_boxes(im0, bbox_xyxy, identities, categories, names, save_with_object_id, txt_path)
+                    draw_lines(lines,im0)
+                    draw_results(im0)
             else: #SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
             #........................................................
