@@ -23,14 +23,50 @@ from intersect_ import *
 #For SORT tracking
 import skimage
 from sort import *
+import matplotlib.path as mpath
+
+
+### MOVE FROM HERE
+
+import time
+class Stopwatch:
+    def __init__(self):
+        self.start_time = None
+        self.total_elapsed_time = 0  # This will store the total elapsed time
+        self.is_running = False
+
+    def start(self):
+        if self.is_running:
+            return
+        self.is_running = True
+        self.start_time = time.time()
+
+    def stop(self):
+        if not self.is_running:
+            return
+        # Update total elapsed time
+        self.total_elapsed_time += time.time() - self.start_time
+        self.is_running = False
+
+    def get_time(self):
+        if self.is_running:
+            # If running, return total elapsed time plus current session time
+            return int((self.total_elapsed_time + (time.time() - self.start_time))*10)/10
+        return int(self.total_elapsed_time*10)/10
 
 # A Dictionary to keep data of tracking (MINI DASH)
 data_deque = {}
-
+object_time_counter = {
+    
+}
 #............................... Bounding Boxes Drawing ............................
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None,offset=(0, 0)):
     [data_deque.pop(key) for key in set(data_deque) if key not in identities] # MINI DASH
+    rectangle = [(822,400),(895,150),(581,40),(537,166)]
+    draw_interest_area(img,rectangle[0],rectangle[1],rectangle[2],rectangle[3])
+    path = mpath.Path(rectangle)
+
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = [int(i) for i in box]
         x1 += offset[0]
@@ -44,15 +80,28 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
 
           
         data = (int((box[0]+box[2])/2),(int((box[1]+box[3])/2)))
-        label = str(id) + ":"+ names[cat]
+        label = str(id) + ":"+ names[cat] 
+
+        # INTERESTED AREA
+        is_in_interested_area = path.contains_point(data)
+        if id not in object_time_counter:
+            object_time_counter[id] = Stopwatch()
+        if is_in_interested_area:
+            #cv2.circle(img, data, 6, (255,0,255),-1)   #centroid of box ONLY FOR DEBUG PURPOSE
+            object_time_counter[id].start()
+        else:
+            object_time_counter[id].stop()
+        if object_time_counter[id].get_time() != 0:
+            label += f": {object_time_counter[id].get_time()} "  # add to string
+
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255,0,20), 2)
         cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255,144,30), -1)
         cv2.putText(img, label, (x1, y1 - 5),cv2.FONT_HERSHEY_SIMPLEX, 
                     0.6, [255, 255, 255], 1)
-        # cv2.circle(img, data, 6, (255,144,30),-1)   #centroid of box
+        #cv2.circle(img, data, 6, (255,0,255),-1)   #centroid of box
 
-        #MIMI DASH
+        #MIMI DASH #Sacar esto de aca
         data_deque[id].appendleft(data) #appending left to speed up the check we will check the latest map
         if len(data_deque[id]) >=2:
             update_counter(centerpoints = data_deque[id], obj_name = names[cat])
@@ -67,12 +116,22 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
             with open(path + '.txt', 'a') as f:
                 f.write(txt_str)
     return img
+
+def draw_interest_area(img,a,b,c,d):
+    cv2.line(img,a,b,(0,0,255),3) #Base
+    cv2.line(img,b,c,(0,0,255),3) #Arriba
+    cv2.line(img,c,d,(0,0,255),3) #Iz
+    cv2.line(img,d,a,(0,0,255),3) #Abajo
 #..............................................................................
 
 #.............................................................................. Mini DASH
 lines  = [
     {'Title' : 'Personas', 'Cords' : [(680,650), (950,450)]}
 ]
+object_counter = {
+    'Personas' : Counter()
+}
+
 
 def update_counter(centerpoints, obj_name):
     for line in lines:
@@ -90,9 +149,7 @@ def draw_lines(lines, img):
     for line in lines:
         img = cv2.line(img, line['Cords'][0], line['Cords'][1], (0,255,0), 3)
     return img
-object_counter = {
-    'Personas' : Counter()
-}
+
 def draw_results(img):
     height, width, _ = img.shape 
     x = width - 300
@@ -111,7 +168,7 @@ def detect(save_img=False):
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
         ('rtsp://', 'rtmp://', 'http://', 'https://'))
 
-
+    
     #.... Initialize SORT .... 
     #......................... 
     sort_max_age = 5 
@@ -120,20 +177,7 @@ def detect(save_img=False):
     sort_tracker = Sort(max_age=sort_max_age,
                        min_hits=sort_min_hits,
                        iou_threshold=sort_iou_thresh)
-    #......................... 
-    
-    
-    #........Rand Color for every trk.......
-    rand_color_list = []
-    amount_rand_color_prime = 5003 # prime number
-    for i in range(0,amount_rand_color_prime):
-        r = randint(0, 255)
-        g = randint(0, 255)
-        b = randint(0, 255)
-        rand_color = (r, g, b)
-        rand_color_list.append(rand_color)
-    #......................................
-   
+    #.........................    
 
     # Directories
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
@@ -248,26 +292,6 @@ def detect(save_img=False):
 
                 #loop over tracks
                 for track in tracks:
-                    # color = compute_color_for_labels(id)
-                    #draw colored tracks
-                    # if colored_trk:
-                    #     [cv2.line(im0, (int(track.centroidarr[i][0]),
-                    #                 int(track.centroidarr[i][1])), 
-                    #                 (int(track.centroidarr[i+1][0]),
-                    #                 int(track.centroidarr[i+1][1])),
-                    #                 rand_color_list[track.id % amount_rand_color_prime], thickness=2) 
-                    #                 for i,_ in  enumerate(track.centroidarr) 
-                    #                   if i < len(track.centroidarr)-1 ] 
-                    # #draw same color tracks
-                    # else:
-                    #     [cv2.line(im0, (int(track.centroidarr[i][0]),
-                    #                 int(track.centroidarr[i][1])), 
-                    #                 (int(track.centroidarr[i+1][0]),
-                    #                 int(track.centroidarr[i+1][1])),
-                    #                 (255,0,0), thickness=2) 
-                    #                 for i,_ in  enumerate(track.centroidarr) 
-                    #                   if i < len(track.centroidarr)-1 ] 
-
                     if save_txt and not save_with_object_id:
                         # Normalize coordinates
                         txt_str += "%i %i %f %f" % (track.id, track.detclass, track.centroidarr[-1][0] / im0.shape[1], track.centroidarr[-1][1] / im0.shape[0])
@@ -284,13 +308,26 @@ def detect(save_img=False):
                     bbox_xyxy = tracked_dets[:,:4]
                     identities = tracked_dets[:, 8]
                     categories = tracked_dets[:, 4]
+                    ### ZONE OF INTEREST
+                    # id_of_interest = 16
+                    # position_example_det = np.where(identities == id_of_interest)[0]  # Find the index of the person with ID id_of_interest
+                    # data_stopwatch = None
+                    # if len(position_example_det) > 0:
+                        # first_index = position_example_det[0]  # Take the first index
+                        # centroid = (int((bbox_xyxy[first_index][0]+bbox_xyxy[first_index][2])/2),(int((bbox_xyxy[first_index][1]+bbox_xyxy[first_index][3])/2)))
+                        # is_in_interested_area = path.contains_point(centroid)
+                        # centroid = tuple(int(value) for value in tracks[first_index].centroidarr[0])
+                        # centroid = (centroid[1],centroid[0])]
+                        # data_stopwatch = [first_index,is_in_interested_area]
+                        # if identities[first_index] == id_of_interest and is_in_interested_area:
+                            # cv2.circle(im0, centroid, 6, (255,102,255),-1)   #centroid of box
                     draw_boxes(im0, bbox_xyxy, identities, categories, names, save_with_object_id, txt_path)
                     draw_lines(lines,im0)
                     draw_results(im0)
             else: #SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
-            #........................................................
             
+            #........................................................
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
             
@@ -329,6 +366,33 @@ def detect(save_img=False):
     print(f'Done. ({time.time() - t0:.3f}s)')
 
 
+class Options:
+    def __init__(self):
+        self.weights = 'yolov7.pt'
+        self.source = 'retail.mp4'
+        self.img_size = 640
+        self.conf_thres = 0.25
+        self.iou_thres = 0.45
+        self.device = ''
+        self.view_img = True
+        self.save_txt = False
+        self.save_conf = False
+        self.nosave = False
+        self.classes = [0]
+        self.agnostic_nms = False
+        self.augment = False
+        self.update = False
+        self.project = 'runs/detect'
+        self.name = 'object_tracking'
+        self.exist_ok = False
+        self.no_trace = False
+        self.colored_trk = False
+        self.save_bbox_dim = False
+        self.save_with_object_id = False
+        self.download = True
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s)')
@@ -354,10 +418,11 @@ if __name__ == '__main__':
     parser.add_argument('--colored-trk', action='store_true', help='assign different color to every track')
     parser.add_argument('--save-bbox-dim', action='store_true', help='save bounding box dimensions with --save-txt tracks')
     parser.add_argument('--save-with-object-id', action='store_true', help='save results with object id to *.txt')
-
+    
     parser.set_defaults(download=True)
-    opt = parser.parse_args()
-    print(opt)
+    # opt = parser.parse_args() OLD
+    opt = Options()
+    print(opt.__dict__)
     #check_requirements(exclude=('pycocotools', 'thop'))
     if opt.download and not os.path.exists(''.join(opt.weights)):
         print('Model weights not found. Attempting to download now...')
