@@ -63,9 +63,12 @@ object_time_counter = {
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None,offset=(0, 0)):
     [data_deque.pop(key) for key in set(data_deque) if key not in identities] # MINI DASH
-    rectangle = [(822,400),(895,150),(581,40),(537,166)]
+    rectangle = [(822,413),(903,334),(611,185),(570,204)]
+    rectangle_transparent = [(822,400),(895,150),(581,40),(537,166)]
     draw_interest_area(img,rectangle[0],rectangle[1],rectangle[2],rectangle[3])
+    # draw_interest_area(img,rectangle_transparent[0],rectangle_transparent[1],rectangle_transparent[2],rectangle_transparent[3])
     path = mpath.Path(rectangle)
+    # INTERESTED AREA
 
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = [int(i) for i in box]
@@ -82,8 +85,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
         data = (int((box[0]+box[2])/2),(int((box[1]+box[3])/2)))
         label = str(id) + ":"+ names[cat] 
 
-        # INTERESTED AREA
-        is_in_interested_area = path.contains_point(data)
+        is_in_interested_area = path.contains_point(data) or mpath.Path(rectangle_transparent).contains_point(data)
         if id not in object_time_counter:
             object_time_counter[id] = Stopwatch()
         if is_in_interested_area:
@@ -374,7 +376,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = ''
-        self.view_img = True
+        self.view_img = False
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
