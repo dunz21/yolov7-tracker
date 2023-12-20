@@ -12,178 +12,104 @@ from collections import deque
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, check_requirements, \
-                check_imshow, non_max_suppression, apply_classifier, \
-                scale_coords, xyxy2xywh, strip_optimizer, set_logging, \
-                increment_path
+    check_imshow, non_max_suppression, apply_classifier, \
+    scale_coords, xyxy2xywh, strip_optimizer, set_logging, \
+    increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, \
-                time_synchronized, TracedModel
+    time_synchronized, TracedModel
 from utils.download_weights import download
 from intersect_ import *
-#For SORT tracking
+# For SORT tracking
 import skimage
 from sort import *
 import matplotlib.path as mpath
-
-
-### MOVE FROM HERE
-
+import pandas as pd
+from datetime import datetime
 import time
-class Stopwatch:
-    def __init__(self):
-        self.start_time = None
-        self.total_elapsed_time = 0  # This will store the total elapsed time
-        self.is_running = False
-
-    def start(self):
-        if self.is_running:
-            return
-        self.is_running = True
-        self.start_time = time.time()
-
-    def stop(self):
-        if not self.is_running:
-            return
-        # Update total elapsed time
-        self.total_elapsed_time += time.time() - self.start_time
-        self.is_running = False
-
-    def get_time(self):
-        if self.is_running:
-            # If running, return total elapsed time plus current session time
-            return int((self.total_elapsed_time + (time.time() - self.start_time))*10)/10
-        return int(self.total_elapsed_time*10)/10
 
 # A Dictionary to keep data of tracking (MINI DASH)
 data_deque = {}
-object_time_counter = {
-    
-}
-#............................... Bounding Boxes Drawing ............................
-"""Function to Draw Bounding boxes"""
-def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None,offset=(0, 0)):
-    [data_deque.pop(key) for key in set(data_deque) if key not in identities] # MINI DASH
-    rectangle = [(822,413),(903,334),(611,185),(570,204)]
-    rectangle_transparent = [(822,400),(895,150),(581,40),(537,166)]
-    draw_interest_area(img,rectangle[0],rectangle[1],rectangle[2],rectangle[3])
-    # draw_interest_area(img,rectangle_transparent[0],rectangle_transparent[1],rectangle_transparent[2],rectangle_transparent[3])
-    path = mpath.Path(rectangle)
-    # INTERESTED AREA
 
+
+def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe'):
+    current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M')
+    id_directory = os.path.join(f"{name}", str(id))
+    if not os.path.exists(id_directory):
+        os.makedirs(id_directory)
+    image_name = f"img_{id}_{num_frame}.png"
+    save_path = os.path.join(id_directory, image_name)
+    cv2.imwrite(save_path, sub_frame)
+    return image_name
+
+
+# ............................... Bounding Boxes Drawing ............................
+"""Function to Draw Bounding boxes"""
+
+
+def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None, offset=(0, 0)):
     for i, box in enumerate(bbox):
-        x1, y1, x2, y2 = [int(i) for i in box]
+        x1, y1, x2, y2 = box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
         x1 += offset[0]
         x2 += offset[0]
         y1 += offset[1]
         y2 += offset[1]
         cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
-        if id not in set(data_deque):  
-          data_deque[id] = deque(maxlen= 100)
+        if id not in set(data_deque):
+            data_deque[id] = deque(maxlen=30000)
 
-          
-        data = (int((box[0]+box[2])/2),(int((box[1]+box[3])/2)))
-        label = str(id) + ":"+ names[cat] 
-
-        is_in_interested_area = path.contains_point(data) or mpath.Path(rectangle_transparent).contains_point(data)
-        if id not in object_time_counter:
-            object_time_counter[id] = Stopwatch()
-        if is_in_interested_area:
-            #cv2.circle(img, data, 6, (255,0,255),-1)   #centroid of box ONLY FOR DEBUG PURPOSE
-            object_time_counter[id].start()
-        else:
-            object_time_counter[id].stop()
-        if object_time_counter[id].get_time() != 0:
-            label += f": {object_time_counter[id].get_time()} "  # add to string
+        data = (int((box[0]+box[2])/2), (int((box[1]+box[3])/2)))
+        label = str(id) + ":" + names[cat]
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (255,0,20), 2)
-        cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255,144,30), -1)
-        cv2.putText(img, label, (x1, y1 - 5),cv2.FONT_HERSHEY_SIMPLEX, 
-                    0.6, [255, 255, 255], 1)
-        #cv2.circle(img, data, 6, (255,0,255),-1)   #centroid of box
-
-        #MIMI DASH #Sacar esto de aca
-        data_deque[id].appendleft(data) #appending left to speed up the check we will check the latest map
-        if len(data_deque[id]) >=2:
-            update_counter(centerpoints = data_deque[id], obj_name = names[cat])
+        cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
+        cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255, 144, 30), -1)
+        cv2.putText(img, label, (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
 
         txt_str = ""
         if save_with_object_id:
             txt_str += "%i %i %f %f %f %f %f %f" % (
-                id, cat, int(box[0])/img.shape[1], int(box[1])/img.shape[0] , int(box[2])/img.shape[1], int(box[3])/img.shape[0] ,int(box[0] + (box[2] * 0.5))/img.shape[1] ,
+                id, cat, int(box[0])/img.shape[1], int(box[1])/img.shape[0], int(box[2]) /
+                img.shape[1], int(
+                    box[3])/img.shape[0], int(box[0] + (box[2] * 0.5))/img.shape[1],
                 int(box[1] + (
-                    box[3]* 0.5))/img.shape[0])
+                    box[3] * 0.5))/img.shape[0])
             txt_str += "\n"
             with open(path + '.txt', 'a') as f:
                 f.write(txt_str)
     return img
 
-def draw_interest_area(img,a,b,c,d):
-    cv2.line(img,a,b,(0,0,255),3) #Base
-    cv2.line(img,b,c,(0,0,255),3) #Arriba
-    cv2.line(img,c,d,(0,0,255),3) #Iz
-    cv2.line(img,d,a,(0,0,255),3) #Abajo
-#..............................................................................
 
-#.............................................................................. Mini DASH
-lines  = [
-    {'Title' : 'Personas', 'Cords' : [(680,650), (950,450)]}
-]
-object_counter = {
-    'Personas' : Counter()
-}
-
-
-def update_counter(centerpoints, obj_name):
-    for line in lines:
-        p1 = Point(*centerpoints[0])
-        q1 = Point(*centerpoints[1])
-        p2 = Point(*line['Cords'][0])
-        q2 = Point(*line['Cords'][1])
-        if doIntersect(p1, q1, p2, q2):
-            object_counter[line['Title']].update([obj_name])
-            return True
-    return False
-
-#Draw the Lines
-def draw_lines(lines, img):
-    for line in lines:
-        img = cv2.line(img, line['Cords'][0], line['Cords'][1], (0,255,0), 3)
-    return img
-
-def draw_results(img):
-    height, width, _ = img.shape 
-    x = width - 300
-    y = 100
-    offset = 0
-    for line_name, line_counter in object_counter.items():
-        Text = line_name + " : " + ' '.join([f"{count}" for label, count in line_counter.items()])
-        cv2.rectangle(img, (x, y - 30), (x + len(Text) * 20, y + 10), (255, 255, 255), -1)
-        cv2.putText(img, Text, (x,y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3, cv2.LINE_AA)
-        y = y+offset
-    return img
-#.............................................................................. Mini DASH
 def detect(save_img=False):
-    source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id= opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
-    save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
+    source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
+    save_img = not opt.nosave and not source.endswith(
+        '.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
         ('rtsp://', 'rtmp://', 'http://', 'https://'))
 
-    
-    #.... Initialize SORT .... 
-    #......................... 
-    sort_max_age = 5 
+    # dataCSVAnalisis = []  # Replace with your column names
+
+    # .... Initialize SORT ....
+    # .........................
+    sort_max_age = 100000
     sort_min_hits = 2
     sort_iou_thresh = 0.2
     sort_tracker = Sort(max_age=sort_max_age,
-                       min_hits=sort_min_hits,
-                       iou_threshold=sort_iou_thresh)
-    #.........................    
+                        min_hits=sort_min_hits,
+                        iou_threshold=sort_iou_thresh)
+    # .........................
 
     # Directories
-    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
-    (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    save_dir = Path(increment_path(Path(opt.project) / opt.name,
+                    exist_ok=opt.exist_ok))  # increment run
+    (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(
+        parents=True, exist_ok=True)  # make dir
 
     # Initialize
     set_logging()
@@ -204,8 +130,14 @@ def detect(save_img=False):
     # Second-stage classifier
     classify = False
     if classify:
-        modelc = load_classifier(name='resnet101', n=2)  # initialize
-        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model']).to(device).eval()
+        modelc = load_classifier(name='resnet101', n=2)
+        state_dict = torch.load(
+            '/Users/diegosepulveda/.cache/torch/hub/checkpoints/resnet101-63fe2227.pth', map_location=device)
+        state_dict = {k: v for k, v in state_dict.items()
+                      if not k.startswith('fc.')}
+        # use strict=False to ignore layers that don't match
+        modelc.load_state_dict(state_dict, strict=False)
+        modelc = modelc.to(device).eval()
 
     # Set Dataloader
     vid_path, vid_writer = None, None
@@ -222,14 +154,22 @@ def detect(save_img=False):
 
     # Run inference
     if device.type != 'cpu':
-        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
+        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(
+            next(model.parameters())))  # run once
     old_img_w = old_img_h = imgsz
     old_img_b = 1
 
     t0 = time.time()
 
-    
-    for path, img, im0s, vid_cap in dataset:
+    width = 0
+    height = 0
+    total_frames = 0
+
+    for path, img, im0s, vid_cap, frame in dataset:
+        if width == 0:
+            total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -250,7 +190,8 @@ def detect(save_img=False):
         t2 = time_synchronized()
 
         # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        pred = non_max_suppression(
+            pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
         # Apply Classifier
@@ -260,92 +201,123 @@ def detect(save_img=False):
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             if webcam:  # batch_size >= 1
-                p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
+                p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(
+                ), dataset.count
             else:
                 p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
-            txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            txt_path = str(save_dir / 'labels' / p.stem) + \
+                ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
+            # normalization gain whwh
+            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                det[:, :4] = scale_coords(
+                    img.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
-                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+                    # add to string
+                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "
 
-                #..................USE TRACK FUNCTION....................
-                #pass an empty array to sort
-                dets_to_sort = np.empty((0,6))
-                
+                # ..................USE TRACK FUNCTION....................
+                # pass an empty array to sort
+                dets_to_sort = np.empty((0, 6))
+
                 # NOTE: We send in detected object class too
-                for x1,y1,x2,y2,conf,detclass in det.cpu().detach().numpy():
-                    dets_to_sort = np.vstack((dets_to_sort, 
-                                np.array([x1, y1, x2, y2, conf, detclass])))
-                
+                detections = det.cpu().detach().numpy()
+                for x1, y1, x2, y2, conf, detclass in detections:
+                    dets_to_sort = np.vstack((dets_to_sort,
+                                              np.array([x1, y1, x2, y2, conf, detclass])))
+
                 # Run SORT
                 tracked_dets = sort_tracker.update(dets_to_sort)
-                tracks =sort_tracker.getTrackers()
+                tracks = sort_tracker.getTrackers()
 
                 txt_str = ""
 
-                #loop over tracks
+                # loop over tracks
                 for track in tracks:
+                    if frame % 10 == 0:
+                        x1, y1, x2, y2 = track.bbox_history[0][:4]
+                        sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
+                        if len(sub_frame) != 0:
+                            pass
+                            # save_image_based_on_sub_frame(frame,sub_frame,track.id)
                     if save_txt and not save_with_object_id:
                         # Normalize coordinates
-                        txt_str += "%i %i %f %f" % (track.id, track.detclass, track.centroidarr[-1][0] / im0.shape[1], track.centroidarr[-1][1] / im0.shape[0])
+                        txt_str += "%i %i %f %f" % (track.id, track.detclass,
+                                                    track.centroidarr[-1][0] / im0.shape[1], track.centroidarr[-1][1] / im0.shape[0])
                         if save_bbox_dim:
-                            txt_str += " %f %f" % (np.abs(track.bbox_history[-1][0] - track.bbox_history[-1][2]) / im0.shape[0], np.abs(track.bbox_history[-1][1] - track.bbox_history[-1][3]) / im0.shape[1])
+                            txt_str += " %f %f" % (np.abs(track.bbox_history[-1][0] - track.bbox_history[-1][2]) / im0.shape[0], np.abs(
+                                track.bbox_history[-1][1] - track.bbox_history[-1][3]) / im0.shape[1])
                         txt_str += "\n"
-                
+
                 if save_txt and not save_with_object_id:
                     with open(txt_path + '.txt', 'a') as f:
                         f.write(txt_str)
 
                 # draw boxes for visualization
-                if len(tracked_dets)>0:
-                    bbox_xyxy = tracked_dets[:,:4]
+                if len(tracked_dets) > 0:
+                    bbox_xyxy = tracked_dets[:, :4]
+                    for i, person in enumerate(tracked_dets):
+                        x1, y1, x2, y2 = person[:4]
+                        sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
+                        # centroid = (int((person[0]+person[2])/2),(int((person[1]+person[3])/2)))
+                        # cv2.circle(im0, centroid, 10, (0, 0, 255), 2)
+                        if frame % 10 == 0:
+                            try:
+                                if len(sub_frame) != 0 and sub_frame is not None:
+                                    frame_rate = int(
+                                        vid_cap.get(cv2.CAP_PROP_FPS))
+                                    total_frames = int(vid_cap.get(
+                                        cv2.CAP_PROP_FRAME_COUNT))
+                                    current_time = frame / frame_rate
+                                    centroid = (
+                                        int((person[0]+person[2])/2), (int((person[1]+person[3])/2)))
+                                    image_name = save_image_based_on_sub_frame(
+                                        frame, sub_frame, int(person[8]), 'images_subframe_3')
+                                    # dataCSVAnalisis.append({
+                                    #     'image_name': image_name,
+                                    #     'time': f"{current_time:.2f}",
+                                    #     'frame': frame,
+                                    #     'centroid': f"{str(centroid[0])}-{str(centroid[1])}",
+                                    #     'X1': int(x1),
+                                    #     'Y1': int(y1),
+                                    #     'X2': int(x2),
+                                    #     'Y2': int(y2),
+                                    # })
+                            except Exception as e:
+                                print(f"Error encountered: {e}")
                     identities = tracked_dets[:, 8]
                     categories = tracked_dets[:, 4]
-                    ### ZONE OF INTEREST
-                    # id_of_interest = 16
-                    # position_example_det = np.where(identities == id_of_interest)[0]  # Find the index of the person with ID id_of_interest
-                    # data_stopwatch = None
-                    # if len(position_example_det) > 0:
-                        # first_index = position_example_det[0]  # Take the first index
-                        # centroid = (int((bbox_xyxy[first_index][0]+bbox_xyxy[first_index][2])/2),(int((bbox_xyxy[first_index][1]+bbox_xyxy[first_index][3])/2)))
-                        # is_in_interested_area = path.contains_point(centroid)
-                        # centroid = tuple(int(value) for value in tracks[first_index].centroidarr[0])
-                        # centroid = (centroid[1],centroid[0])]
-                        # data_stopwatch = [first_index,is_in_interested_area]
-                        # if identities[first_index] == id_of_interest and is_in_interested_area:
-                            # cv2.circle(im0, centroid, 6, (255,102,255),-1)   #centroid of box
-                    draw_boxes(im0, bbox_xyxy, identities, categories, names, save_with_object_id, txt_path)
-                    draw_lines(lines,im0)
-                    draw_results(im0)
-            else: #SORT should be updated even with no detections
+                    draw_boxes(im0, bbox_xyxy, identities, categories,
+                               names, save_with_object_id, txt_path)
+            else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
-            
-            #........................................................
+
+            # ........................................................
             # Print time (inference + NMS)
-            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
-            
-        
+            print(
+                f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+
             # Stream results
             if view_img:
                 cv2.imshow(str(p), im0)
+                # cv2.waitKey(0)
                 if cv2.waitKey(1) == ord('q'):  # q to quit
-                  cv2.destroyAllWindows()
-                  raise StopIteration
+                    cv2.destroyAllWindows()
+                    raise StopIteration
 
             # Save results (image with detections)
             if save_img:
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
-                    print(f" The image with the result is saved in: {save_path}")
+                    print(
+                        f" The image with the result is saved in: {save_path}")
                 else:  # 'video' or 'stream'
                     if vid_path != save_path:  # new video
                         vid_path = save_path
@@ -358,12 +330,16 @@ def detect(save_img=False):
                         else:  # stream
                             fps, w, h = 30, im0.shape[1], im0.shape[0]
                             save_path += '.mp4'
-                        vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+                        vid_writer = cv2.VideoWriter(
+                            save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer.write(im0)
+
+    # dataCSVAnalisis = pd.DataFrame(dataCSVAnalisis)
+    # dataCSVAnalisis.to_csv(f"{path.split('/')[-1]}_result_{total_width}_{total_height}_{total_frames}.csv", index=False)
 
     if save_txt or save_img or save_with_object_id:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        #print(f"Results saved to {save_dir}{s}")
+        # print(f"Results saved to {save_dir}{s}")
 
     print(f'Done. ({time.time() - t0:.3f}s)')
 
@@ -385,7 +361,7 @@ class Options:
         self.augment = False
         self.update = False
         self.project = 'runs/detect'
-        self.name = 'object_tracking'
+        self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
         self.colored_trk = False
@@ -394,38 +370,61 @@ class Options:
         self.download = True
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s)')
-    parser.add_argument('--download', action='store_true', help='download model weights automatically')
-    parser.add_argument('--no-download', dest='download', action='store_false',help='not download model weights if already exist')
-    parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
-    parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--view-img', action='store_true', help='display results')
-    parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
-    parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
-    parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
-    parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
-    parser.add_argument('--augment', action='store_true', help='augmented inference')
-    parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default='runs/detect', help='save results to project/name')
-    parser.add_argument('--name', default='object_tracking', help='save results to project/name')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
-    parser.add_argument('--colored-trk', action='store_true', help='assign different color to every track')
-    parser.add_argument('--save-bbox-dim', action='store_true', help='save bounding box dimensions with --save-txt tracks')
-    parser.add_argument('--save-with-object-id', action='store_true', help='save results with object id to *.txt')
-    
+    parser.add_argument('--weights', nargs='+', type=str,
+                        default='yolov7.pt', help='model.pt path(s)')
+    parser.add_argument('--download', action='store_true',
+                        help='download model weights automatically')
+    parser.add_argument('--no-download', dest='download', action='store_false',
+                        help='not download model weights if already exist')
+    # file/folder, 0 for webcam
+    parser.add_argument('--source', type=str,
+                        default='inference/images', help='source')
+    parser.add_argument('--img-size', type=int, default=640,
+                        help='inference size (pixels)')
+    parser.add_argument('--conf-thres', type=float,
+                        default=0.25, help='object confidence threshold')
+    parser.add_argument('--iou-thres', type=float,
+                        default=0.45, help='IOU threshold for NMS')
+    parser.add_argument('--device', default='',
+                        help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--view-img', action='store_true',
+                        help='display results')
+    parser.add_argument('--save-txt', action='store_true',
+                        help='save results to *.txt')
+    parser.add_argument('--save-conf', action='store_true',
+                        help='save confidences in --save-txt labels')
+    parser.add_argument('--nosave', action='store_true',
+                        help='do not save images/videos')
+    parser.add_argument('--classes', nargs='+', type=int,
+                        help='filter by class: --class 0, or --class 0 2 3')
+    parser.add_argument('--agnostic-nms', action='store_true',
+                        help='class-agnostic NMS')
+    parser.add_argument('--augment', action='store_true',
+                        help='augmented inference')
+    parser.add_argument('--update', action='store_true',
+                        help='update all models')
+    parser.add_argument('--project', default='runs/detect',
+                        help='save results to project/name')
+    parser.add_argument('--name', default='object_tracking',
+                        help='save results to project/name')
+    parser.add_argument('--exist-ok', action='store_true',
+                        help='existing project/name ok, do not increment')
+    parser.add_argument('--no-trace', action='store_true',
+                        help='don`t trace model')
+    parser.add_argument('--colored-trk', action='store_true',
+                        help='assign different color to every track')
+    parser.add_argument('--save-bbox-dim', action='store_true',
+                        help='save bounding box dimensions with --save-txt tracks')
+    parser.add_argument('--save-with-object-id', action='store_true',
+                        help='save results with object id to *.txt')
+
     parser.set_defaults(download=True)
     # opt = parser.parse_args() OLD
     opt = Options()
     print(opt.__dict__)
-    #check_requirements(exclude=('pycocotools', 'thop'))
+    # check_requirements(exclude=('pycocotools', 'thop'))
     if opt.download and not os.path.exists(''.join(opt.weights)):
         print('Model weights not found. Attempting to download now...')
         download('./')
