@@ -27,6 +27,7 @@ import matplotlib.path as mpath
 import pandas as pd
 from datetime import datetime
 import time
+from ultralytics import NAS
 
 # A Dictionary to keep data of tracking (MINI DASH)
 data_deque = {}
@@ -97,7 +98,7 @@ def detect(save_img=False):
 
     # .... Initialize SORT ....
     # .........................
-    sort_max_age = 100000
+    sort_max_age = 50
     sort_min_hits = 2
     sort_iou_thresh = 0.2
     sort_tracker = Sort(max_age=sort_max_age,
@@ -164,7 +165,8 @@ def detect(save_img=False):
     width = 0
     height = 0
     total_frames = 0
-
+    time_for_each_100_frames = []
+    time_100_frames = 0
     for path, img, im0s, vid_cap, frame in dataset:
         if width == 0:
             total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -301,8 +303,12 @@ def detect(save_img=False):
 
             # ........................................................
             # Print time (inference + NMS)
-            print(
-                f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            if frame % 100 == 0:
+                time_for_each_100_frames.append((time.time() - time_100_frames))
+                time_100_frames = time.time()
+
+            
+            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
             # Stream results
             if view_img:
@@ -342,16 +348,18 @@ def detect(save_img=False):
         # print(f"Results saved to {save_dir}{s}")
 
     print(f'Done. ({time.time() - t0:.3f}s)')
+    print([f"{t:.2f}" for t in time_for_each_100_frames])
 
 
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        self.source = 'retail.mp4'
+        self.source = '/home/diego/Documents/Footage/conce_semi_largo.mp4'
+        # self.source = 'retail.mp4'
         self.img_size = 640
         self.conf_thres = 0.25
         self.iou_thres = 0.45
-        self.device = ''
+        self.device = '0'
         self.view_img = False
         self.save_txt = False
         self.save_conf = False
