@@ -28,7 +28,7 @@ import pandas as pd
 from datetime import datetime
 import time
 from ultralytics import NAS
-
+from utils.draw_tools import filter_detections_inside_polygon
 # A Dictionary to keep data of tracking (MINI DASH)
 data_deque = {}
 
@@ -48,7 +48,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subfram
 """Function to Draw Bounding boxes"""
 
 
-def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_with_object_id=False, path=None, offset=(0, 0)):
+def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0)):
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = box
         x1 = int(x1)
@@ -70,20 +70,8 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
         cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255, 144, 30), -1)
-        cv2.putText(img, label, (x1, y1 - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
 
-        txt_str = ""
-        if save_with_object_id:
-            txt_str += "%i %i %f %f %f %f %f %f" % (
-                id, cat, int(box[0])/img.shape[1], int(box[1])/img.shape[0], int(box[2]) /
-                img.shape[1], int(
-                    box[3])/img.shape[0], int(box[0] + (box[2] * 0.5))/img.shape[1],
-                int(box[1] + (
-                    box[3] * 0.5))/img.shape[0])
-            txt_str += "\n"
-            with open(path + '.txt', 'a') as f:
-                f.write(txt_str)
     return img
 
 
@@ -168,24 +156,18 @@ def detect(save_img=False):
         t2 = time_synchronized()
 
         # Apply NMS
-        pred = non_max_suppression(
-            pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
-
+        pred = filter_detections_inside_polygon(detections=pred[0].cpu().detach().numpy(),frame=im0s)
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
-            txt_path = str(save_dir / 'labels' / p.stem) + \
-                ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
-            # normalization gain whwh
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(
-                    img.shape[2:], det[:, :4], im0.shape).round()
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
                 for c in det[:, -1].unique():
@@ -207,8 +189,6 @@ def detect(save_img=False):
                 tracked_dets = sort_tracker.update(dets_to_sort)
                 tracks = sort_tracker.getTrackers()
 
-                txt_str = ""
-
                 # loop over tracks
                 for track in tracks:
                     if frame % 10 == 0:
@@ -217,18 +197,6 @@ def detect(save_img=False):
                         if len(sub_frame) != 0:
                             pass
                             # save_image_based_on_sub_frame(frame,sub_frame,track.id)
-                    if save_txt and not save_with_object_id:
-                        # Normalize coordinates
-                        txt_str += "%i %i %f %f" % (track.id, track.detclass,
-                                                    track.centroidarr[-1][0] / im0.shape[1], track.centroidarr[-1][1] / im0.shape[0])
-                        if save_bbox_dim:
-                            txt_str += " %f %f" % (np.abs(track.bbox_history[-1][0] - track.bbox_history[-1][2]) / im0.shape[0], np.abs(
-                                track.bbox_history[-1][1] - track.bbox_history[-1][3]) / im0.shape[1])
-                        txt_str += "\n"
-
-                if save_txt and not save_with_object_id:
-                    with open(txt_path + '.txt', 'a') as f:
-                        f.write(txt_str)
 
                 # draw boxes for visualization
                 if len(tracked_dets) > 0:
@@ -236,36 +204,9 @@ def detect(save_img=False):
                     for i, person in enumerate(tracked_dets):
                         x1, y1, x2, y2 = person[:4]
                         sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
-                        # centroid = (int((person[0]+person[2])/2),(int((person[1]+person[3])/2)))
-                        # cv2.circle(im0, centroid, 10, (0, 0, 255), 2)
-                        if frame % 10 == 0:
-                            try:
-                                if len(sub_frame) != 0 and sub_frame is not None:
-                                    frame_rate = int(
-                                        vid_cap.get(cv2.CAP_PROP_FPS))
-                                    total_frames = int(vid_cap.get(
-                                        cv2.CAP_PROP_FRAME_COUNT))
-                                    current_time = frame / frame_rate
-                                    centroid = (
-                                        int((person[0]+person[2])/2), (int((person[1]+person[3])/2)))
-                                    image_name = save_image_based_on_sub_frame(
-                                        frame, sub_frame, int(person[8]), 'images_subframe_3')
-                                    # dataCSVAnalisis.append({
-                                    #     'image_name': image_name,
-                                    #     'time': f"{current_time:.2f}",
-                                    #     'frame': frame,
-                                    #     'centroid': f"{str(centroid[0])}-{str(centroid[1])}",
-                                    #     'X1': int(x1),
-                                    #     'Y1': int(y1),
-                                    #     'X2': int(x2),
-                                    #     'Y2': int(y2),
-                                    # })
-                            except Exception as e:
-                                print(f"Error encountered: {e}")
                     identities = tracked_dets[:, 8]
                     categories = tracked_dets[:, 4]
-                    draw_boxes(im0, bbox_xyxy, identities, categories,
-                               names, save_with_object_id, txt_path)
+                    draw_boxes(im0, bbox_xyxy, identities, categories,names, save_with_object_id)
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
 
