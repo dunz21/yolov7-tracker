@@ -89,15 +89,9 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, save_wit
 
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
-    save_img = not opt.nosave and not source.endswith(
-        '.txt')  # save inference images
-    webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
-        ('rtsp://', 'rtmp://', 'http://', 'https://'))
-
-    # dataCSVAnalisis = []  # Replace with your column names
+    save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
 
     # .... Initialize SORT ....
-    # .........................
     sort_max_age = 50
     sort_min_hits = 2
     sort_iou_thresh = 0.2
@@ -107,10 +101,8 @@ def detect(save_img=False):
     # .........................
 
     # Directories
-    save_dir = Path(increment_path(Path(opt.project) / opt.name,
-                    exist_ok=opt.exist_ok))  # increment run
-    (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(
-        parents=True, exist_ok=True)  # make dir
+    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
+    (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Initialize
     set_logging()
@@ -128,26 +120,10 @@ def detect(save_img=False):
     if half:
         model.half()  # to FP16
 
-    # Second-stage classifier
-    classify = False
-    if classify:
-        modelc = load_classifier(name='resnet101', n=2)
-        state_dict = torch.load(
-            '/Users/diegosepulveda/.cache/torch/hub/checkpoints/resnet101-63fe2227.pth', map_location=device)
-        state_dict = {k: v for k, v in state_dict.items()
-                      if not k.startswith('fc.')}
-        # use strict=False to ignore layers that don't match
-        modelc.load_state_dict(state_dict, strict=False)
-        modelc = modelc.to(device).eval()
-
     # Set Dataloader
     vid_path, vid_writer = None, None
-    if webcam:
-        view_img = check_imshow()
-        cudnn.benchmark = True  # set True to speed up constant image size inference
-        dataset = LoadStreams(source, img_size=imgsz, stride=stride)
-    else:
-        dataset = LoadImages(source, img_size=imgsz, stride=stride)
+
+    dataset = LoadImages(source, img_size=imgsz, stride=stride)
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -196,18 +172,10 @@ def detect(save_img=False):
             pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
-        # Apply Classifier
-        if classify:
-            pred = apply_classifier(pred, modelc, img, im0s)
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
-            if webcam:  # batch_size >= 1
-                p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(
-                ), dataset.count
-            else:
-                p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
-
+            p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + \
@@ -320,32 +288,20 @@ def detect(save_img=False):
 
             # Save results (image with detections)
             if save_img:
-                if dataset.mode == 'image':
-                    cv2.imwrite(save_path, im0)
-                    print(
-                        f" The image with the result is saved in: {save_path}")
-                else:  # 'video' or 'stream'
-                    if vid_path != save_path:  # new video
-                        vid_path = save_path
-                        if isinstance(vid_writer, cv2.VideoWriter):
-                            vid_writer.release()  # release previous video writer
-                        if vid_cap:  # video
-                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        else:  # stream
-                            fps, w, h = 30, im0.shape[1], im0.shape[0]
-                            save_path += '.mp4'
-                        vid_writer = cv2.VideoWriter(
-                            save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                    vid_writer.write(im0)
-
-    # dataCSVAnalisis = pd.DataFrame(dataCSVAnalisis)
-    # dataCSVAnalisis.to_csv(f"{path.split('/')[-1]}_result_{total_width}_{total_height}_{total_frames}.csv", index=False)
-
-    if save_txt or save_img or save_with_object_id:
-        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        # print(f"Results saved to {save_dir}{s}")
+                if vid_path != save_path:  # new video
+                    vid_path = save_path
+                    if isinstance(vid_writer, cv2.VideoWriter):
+                        vid_writer.release()  # release previous video writer
+                    if vid_cap:  # video
+                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                        w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    else:  # stream
+                        fps, w, h = 30, im0.shape[1], im0.shape[0]
+                        save_path += '.mp4'
+                    vid_writer = cv2.VideoWriter(
+                        save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+                vid_writer.write(im0)
 
     print(f'Done. ({time.time() - t0:.3f}s)')
     print([f"{t:.2f}" for t in time_for_each_100_frames])
@@ -354,7 +310,7 @@ def detect(save_img=False):
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        self.source = '/home/diego/Documents/Footage/conce_semi_largo.mp4'
+        self.source = '/home/diego/Documents/Footage/conce_3_min.mp4'
         # self.source = 'retail.mp4'
         self.img_size = 640
         self.conf_thres = 0.25
