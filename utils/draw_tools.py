@@ -74,7 +74,7 @@ def save_image_based_on_sub_frame(num_frame, img,boxes, frame_step=10,directory_
             except Exception as e:
                 print(f"Error encountered: {e}")
 
-def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),frame=None):
+def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
     """
     Filters detections based on whether the midpoint of the bottom edge of their bounding box
     is inside a specified polygon.
@@ -104,11 +104,11 @@ def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[
         if is_point_inside_polygon(midpoint, polygon):
             filtered_detections.append(det)
 
-    if frame is not None:
-        polygon_pts = polygon_pts.reshape((-1, 1, 2))
-        cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=5)
-
     return np.array(filtered_detections)
+
+def draw_polygon_interested_area(frame, polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
+    polygon_pts = polygon_pts.reshape((-1, 1, 2))
+    cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=5)
 
 
 def calculate_centroid(tlwh):

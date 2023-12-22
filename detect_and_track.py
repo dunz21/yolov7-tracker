@@ -28,9 +28,9 @@ import pandas as pd
 from datetime import datetime
 import time
 from ultralytics import NAS
-from utils.draw_tools import filter_detections_inside_polygon
-# A Dictionary to keep data of tracking (MINI DASH)
-data_deque = {}
+from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
+from utils.PersonImageComparer import PersonImageComparer
+from utils.PersonImage import PersonImage
 
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe'):
@@ -42,11 +42,6 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subfram
     save_path = os.path.join(id_directory, image_name)
     cv2.imwrite(save_path, sub_frame)
     return image_name
-
-
-# ............................... Bounding Boxes Drawing ............................
-"""Function to Draw Bounding boxes"""
-
 
 def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0)):
     for i, box in enumerate(bbox):
@@ -61,10 +56,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         y2 += offset[1]
         cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
-        if id not in set(data_deque):
-            data_deque[id] = deque(maxlen=30000)
 
-        data = (int((box[0]+box[2])/2), (int((box[1]+box[3])/2)))
         label = str(id) + ":" + names[cat]
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
@@ -159,29 +151,25 @@ def detect(save_img=False):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
-        pred = filter_detections_inside_polygon(detections=pred[0].cpu().detach().numpy(),frame=im0s)
+        draw_polygon_interested_area(frame=im0s)
+        polygons = draw_boxes_entrance_exit(image=im0s)
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
             if len(det):
-                # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                det = filter_detections_inside_polygon(detections=det.cpu().detach().numpy())
 
-                # Print results
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    # add to string
-                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "
-
+            if len(det):
                 # ..................USE TRACK FUNCTION....................
                 # pass an empty array to sort
                 dets_to_sort = np.empty((0, 6))
 
                 # NOTE: We send in detected object class too
-                detections = det.cpu().detach().numpy()
-                for x1, y1, x2, y2, conf, detclass in detections:
+                # detections = det.cpu().detach().numpy()
+                for x1, y1, x2, y2, conf, detclass in det:
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
 
@@ -206,24 +194,19 @@ def detect(save_img=False):
                         sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
                     identities = tracked_dets[:, 8]
                     categories = tracked_dets[:, 4]
-                    draw_boxes(im0, bbox_xyxy, identities, categories,names, save_with_object_id)
+                    draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names)
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
-
-            # ........................................................
-            # Print time (inference + NMS)
-            if frame % 100 == 0:
-                time_for_each_100_frames.append((time.time() - time_100_frames))
-                time_100_frames = time.time()
-
             
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
             # Stream results
             if view_img:
                 cv2.imshow(str(p), im0)
-                # cv2.waitKey(0)
-                if cv2.waitKey(1) == ord('q'):  # q to quit
+                key = cv2.waitKey(0)
+                if key == 27: # If 'ESC' is pressed, break the loop
+                    raise StopIteration
+                if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
                     cv2.destroyAllWindows()
                     raise StopIteration
 
@@ -257,7 +240,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = False
+        self.view_img = True
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
