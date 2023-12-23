@@ -91,6 +91,7 @@ class PersonImage:
                 else:
                     return 'In'
         return None
+    
     def detect_pattern_change(cls,index_list):
         # Initialize variables to track the last value and the position of change
         last_value = None
@@ -121,7 +122,6 @@ class PersonImage:
             if cls.is_point_in_polygon(centroid, polygon):
                 inside_any_polygon = True
         return inside_any_polygon
-
     
     def find_polygons_for_centroids(cls,polygons_list):
         if len(cls.history_deque) < 2:
