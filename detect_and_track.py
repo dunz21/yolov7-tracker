@@ -33,12 +33,12 @@ from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
 
 
-def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe'):
+def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None):
     current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M')
     id_directory = os.path.join(f"{name}", str(id))
     if not os.path.exists(id_directory):
         os.makedirs(id_directory)
-    image_name = f"img_{id}_{num_frame}.png"
+    image_name = f"img_{id}_{num_frame}_{direction}.png"
     save_path = os.path.join(id_directory, image_name)
     cv2.imwrite(save_path, sub_frame)
     return image_name
@@ -150,9 +150,21 @@ def detect(save_img=False):
         # Apply NMS
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
-
+        original_image = im0s.copy()
         draw_polygon_interested_area(frame=im0s)
-        polygons = draw_boxes_entrance_exit(image=im0s)
+        polygons_in_out = draw_boxes_entrance_exit(image=im0s)
+
+        trackers = sort_tracker.getTrackers()
+        if len(trackers) > 0:
+            text = ''
+            for tracker in trackers:
+                person_obj = PersonImage.get_instance(tracker.id + 1)
+                if person_obj is not None and len(tracker.history) > 10 and len(person_obj.list_images) > 0:
+                     print(f"ID: {tracker.id + 1} History: {len(tracker.history)} Images: {len(person_obj.list_images)}")
+                     for person_img in person_obj.list_images:
+                         save_image_based_on_sub_frame(num_frame=getattr(dataset, 'frame', 0),sub_frame=person_img, id=tracker.id + 1,direction=person_obj.direction)
+            #     text += f"ID: {tracker.id + 1} bbox: {len(tracker.bbox_history)} history: {len(tracker.history)} "
+            # print(text)
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
@@ -179,11 +191,24 @@ def detect(save_img=False):
 
                 # loop over tracks
                 for track in tracks:
-                    if frame % 10 == 0:
-                        x1, y1, x2, y2 = track.bbox_history[0][:4]
-                        sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
+                    x1, y1, x2, y2 = track.bbox_history[-1][:4]
+                    sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
+                    if len(sub_frame) != 0:
+                        pass
+                    new_person = PersonImage(id=track.id+1,history_deque=[his[:4] for his in track.bbox_history])
+                    result = new_person.find_polygons_for_centroids(polygons_in_out)
+                    inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
+                    direction_and_position = new_person.detect_pattern_change(result)
+                    if direction_and_position is not None and inside_any_polygon:
                         if len(sub_frame) != 0:
-                            pass
+                            direction = direction_and_position[0]
+                            position = direction_and_position[1]
+                            if position % 2 == 0:
+                                print(f"Add Image to ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
+                                new_person.direction = 'In' if direction == '10' else 'Out'
+                                new_person.list_images.append(sub_frame.copy())
+                    # print(f"ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
+                    
                             # save_image_based_on_sub_frame(frame,sub_frame,track.id)
 
                 # draw boxes for visualization
@@ -198,7 +223,7 @@ def detect(save_img=False):
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
             
-            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            # print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
             # Stream results
             if view_img:
@@ -234,7 +259,8 @@ def detect(save_img=False):
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        self.source = '/home/diego/Documents/Footage/conce_3_min.mp4'
+        # self.source = '/home/diego/Documents/Footage/conce_3_min.mp4'
+        self.source = '/home/diego/Documents/detectron2/mini_conce2.mp4'
         # self.source = 'retail.mp4'
         self.img_size = 640
         self.conf_thres = 0.25

@@ -4,11 +4,10 @@ import cv2
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
 
-    def __new__(cls, id, list_images, direction, history_deque =[],polygons=[]):
+    def __new__(cls, id=0, list_images=[], history_deque =[],polygons=[]):
         # Check if an instance with the given id already exists
         if id in cls._instances:
             cls._instances[id].list_images.extend(list_images)
-            cls._instances[id].direction = direction
             cls._instances[id].history_deque = history_deque
             return cls._instances[id]
         else:
@@ -17,7 +16,7 @@ class PersonImage:
             cls._instances[id] = instance
             return instance
 
-    def __init__(self, id, list_images, direction, history_deque=[],polygons=[]):
+    def __init__(self, id, list_images=[], direction=None, history_deque=[],polygons=[]):
         # Initialize only if the instance is new
         if not hasattr(self, '_initialized'):
             self.id = id
@@ -92,100 +91,72 @@ class PersonImage:
                 else:
                     return 'In'
         return None
+    def detect_pattern_change(cls,index_list):
+        # Initialize variables to track the last value and the position of change
+        last_value = None
+        change_position = -1
+        if index_list is None:
+            return None
 
+        for i, index in enumerate(index_list):
+            if last_value is not None and index != last_value:
+                # Detect the change
+                change_type = f"{last_value}{index}"
+                change_position = i - 1
+                break
+            last_value = index
 
+        # If no change was detected
+        if change_position == -1:
+            return None
+
+        # Calculate the positions forward from the change
+        positions_forward = len(index_list) - change_position - 1
+        return change_type, positions_forward
+
+    def is_bbox_in_polygon(cls,bbox,polygons_list):
+        centroid = cls.calculate_centroid_tlbr(bbox)
+        inside_any_polygon = False
+        for polygon in polygons_list:
+            if cls.is_point_in_polygon(centroid, polygon):
+                inside_any_polygon = True
+        return inside_any_polygon
+
+    
     def find_polygons_for_centroids(cls,polygons_list):
         if len(cls.history_deque) < 2:
             return None
         if cls.polygons.__len__() == 0:
             cls.polygons = polygons_list
-            cls.is_in_polygon = [False for _ in range(len(cls.polygons))]
+            # cls.is_in_polygon = [False for _ in range(len(cls.polygons))]
             
         # centroids = [cls.calculate_centroid(bbox) for bbox in reversed(cls.history_deque)]
-        centroids = [cls.calculate_centroid_tlbr(bbox) for bbox in reversed(cls.history_deque)]
+        centroids = [cls.calculate_centroid_tlbr(bbox) for bbox in cls.history_deque]
         cls.polygon_indices = []
         
-        exit = False
+        # exit = False
         for centroid_index , centroid in enumerate(centroids):
-            in_any_polygon = False
+            # in_any_polygon = False
             for i, polygon in enumerate(cls.polygons):
                 if cls.is_point_in_polygon(centroid, polygon): #Entra el primer punto al poligono
-                    cls.is_in_polygon[i] = True # Alguna vez ya pase por este poligono
+                    # cls.is_in_polygon[i] = True # Alguna vez ya pase por este poligono
                     cls.polygon_indices.append(i)
-                    in_any_polygon = True # En esta iteracion por lo menos pase
+                    # in_any_polygon = True # En esta iteracion por lo menos pase
 
             
-            if all(value == False for value in cls.is_in_polygon) and centroid_index == 0:
+            # if all(value == False for value in cls.is_in_polygon) and centroid_index == 0:
                 # Esto quiere decir que el primer centroid no ha tocado ningun poligono, por ende los de atras tampoco
-                return None 
-            if all(cls.is_in_polygon) and in_any_polygon == False and centroid_index == 0:
-                exit = True
+                # return None 
+            # if all(cls.is_in_polygon) and in_any_polygon == False and centroid_index == 0:
+                # exit = True
             
+        return cls.polygon_indices
+        # return {
+        #     'exit': exit,
+        #     'polygon_indices': cls.polygon_indices,
+        #     'direction': cls.calculate_direction(cls.polygon_indices),
+        #     'between_polygons': cls.between_polygons(cls.polygon_indices), # La idea es para sacar fotos justo cuando este en una transicion. Revisar que funcione
+        # }
 
-        return {
-            'exit': exit,
-            'polygon_indices': cls.polygon_indices,
-            'direction': cls.calculate_direction(cls.polygon_indices),
-            'between_polygons': cls.between_polygons(cls.polygon_indices), # La idea es para sacar fotos justo cuando este en una transicion. Revisar que funcione
-        }
-
-
-    # def find_polygons_for_centroids(cls,polygons_list):
-    #     if len(cls.history_deque) < 2:
-    #         return None
-    #     if cls.polygons.__len__() == 0:
-    #         cls.polygons = polygons_list
-    #         cls.is_in_polygon = [False for _ in range(len(cls.polygons))]
-            
-    #     centroids = [cls.calculate_centroid(bbox) for bbox in reversed(cls.history_deque)]
-    #     cls.polygon_indices = []
-        
-    #     for centroid_index , centroid in enumerate(centroids):
-    #         in_any_polygon = False
-    #         exit = False
-    #         for i, polygon in enumerate(cls.polygons):
-    #             if cls.is_point_in_polygon(centroid, polygon): #Entra el primer punto al poligono
-    #                 cls.polygon_indices.append(i)
-    #                 cls.is_in_polygon[i] = True
-    #                 in_any_polygon = True
-    #                 print(cls.is_in_polygon)
-    #             elif all(cls.is_in_polygon): #Si pasaron por todos los poligonos y este punto ya no esta 
-    #                 pass
-    #                 # exit = True
-    #                 # return {
-    #                 #     'exit': True,
-    #                 #     'polygon_indices': cls.polygon_indices,
-    #                 #     'direction': cls.calculate_direction(cls.polygon_indices),
-    #                 #     'between_polygons': cls.between_polygons(cls.polygon_indices), # La idea es para sacar fotos justo cuando este en una transicion. Revisar que funcione
-    #                 # }
-    #             elif any(cls.is_in_polygon): #Si ya pasaron por algun poligono y este punto no esta en ninguno
-    #                 continue
-    #             elif all(value == False for value in cls.is_in_polygon):
-    #                 # Significa que el primer centroid no ha tocado ningun poligono
-    #                 return None
-            
-    #         if all(cls.is_in_polygon) and in_any_polygon == False and centroid_index == 0:
-    #             exit = True
-
-    #     return {
-    #         'exit': exit,
-    #         'polygon_indices': cls.polygon_indices,
-    #         'direction': cls.calculate_direction(cls.polygon_indices),
-    #         'between_polygons': cls.between_polygons(cls.polygon_indices), # La idea es para sacar fotos justo cuando este en una transicion. Revisar que funcione
-    #     }
-                    
-
-        # Esta funcion yo creo que la voy a sacar por que la logica es mirar la mitad
-        # Y casi nunca es el caso....
-        # Tiene que mirar la transicion y por ej de 0 a 1 y despues mirar otros frames mas y listo
-        # if cls.between_polygons(cls.polygon_indices):
-        # #     cls.has_been_between_polygons = True
-
-        # if not found_in_polygon:
-        #     return None
-        
-        # direction = cls.calculate_direction(cls.polygon_indices)
-        # if direction is not None:
-        #     cls.direction = direction
 
         
