@@ -33,12 +33,16 @@ from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
 
 
-def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None):
-    current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M')
+def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
+    x1,y1,x2,y2,score = bbox
+    x1 = int(x1)
+    y1 = int(y1)
+    x2 = int(x2)
+    y2 = int(y2)
     id_directory = os.path.join(f"{name}", str(id))
     if not os.path.exists(id_directory):
         os.makedirs(id_directory)
-    image_name = f"img_{id}_{num_frame}_{direction}.png"
+    image_name = f"img_{id}_{num_frame}_{direction}_{x1}_{y1}_{x2}_{y2}_{score:.2f}.png"
     save_path = os.path.join(id_directory, image_name)
     cv2.imwrite(save_path, sub_frame)
     return image_name
@@ -156,15 +160,13 @@ def detect(save_img=False):
 
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
-            text = ''
             for tracker in trackers:
                 person_obj = PersonImage.get_instance(tracker.id + 1)
-                if person_obj is not None and len(tracker.history) > 10 and len(person_obj.list_images) > 0:
+                if person_obj is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
                      print(f"ID: {tracker.id + 1} History: {len(tracker.history)} Images: {len(person_obj.list_images)}")
-                     for person_img in person_obj.list_images:
-                         save_image_based_on_sub_frame(num_frame=getattr(dataset, 'frame', 0),sub_frame=person_img, id=tracker.id + 1,direction=person_obj.direction)
-            #     text += f"ID: {tracker.id + 1} bbox: {len(tracker.bbox_history)} history: {len(tracker.history)} "
-            # print(text)
+                     for img_obj in person_obj.list_images:
+                        save_image_based_on_sub_frame(num_frame=img_obj['actual_frame'],sub_frame=img_obj['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=img_obj['bbox'])
+
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
@@ -195,7 +197,7 @@ def detect(save_img=False):
                     sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
                     if len(sub_frame) != 0:
                         pass
-                    new_person = PersonImage(id=track.id+1,history_deque=[his[:4] for his in track.bbox_history])
+                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=[his[:4] for his in track.bbox_history])
                     result = new_person.find_polygons_for_centroids(polygons_in_out)
                     inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     direction_and_position = new_person.detect_pattern_change(result)
@@ -204,9 +206,14 @@ def detect(save_img=False):
                             direction = direction_and_position[0]
                             position = direction_and_position[1]
                             if position % 2 == 0:
-                                print(f"Add Image to ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
+                                print(f"Add Image to ID: {track.id + 1} {x1} {y1} {x2} {y2} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
                                 new_person.direction = 'In' if direction == '10' else 'Out'
-                                new_person.list_images.append(sub_frame.copy())
+                                
+                                new_person.list_images.append({
+                                    'img': sub_frame,
+                                    'actual_frame': frame,
+                                    'bbox': track.bbox_history[-1][:5]
+                                })
                     # print(f"ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
                     
                             # save_image_based_on_sub_frame(frame,sub_frame,track.id)
@@ -228,9 +235,9 @@ def detect(save_img=False):
             # Stream results
             if view_img:
                 cv2.imshow(str(p), im0)
-                key = cv2.waitKey(0)
-                if key == 27: # If 'ESC' is pressed, break the loop
-                    raise StopIteration
+                # key = cv2.waitKey(0)
+                # if key == 27: # If 'ESC' is pressed, break the loop
+                #     raise StopIteration
                 if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
                     cv2.destroyAllWindows()
                     raise StopIteration
