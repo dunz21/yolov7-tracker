@@ -31,6 +31,29 @@ from ultralytics import NAS
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
+from tools.pipeline import getFinalScore
+
+
+DATA = [
+    {
+        'name' : "conce",
+        'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
+        'description' : "Video de Conce",
+        'folder_img' : "imgs_conce",
+        'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
+        'polygons_out' : np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32),
+        'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
+    },
+    {
+        'name' : "santos_dumont",
+        'source' : "/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4",
+        'description' : "Video de Santos Dumont",
+        'folder_img' : "imgs_santos_dumont",
+        'polygons_in' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
+        'polygons_out' : np.array([[918,498],[1112,522],[1114,570],[865,527]], np.int32),
+        'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+    }
+]
 
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
@@ -71,7 +94,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
     return img
 
 
-def detect(save_img=False):
+def detect(save_img=False,video_data=None):
     source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
 
@@ -107,7 +130,7 @@ def detect(save_img=False):
     # Set Dataloader
     vid_path, vid_writer = None, None
 
-    dataset = LoadImages(source, img_size=imgsz, stride=stride)
+    dataset = LoadImages(video_data['source'], img_size=imgsz, stride=stride)
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -155,17 +178,17 @@ def detect(save_img=False):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
         original_image = im0s.copy()
-        draw_polygon_interested_area(frame=im0s)
-        polygons_in_out = draw_boxes_entrance_exit(image=im0s)
+        draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
+        polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
             for tracker in trackers:
                 person_obj = PersonImage.get_instance(tracker.id + 1)
                 if person_obj is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
-                     print(f"ID: {tracker.id + 1} History: {len(tracker.history)} Images: {len(person_obj.list_images)}")
+                    #  print(f"ID: {tracker.id + 1} History: {len(tracker.history)} Images: {len(person_obj.list_images)}")
                      for img_obj in person_obj.list_images:
-                        save_image_based_on_sub_frame(num_frame=img_obj['actual_frame'],sub_frame=img_obj['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=img_obj['bbox'])
+                        save_image_based_on_sub_frame(num_frame=img_obj['actual_frame'],name=video_data['folder_img'],sub_frame=img_obj['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=img_obj['bbox'])
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -174,7 +197,7 @@ def detect(save_img=False):
             save_path = str(save_dir / p.name)  # img.jpg
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-                det = filter_detections_inside_polygon(detections=det.cpu().detach().numpy())
+                det = filter_detections_inside_polygon(detections=det.cpu().detach().numpy(),polygon_pts=video_data['polygon_area'])
 
             if len(det):
                 # ..................USE TRACK FUNCTION....................
@@ -206,7 +229,7 @@ def detect(save_img=False):
                             direction = direction_and_position[0]
                             position = direction_and_position[1]
                             if position % 2 == 0:
-                                print(f"Add Image to ID: {track.id + 1} {x1} {y1} {x2} {y2} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
+                                # print(f"Add Image to ID: {track.id + 1} {x1} {y1} {x2} {y2} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
                                 new_person.direction = 'In' if direction == '10' else 'Out'
                                 
                                 new_person.list_images.append({
@@ -230,7 +253,7 @@ def detect(save_img=False):
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
             
-            # print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
             # Stream results
             if view_img:
@@ -261,19 +284,20 @@ def detect(save_img=False):
 
     print(f'Done. ({time.time() - t0:.3f}s)')
     print([f"{t:.2f}" for t in time_for_each_100_frames])
+    
 
 
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        # self.source = '/home/diego/Documents/Footage/conce_3_min.mp4'
-        self.source = '/home/diego/Documents/detectron2/mini_conce2.mp4'
+        # self.source = '/home/diego/Documents/Footage/santos10_min.mp4'
+        self.source = '/home/diego/Documents/detectron2/mini_conce.mp4'
         # self.source = 'retail.mp4'
         self.img_size = 640
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = True
+        self.view_img = False
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -356,4 +380,24 @@ if __name__ == '__main__':
                 detect()
                 strip_optimizer(opt.weights)
         else:
-            detect()
+            # Me falta solo poder cambiar el source 
+            try:
+                video_data = DATA[0]
+                detect(video_data=video_data)
+                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
+                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+            except:
+                print("Error")
+            
+            try:
+                video_data = DATA[1]
+                detect(video_data=video_data)
+                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
+                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+            except:
+                print("Error")
+            
+            
+                
+                
+                

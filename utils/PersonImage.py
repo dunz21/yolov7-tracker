@@ -1,10 +1,18 @@
 import numpy as np
 import cv2
+import sys
 
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
+    _max_instances = 1000  # Max number of instances to store
 
     def __new__(cls, id=0, list_images=[], history_deque =[],polygons=[]):
+
+        if len(cls._instances) >= cls._max_instances:
+            # Remove the oldest instance
+            oldest_id = sorted(cls._instances.keys())[0]
+            del cls._instances[oldest_id]
+            
         # Check if an instance with the given id already exists
         if id in cls._instances:
             cls._instances[id].list_images.extend(list_images)
@@ -28,6 +36,13 @@ class PersonImage:
             self.list_features = []
             self.ready = False
             self._initialized = True  # Mark as initialized
+
+    @classmethod
+    def get_memory_usage(cls):
+        total_size = 0
+        for instance in cls._instances.values():
+            total_size += sys.getsizeof(instance)
+        return total_size
 
     # Optionally, a method to retrieve an instance by ID
     @classmethod
