@@ -15,19 +15,17 @@ COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0
             (102,205,170),( 60,179,113),( 46,139, 87),(165, 42, 42),(178, 34, 34),(175,238,238),(255,248,220),
             (218,165, 32),(255,250,240),(253,245,230),(244,164, 96),(210,105, 30)]
 
-def draw_boxes_entrance_exit(image):
+def draw_boxes_entrance_exit(image,polygon_in=np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),polygon_out=np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32)):
     # 0 -> 1 means exit
     # 1 -> 0 means entrance
     #Inside 
     RED = (0, 0, 255) #BGR
-    pts_entrance = np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32)
-    pts_entrance = pts_entrance.reshape((-1, 1, 2))
+    pts_entrance = polygon_in.reshape((-1, 1, 2))
     cv2.polylines(image, [pts_entrance], isClosed=True, color=RED, thickness=5)
 
     #Outside
     BLUE = (255,0,0) #BGR
-    pts_exit = np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32)
-    pts_exit = pts_exit.reshape((-1, 1, 2))
+    pts_exit = polygon_out.reshape((-1, 1, 2))
     cv2.polylines(image, [pts_exit], isClosed=True, color=BLUE, thickness=5)
     return [pts_entrance,pts_exit]
 
