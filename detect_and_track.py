@@ -150,6 +150,7 @@ def detect(save_img=False,video_data=None):
     total_frames = 0
     time_for_each_100_frames = []
     time_100_frames = 0
+    PersonImage.clear_instances()
     for path, img, im0s, vid_cap, frame in dataset:
         if width == 0:
             total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -380,22 +381,21 @@ if __name__ == '__main__':
                 detect()
                 strip_optimizer(opt.weights)
         else:
-            # Me falta solo poder cambiar el source 
-            try:
+            # try:
                 video_data = DATA[0]
-                detect(video_data=video_data)
+            #     detect(video_data=video_data)
                 getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
-            except:
-                print("Error")
+            #     # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+            # except:
+            #     print("Error")
             
-            try:
-                video_data = DATA[1]
-                detect(video_data=video_data)
-                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
-            except:
-                print("Error")
+            # try:
+            #     video_data = DATA[1]
+            #     detect(video_data=video_data)
+            #     getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
+            #     getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+            # except:
+            #     print("Error")
             
             
                 
