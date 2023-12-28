@@ -36,6 +36,12 @@ class PersonImage:
             self.list_features = []
             self.ready = False
             self._initialized = True  # Mark as initialized
+    @classmethod
+    def clear_instances(cls):
+        """
+        Clears all stored instances from the _instances dictionary.
+        """
+        cls._instances.clear()
 
     @classmethod
     def get_memory_usage(cls):
