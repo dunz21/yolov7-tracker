@@ -52,9 +52,33 @@ DATA = [
         'polygons_in' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
         'polygons_out' : np.array([[918,498],[1112,522],[1114,570],[865,527]], np.int32),
         'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+    },
+    {
+        'name' : "santos_dumont_split",
+        'source' : "/home/diego/Documents/Footage/SantosSplit/",
+        'description' : "Video de Santos Dumont",
+        'folder_img' : "imgs_santos_split",
+        'polygons_in' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
+        'polygons_out' : np.array([[918,498],[1112,522],[1114,570],[865,527]], np.int32),
+        'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
     }
 ]
 
+
+# video 2/2 (128983/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (11.5ms) Inference, (8.4ms) NMS
+# video 2/2 (128984/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (1845.0ms) Inference, (686.0ms) NMS
+# video 2/2 (128985/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (4874.0ms) Inference, (357.7ms) NMS
+# video 2/2 (128986/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (299.7ms) Inference, (517.9ms) NMS
+# video 2/2 (128987/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (6143.1ms) Inference, (1360.9ms) NMS
+# video 2/2 (128988/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: WARNING: NMS time limit 10.0s exceeded
+
+
+# video 2/2 (270001/81127/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2462.7ms) Inference, (1944.5ms) NMS
+# video 2/2 (270001/81128/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2767.9ms) Inference, (1705.8ms) NMS
+# video 2/2 (270001/81129/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (4192.9ms) Inference, (2356.1ms) NMS
+# video 2/2 (270001/81130/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2916.7ms) Inference, (756.7ms) NMS
+# video 2/2 (270001/81131/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (3216.7ms) Inference, (7292.5ms) NMS
+# Killed
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox
@@ -106,6 +130,7 @@ def detect(save_img=False,video_data=None):
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
     # .........................
+    PersonImage.clear_instances()
 
     # Directories
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
@@ -150,7 +175,6 @@ def detect(save_img=False,video_data=None):
     total_frames = 0
     time_for_each_100_frames = []
     time_100_frames = 0
-    PersonImage.clear_instances()
     for path, img, im0s, vid_cap, frame in dataset:
         if width == 0:
             total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -235,7 +259,7 @@ def detect(save_img=False,video_data=None):
                                 
                                 new_person.list_images.append({
                                     'img': sub_frame,
-                                    'actual_frame': frame,
+                                    'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
                                     'bbox': track.bbox_history[-1][:5]
                                 })
                     # print(f"ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
@@ -382,10 +406,10 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[0]
-            #     detect(video_data=video_data)
+                video_data = DATA[1]
+                detect(video_data=video_data)
                 getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-            #     # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
             # except:
             #     print("Error")
             

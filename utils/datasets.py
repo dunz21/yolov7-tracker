@@ -147,6 +147,7 @@ class LoadImages:  # for inference
         self.nf = ni + nv  # number of files
         self.video_flag = [False] * ni + [True] * nv
         self.mode = 'image'
+        self.total_frame_videos = 0
         if any(videos):
             self.new_video(videos[0])  # new video
         else:
@@ -169,6 +170,8 @@ class LoadImages:  # for inference
             ret_val, img0 = self.cap.read()
             if not ret_val:
                 self.count += 1
+                 # Update total_frame_videos when a video ends
+                self.total_frame_videos += self.frame
                 self.cap.release()
                 if self.count == self.nf:  # last video
                     raise StopIteration
@@ -178,7 +181,7 @@ class LoadImages:  # for inference
                     ret_val, img0 = self.cap.read()
 
             self.frame += 1
-            print(f'video {self.count + 1}/{self.nf} ({self.frame}/{self.nframes}) {path}: ', end='')
+            print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
 
         else:
             # Read image
