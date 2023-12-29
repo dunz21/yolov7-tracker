@@ -47,4 +47,4 @@ def keep_two_random_images(main_folder, number_images=2):
                 print(f"Skipped subfolder with less than or equal to {number_images} images: {folder_name}")
 
 # Example usage
-keep_two_random_images("imgs_conce")
+keep_two_random_images("imgs_santos_dumont_split_2")
