@@ -243,7 +243,7 @@ class LoadWebcam:  # for inference
             while True:
                 n += 1
                 self.cap.grab()
-                if n % 30 == 0:  # skip frames
+                if n % 1 == 0:  # skip frames
                     ret_val, img0 = self.cap.retrieve()
                     if ret_val:
                         break
@@ -260,7 +260,7 @@ class LoadWebcam:  # for inference
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        return img_path, img, img0, None
+        return img_path, img, img0, None, self.count
 
     def __len__(self):
         return 0

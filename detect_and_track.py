@@ -10,7 +10,7 @@ import torch.backends.cudnn as cudnn
 from collections import Counter
 from collections import deque
 from models.experimental import attempt_load
-from utils.datasets import LoadStreams, LoadImages
+from utils.datasets import LoadStreams, LoadImages, LoadWebcam
 from utils.general import check_img_size, check_requirements, \
     check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, \
@@ -31,7 +31,7 @@ from ultralytics import NAS
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
-from tools.pipeline import getFinalScore
+from tools.pipeline import getFinalScore,export_images_in_out_to_html
 
 
 DATA = [
@@ -55,30 +55,24 @@ DATA = [
     },
     {
         'name' : "santos_dumont_split",
-        'source' : "/home/diego/Documents/Footage/SantosSplit/",
+        'source' : "/home/diego/Documents/Footage/TEST_FRAMES/",
         'description' : "Video de Santos Dumont",
         'folder_img' : "imgs_santos_split",
         'polygons_in' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
         'polygons_out' : np.array([[918,498],[1112,522],[1114,570],[865,527]], np.int32),
         'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+    },
+    {
+        'name' : "webcam",
+        'source' : "rtsp://admin:OTWBMF@201.215.37.171:554/H.264",
+        'description' : "Test IP",
+        'folder_img' : "imgs_webcam",
+        'polygons_in' : np.array([[591,515],[610,557],[735,515],[736,480],[707,488]], np.int32),
+        'polygons_out' : np.array([[590,489],[701,464],[735,477],[591,511]], np.int32),
+        'polygon_area' : np.array([[493,407],[569,700],[937,561],[826,316]], np.int32),
     }
 ]
 
-
-# video 2/2 (128983/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (11.5ms) Inference, (8.4ms) NMS
-# video 2/2 (128984/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (1845.0ms) Inference, (686.0ms) NMS
-# video 2/2 (128985/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (4874.0ms) Inference, (357.7ms) NMS
-# video 2/2 (128986/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (299.7ms) Inference, (517.9ms) NMS
-# video 2/2 (128987/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (6143.1ms) Inference, (1360.9ms) NMS
-# video 2/2 (128988/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: WARNING: NMS time limit 10.0s exceeded
-
-
-# video 2/2 (270001/81127/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2462.7ms) Inference, (1944.5ms) NMS
-# video 2/2 (270001/81128/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2767.9ms) Inference, (1705.8ms) NMS
-# video 2/2 (270001/81129/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (4192.9ms) Inference, (2356.1ms) NMS
-# video 2/2 (270001/81130/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (2916.7ms) Inference, (756.7ms) NMS
-# video 2/2 (270001/81131/261652) /home/diego/Documents/Footage/SantosSplit/Santos_II.mp4: Done. (3216.7ms) Inference, (7292.5ms) NMS
-# Killed
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox
@@ -132,6 +126,7 @@ def detect(save_img=False,video_data=None):
     # .........................
     PersonImage.clear_instances()
 
+    opt.name = video_data['folder_img']
     # Directories
     save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
@@ -155,7 +150,10 @@ def detect(save_img=False,video_data=None):
     # Set Dataloader
     vid_path, vid_writer = None, None
 
-    dataset = LoadImages(video_data['source'], img_size=imgsz, stride=stride)
+    if 'rtsp' in video_data['source']:
+        dataset = LoadWebcam(pipe=video_data['source'])
+    else: 
+        dataset = LoadImages(video_data['source'], img_size=imgsz, stride=stride)
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -176,10 +174,10 @@ def detect(save_img=False,video_data=None):
     time_for_each_100_frames = []
     time_100_frames = 0
     for path, img, im0s, vid_cap, frame in dataset:
-        if width == 0:
-            total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # if width == 0:
+        #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        #     total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        #     total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -203,8 +201,8 @@ def detect(save_img=False,video_data=None):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
         original_image = im0s.copy()
-        draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
-        polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
+        # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
+        polygons_in_out = draw_boxes_entrance_exit(image=None,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
@@ -223,6 +221,7 @@ def detect(save_img=False,video_data=None):
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 det = filter_detections_inside_polygon(detections=det.cpu().detach().numpy(),polygon_pts=video_data['polygon_area'])
+                # det = det.cpu().detach().numpy()
 
             if len(det):
                 # ..................USE TRACK FUNCTION....................
@@ -406,18 +405,21 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[1]
+                video_data = DATA[3]
                 detect(video_data=video_data)
-                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-                getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
+                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+                # export_images_in_out_to_html(f"{video_data['name']}_distance_kmeans.csv",f"{video_data['name']}_solider_in-out.csv",video_data['folder_img'],f"{video_data['name']}_all_images.html")
+
             # except:
             #     print("Error")
             
             # try:
-            #     video_data = DATA[1]
+                video_data = DATA[1]
             #     detect(video_data=video_data)
-            #     getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-            #     getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
+                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
+                # export_images_in_out_to_html(f"{video_data['name']}_distance_kmeans.csv",f"{video_data['name']}_solider_in-out.csv",video_data['folder_img'],f"{video_data['name']}_all_images.html")
             # except:
             #     print("Error")
             
