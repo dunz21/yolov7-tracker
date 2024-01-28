@@ -7,3 +7,5 @@ yolov7objtracking2
 *.pt
 images_subframe*
 imgs*
+*.html
+*.csv

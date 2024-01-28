@@ -32,7 +32,8 @@ from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_inter
 from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
 from tools.pipeline import getFinalScore,export_images_in_out_to_html
-
+import csv
+from math import sqrt
 
 DATA = [
     {
@@ -70,9 +71,37 @@ DATA = [
         'polygons_in' : np.array([[591,515],[610,557],[735,515],[736,480],[707,488]], np.int32),
         'polygons_out' : np.array([[590,489],[701,464],[735,477],[591,511]], np.int32),
         'polygon_area' : np.array([[493,407],[569,700],[937,561],[826,316]], np.int32),
-    }
+    },
+    {
+        'name' : "conce_test",
+        'source' : "/home/diego/Documents/Footage/conce_better_img.mp4",
+        'description' : "Video de Conce",
+        'folder_img' : "imgs_conce_test",
+        'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
+        'polygons_out' : np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32),
+        'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
+    },
 ]
 
+
+def save_csv_bbox(personImage, filename):
+    # Check if the file exists
+    file_exists = os.path.isfile(filename)
+
+    # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
+    with open(filename, 'a' if file_exists else 'w', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write header if the file is being created for the first time
+        if not file_exists:
+            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_bottom_x', 'centroid_bottom_y'])
+
+        # Append data
+        for bbox in personImage.history_deque:
+            x1, y1, x2, y2 = bbox
+            centroid_bottom_x = (x1 + x2) // 2
+            centroid_bottom_y = y2
+            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y)])
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox
@@ -88,7 +117,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subfram
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0)):
+def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0),overlap_info=None):
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = box
         x1 = int(x1)
@@ -102,7 +131,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
 
-        label = str(id) + ":" + names[cat]
+        label = str(id) + ":" + names[cat] + ":" + str(f"{overlap_info[id]:.2f}")
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
@@ -111,6 +140,58 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
 
     return img
 
+
+def calculate_overlap(rect1, rect2):
+    # Extract coordinates
+    x1_1, y1_1, x2_1, y2_1 = rect1
+    x1_2, y1_2, x2_2, y2_2 = rect2
+
+    # Calculate intersection area
+    x_left = max(x1_1, x1_2)
+    y_top = max(y1_1, y1_2)
+    x_right = min(x2_1, x2_2)
+    y_bottom = min(y2_1, y2_2)
+
+    # Check if there is an intersection
+    if x_right < x_left or y_bottom < y_top:
+        return 0  # No overlap
+
+    intersection_area = (x_right - x_left) * (y_bottom - y_top)
+
+    # Calculate the area of both rectangles
+    area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
+    area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+
+    # Calculate union area
+    union_area = area1 + area2 - intersection_area
+
+    # Calculate the overlap percentage
+    overlap = intersection_area / union_area
+
+    return overlap
+
+def distance_to_center_of_interested(point, bbox):
+    """
+    Calculate the distance between a point and a bounding box (bbox).
+
+    :param point: A tuple representing the point (x, y).
+    :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
+    :return: The distance between the point and the nearest edge or corner of the bbox.
+    """
+    px, py = point
+    x1, y1, x2, y2 = bbox
+
+    # Check if the point is inside the bbox
+    if x1 <= px <= x2 and y1 <= py <= y2:
+        return 0
+
+    # Points are outside the bbox, find the nearest edge or corner
+    nearest_x = max(x1, min(px, x2))
+    nearest_y = max(y1, min(py, y2))
+
+    # Calculate Euclidean distance from the point to the nearest edge or corner
+    distance = sqrt((nearest_x - px) ** 2 + (nearest_y - py) ** 2)
+    return distance
 
 def detect(save_img=False,video_data=None):
     source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
@@ -170,9 +251,7 @@ def detect(save_img=False,video_data=None):
 
     width = 0
     height = 0
-    total_frames = 0
     time_for_each_100_frames = []
-    time_100_frames = 0
     for path, img, im0s, vid_cap, frame in dataset:
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -201,17 +280,27 @@ def detect(save_img=False,video_data=None):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
         original_image = im0s.copy()
-        # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
-        polygons_in_out = draw_boxes_entrance_exit(image=None,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
+        draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
+        polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
+
+        #Puedo tener trackers y ninguna deteccion. Ya que pueden ser del pasado
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
             for tracker in trackers:
+                if tracker.history.__len__() == sort_max_age:
+                    PersonImage.delete_instance(tracker.id + 1)
+                    continue
                 person_obj = PersonImage.get_instance(tracker.id + 1)
-                if person_obj is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
-                    #  print(f"ID: {tracker.id + 1} History: {len(tracker.history)} Images: {len(person_obj.list_images)}")
-                     for img_obj in person_obj.list_images:
+                if person_obj is not None and person_obj.direction is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
+                    # Falta ordenar por las que es mas cerca de mi punto de comparacion y que tb tenga la bbox mas grande!!
+                    for img_obj in sorted(person_obj.list_images, key=lambda x: (x['overlap'], x['distance_to_center']))[:2]:
                         save_image_based_on_sub_frame(num_frame=img_obj['actual_frame'],name=video_data['folder_img'],sub_frame=img_obj['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=img_obj['bbox'])
+                        if person_obj.ready == False:
+                            save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
+                            person_obj.ready = True
+                            PersonImage.delete_instance(person_obj.id)
+
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -244,10 +333,28 @@ def detect(save_img=False,video_data=None):
                     sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
                     if len(sub_frame) != 0:
                         pass
+                    if track.history.__len__() == sort_max_age:
+                        PersonImage.delete_instance(track.id + 1)
+                        continue
                     new_person = PersonImage(id=track.id+1,list_images=[],history_deque=[his[:4] for his in track.bbox_history])
                     result = new_person.find_polygons_for_centroids(polygons_in_out)
                     inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     direction_and_position = new_person.detect_pattern_change(result)
+                    center_of_interested = np.mean(polygons_in_out[0][:2],axis=0).squeeze()
+                    distance_to_center = distance_to_center_of_interested(center_of_interested,track.bbox_history[-1][:4])
+                    total_overlap_tracker = 0
+                    for other_track in tracks:
+                        if track.id != other_track.id:
+                            total_overlap_tracker += calculate_overlap(track.bbox_history[-1][:4], other_track.bbox_history[-1][:4])
+                    new_person.list_images.append({
+                        'img': sub_frame,
+                        'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
+                        'bbox': track.bbox_history[-1][:5],
+                        'overlap' : total_overlap_tracker,
+                        'distance_to_center' : distance_to_center
+                    })
+
+
                     if direction_and_position is not None and inside_any_polygon:
                         if len(sub_frame) != 0:
                             direction = direction_and_position[0]
@@ -259,53 +366,56 @@ def detect(save_img=False,video_data=None):
                                 new_person.list_images.append({
                                     'img': sub_frame,
                                     'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
-                                    'bbox': track.bbox_history[-1][:5]
+                                    'bbox': track.bbox_history[-1][:5],
+                                    'overlap' : total_overlap_tracker,
+                                    'distance_to_center' : distance_to_center
                                 })
-                    # print(f"ID: {track.id + 1} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
-                    
-                            # save_image_based_on_sub_frame(frame,sub_frame,track.id)
-
-                # draw boxes for visualization
-                if len(tracked_dets) > 0:
-                    bbox_xyxy = tracked_dets[:, :4]
-                    for i, person in enumerate(tracked_dets):
-                        x1, y1, x2, y2 = person[:4]
-                        sub_frame = im0[int(y1):int(y2), int(x1):int(x2)]
-                    identities = tracked_dets[:, 8]
-                    categories = tracked_dets[:, 4]
-                    draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names)
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
+
+        # draw boxes for visualization
+        if len(tracked_dets) > 0:
+            bbox_xyxy = tracked_dets[:, :4]
+            identities = tracked_dets[:, 8]
+            categories = tracked_dets[:, 4]
+
+            overlap_dict = {}
+            for actual_track in tracked_dets:
+                overlap_dict[actual_track[8]] = 0
+                for other_track in tracked_dets:
+                    if actual_track[8] != other_track[8]:
+                        overlap_dict[actual_track[8]] += calculate_overlap(actual_track[:4], other_track[:4])
+
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,overlap_info=overlap_dict)
             
-            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+        print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
-            # Stream results
-            if view_img:
-                cv2.imshow(str(p), im0)
-                # key = cv2.waitKey(0)
-                # if key == 27: # If 'ESC' is pressed, break the loop
-                #     raise StopIteration
-                if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
-                    cv2.destroyAllWindows()
-                    raise StopIteration
+        # Stream results
+        if view_img:
+            cv2.imshow(str(p), im0)
+            # key = cv2.waitKey(0)
+            # if key == 27: # If 'ESC' is pressed, break the loop
+            #     raise StopIteration
+            if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
+                cv2.destroyAllWindows()
+                raise StopIteration
 
-            # Save results (image with detections)
-            if save_img:
-                if vid_path != save_path:  # new video
-                    vid_path = save_path
-                    if isinstance(vid_writer, cv2.VideoWriter):
-                        vid_writer.release()  # release previous video writer
-                    if vid_cap:  # video
-                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                        w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    else:  # stream
-                        fps, w, h = 30, im0.shape[1], im0.shape[0]
-                        save_path += '.mp4'
-                    vid_writer = cv2.VideoWriter(
-                        save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                vid_writer.write(im0)
-
+        # Save results (image with detections)
+        if save_img:
+            if vid_path != save_path:  # new video
+                vid_path = save_path
+                if isinstance(vid_writer, cv2.VideoWriter):
+                    vid_writer.release()  # release previous video writer
+                if vid_cap:  # video
+                    fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                else:  # stream
+                    fps, w, h = 30, im0.shape[1], im0.shape[0]
+                    save_path += '.mp4'
+                vid_writer = cv2.VideoWriter(
+                    save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+            vid_writer.write(im0)
     print(f'Done. ({time.time() - t0:.3f}s)')
     print([f"{t:.2f}" for t in time_for_each_100_frames])
     
@@ -405,7 +515,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[3]
+                video_data = DATA[0]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

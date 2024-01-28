@@ -22,13 +22,13 @@ def draw_boxes_entrance_exit(image=None,polygon_in=np.array([[265, 866],[583, 63
     RED = (0, 0, 255) #BGR
     pts_entrance = polygon_in.reshape((-1, 1, 2))
     if image is not None:
-        cv2.polylines(image, [pts_entrance], isClosed=True, color=RED, thickness=5)
+        cv2.polylines(image, [pts_entrance], isClosed=True, color=RED, thickness=2)
 
     #Outside
     BLUE = (255,0,0) #BGR
     pts_exit = polygon_out.reshape((-1, 1, 2))
     if image is not None:
-        cv2.polylines(image, [pts_exit], isClosed=True, color=BLUE, thickness=5)
+        cv2.polylines(image, [pts_exit], isClosed=True, color=BLUE, thickness=2)
     return [pts_entrance,pts_exit]
 
 def draw_bboxes(img, bbox, offset=(0,0), num_frame=0, color=(255,0,0)):
@@ -108,7 +108,7 @@ def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[
 
 def draw_polygon_interested_area(frame, polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
     polygon_pts = polygon_pts.reshape((-1, 1, 2))
-    cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=5)
+    cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=1)
 
 
 def calculate_centroid(tlwh):
