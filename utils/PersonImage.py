@@ -44,6 +44,14 @@ class PersonImage:
         cls._instances.clear()
 
     @classmethod
+    def delete_instance(cls, id):
+        """
+        Deletes an instance with the specified id from the _instances dictionary.
+        """
+        if id in cls._instances:
+            del cls._instances[id]
+
+    @classmethod
     def get_memory_usage(cls):
         total_size = 0
         for instance in cls._instances.values():
