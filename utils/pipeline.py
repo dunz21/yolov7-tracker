@@ -18,7 +18,7 @@ from sklearn.cluster import KMeans
 # For clustering and evaluation
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import base64
-from tools.solider import in_out_status,seconds_to_time,solider_result,custom_threshold_analysis
+from utils.solider import in_out_status,seconds_to_time,solider_result,custom_threshold_analysis
 from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import cosine as cosine_distance
 

@@ -63,7 +63,7 @@ class PersonImage:
         if new_overlap < best_overlap or (new_overlap == best_overlap and new_distance < best_distance):
             self.list_images.insert(0, new_image)  # Prepend the new image
             # Optionally, trim the list to keep only the best image
-            self.list_images = self.list_images[:1]
+            # self.list_images = self.list_images[:1]
     
     @classmethod
     def clear_instances(cls):
