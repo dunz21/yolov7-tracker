@@ -352,13 +352,13 @@ class TracedModel(nn.Module):
         self.model = model
 
         self.model = revert_sync_batchnorm(self.model)
-        self.model.to('cpu')
+        self.model.to(device)
         self.model.eval()
 
         self.detect_layer = self.model.model[-1]
         self.model.traced = True
         
-        rand_example = torch.rand(1, 3, img_size, img_size)
+        rand_example = torch.rand(1, 3, img_size, img_size).to(device)
         
         traced_script_module = torch.jit.trace(self.model, rand_example, strict=False)
         #traced_script_module = torch.jit.script(self.model)

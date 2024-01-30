@@ -34,7 +34,7 @@ from utils.PersonImage import PersonImage
 from tools.pipeline import getFinalScore,export_images_in_out_to_html
 import csv
 from math import sqrt
-
+from memory_profiler import profile
 DATA = [
     {
         'name' : "conce",
@@ -74,7 +74,7 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_better_img.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_30_min.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_test",
         'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -82,7 +82,6 @@ DATA = [
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
 ]
-
 
 def save_csv_bbox(personImage, filename):
     # Check if the file exists
@@ -131,7 +130,9 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
 
-        label = str(id) + ":" + names[cat] + ":" + str(f"{overlap_info[id]:.2f}")
+        label = str(id) + ":" + names[cat]
+        if overlap_info is not None:
+            label += str(f"{overlap_info[id]:.2f}")
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
@@ -139,7 +140,6 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
 
     return img
-
 
 def calculate_overlap(rect1, rect2):
     # Extract coordinates
@@ -294,12 +294,13 @@ def detect(save_img=False,video_data=None):
                 person_obj = PersonImage.get_instance(tracker.id + 1)
                 if person_obj is not None and person_obj.direction is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
                     # Falta ordenar por las que es mas cerca de mi punto de comparacion y que tb tenga la bbox mas grande!!
-                    for img_obj in sorted(person_obj.list_images, key=lambda x: (x['overlap'], x['distance_to_center']))[:2]:
-                        save_image_based_on_sub_frame(num_frame=img_obj['actual_frame'],name=video_data['folder_img'],sub_frame=img_obj['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=img_obj['bbox'])
-                        if person_obj.ready == False:
-                            save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
-                            person_obj.ready = True
-                            PersonImage.delete_instance(person_obj.id)
+                    # for img_obj in sorted(person_obj.list_images, key=lambda x: (x['overlap'], x['distance_to_center']))[:2]:
+                    # Ahora guardo solo una imagen
+                    save_image_based_on_sub_frame(num_frame=person_obj.list_images[0]['actual_frame'],name=video_data['folder_img'],sub_frame=person_obj.list_images[0]['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=person_obj.list_images[0]['bbox'])
+                    if person_obj.ready == False:
+                        save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
+                        person_obj.ready = True
+                        PersonImage.delete_instance(person_obj.id)
 
 
         # Process detections
@@ -346,7 +347,8 @@ def detect(save_img=False,video_data=None):
                     for other_track in tracks:
                         if track.id != other_track.id:
                             total_overlap_tracker += calculate_overlap(track.bbox_history[-1][:4], other_track.bbox_history[-1][:4])
-                    new_person.list_images.append({
+
+                    new_person.append_sorted_image({
                         'img': sub_frame,
                         'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
                         'bbox': track.bbox_history[-1][:5],
@@ -363,13 +365,13 @@ def detect(save_img=False,video_data=None):
                                 # print(f"Add Image to ID: {track.id + 1} {x1} {y1} {x2} {y2} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
                                 new_person.direction = 'In' if direction == '10' else 'Out'
                                 
-                                new_person.list_images.append({
-                                    'img': sub_frame,
-                                    'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
-                                    'bbox': track.bbox_history[-1][:5],
-                                    'overlap' : total_overlap_tracker,
-                                    'distance_to_center' : distance_to_center
-                                })
+                                # new_person.list_images.append({
+                                #     'img': sub_frame,
+                                #     'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
+                                #     'bbox': track.bbox_history[-1][:5],
+                                #     'overlap' : total_overlap_tracker,
+                                #     'distance_to_center' : distance_to_center
+                                # })
             else:  # SORT should be updated even with no detections
                 tracked_dets = sort_tracker.update()
 
