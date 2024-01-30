@@ -74,9 +74,9 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_30_min.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_better_img_3.mp4",
         'description' : "Video de Conce",
-        'folder_img' : "imgs_conce_test",
+        'folder_img' : "imgs_conce_debug",
         'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
         'polygons_out' : np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
@@ -116,7 +116,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subfram
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0),overlap_info=None):
+def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0),extra_info=None):
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = box
         x1 = int(x1)
@@ -131,8 +131,9 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         id = int(identities[i]) if identities is not None else 0
 
         label = str(id) + ":" + names[cat]
-        if overlap_info is not None:
-            label += str(f"{overlap_info[id]:.2f}")
+        if extra_info is not None:
+            label += str(f"o:{extra_info[id]['overlap']:.2f}")
+            label += str(f"d:{extra_info[id]['distance']:.2f}")
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
@@ -170,31 +171,27 @@ def calculate_overlap(rect1, rect2):
 
     return overlap
 
-def distance_to_center_of_interested(point, bbox):
+def distance_to_bbox_centroid(point, bbox):
     """
-    Calculate the distance between a point and a bounding box (bbox).
+    Calculate the distance between a point and the center of the bottom edge of a bounding box (bbox).
 
     :param point: A tuple representing the point (x, y).
     :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
-    :return: The distance between the point and the nearest edge or corner of the bbox.
+    :return: The Euclidean distance between the point and the center of the bottom edge of the bbox.
     """
     px, py = point
     x1, y1, x2, y2 = bbox
 
-    # Check if the point is inside the bbox
-    if x1 <= px <= x2 and y1 <= py <= y2:
-        return 0
+    # Calculate the center of the bottom edge of the bbox
+    bottom_center_x = (x1 + x2) / 2
+    bottom_center_y = y2
 
-    # Points are outside the bbox, find the nearest edge or corner
-    nearest_x = max(x1, min(px, x2))
-    nearest_y = max(y1, min(py, y2))
-
-    # Calculate Euclidean distance from the point to the nearest edge or corner
-    distance = sqrt((nearest_x - px) ** 2 + (nearest_y - py) ** 2)
+    # Calculate Euclidean distance from the point to the bottom center
+    distance = sqrt((bottom_center_x - px) ** 2 + (bottom_center_y - py) ** 2)
     return distance
 
 def detect(save_img=False,video_data=None):
-    source, weights, view_img, save_txt, imgsz, trace, colored_trk, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.colored_trk, opt.save_bbox_dim, opt.save_with_object_id
+    source, weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
 
     # .... Initialize SORT ....
@@ -282,6 +279,7 @@ def detect(save_img=False,video_data=None):
         original_image = im0s.copy()
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
+        center_of_interested = np.mean(polygons_in_out[0][:2],axis=0).squeeze()
 
 
         #Puedo tener trackers y ninguna deteccion. Ya que pueden ser del pasado
@@ -341,8 +339,7 @@ def detect(save_img=False,video_data=None):
                     result = new_person.find_polygons_for_centroids(polygons_in_out)
                     inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     direction_and_position = new_person.detect_pattern_change(result)
-                    center_of_interested = np.mean(polygons_in_out[0][:2],axis=0).squeeze()
-                    distance_to_center = distance_to_center_of_interested(center_of_interested,track.bbox_history[-1][:4])
+                    distance_to_center = distance_to_bbox_centroid(center_of_interested,track.bbox_history[-1][:4])
                     total_overlap_tracker = 0
                     for other_track in tracks:
                         if track.id != other_track.id:
@@ -381,23 +378,29 @@ def detect(save_img=False,video_data=None):
             identities = tracked_dets[:, 8]
             categories = tracked_dets[:, 4]
 
-            overlap_dict = {}
+            extra_info = {}
             for actual_track in tracked_dets:
-                overlap_dict[actual_track[8]] = 0
+                track_id = actual_track[8]
+                if track_id not in extra_info:
+                    extra_info[track_id] = {'overlap': 0}
+                if 'distance' not in extra_info[track_id]:
+                    extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
                 for other_track in tracked_dets:
                     if actual_track[8] != other_track[8]:
-                        overlap_dict[actual_track[8]] += calculate_overlap(actual_track[:4], other_track[:4])
+                        extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
 
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,overlap_info=overlap_dict)
+
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=extra_info)
             
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
         # Stream results
         if view_img:
             cv2.imshow(str(p), im0)
-            # key = cv2.waitKey(0)
-            # if key == 27: # If 'ESC' is pressed, break the loop
-            #     raise StopIteration
+            if wait_for_key:
+                key = cv2.waitKey(0)
+                if key == 27: # If 'ESC' is pressed, break the loop
+                    raise StopIteration
             if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
                 cv2.destroyAllWindows()
                 raise StopIteration
@@ -433,7 +436,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = False
+        self.view_img = True
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -445,7 +448,7 @@ class Options:
         self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
-        self.colored_trk = False
+        self.wait_for_key = False
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
