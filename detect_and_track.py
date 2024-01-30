@@ -31,7 +31,7 @@ from ultralytics import NAS
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
-from tools.pipeline import getFinalScore,export_images_in_out_to_html
+from utils.pipeline import getFinalScore,export_images_in_out_to_html
 import csv
 from math import sqrt
 from memory_profiler import profile
