@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 
-SOLIDER_MODEL_PATH = '/home/diego/Documents/detectron2/solider_model.pth'
+
 
 def plot_mds(features_array="", image_names=[],simpleLegend=True, title="", figsize=(12,10), scaler=False):
     if len(features_array) == 0:
@@ -66,16 +66,19 @@ def plot_mds(features_array="", image_names=[],simpleLegend=True, title="", figs
     plt.legend(handles=sorted_handles, labels=sorted_labels)
     plt.show()
 
-def preprocess_image(img_path, heigth,width):
+def preprocess_images(img_paths, height, width):
+    """
+    Process a list of image paths to a batch of images ready for model inference.
+    """
     transform = transforms.Compose([
-        transforms.Resize((heigth, width)),
+        transforms.Resize((height, width)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        # transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    image = Image.open(img_path).convert('RGB')
-    image = transform(image)
-    return image
+    
+    images = [transform(Image.open(img_path).convert('RGB')) for img_path in img_paths]
+    return torch.stack(images)  # Stack images into a single tensor
 
 def extract_images_from_subfolders(folder_paths):
     # If the input is a string (single folder path), convert it into a list
@@ -92,27 +95,25 @@ def extract_images_from_subfolders(folder_paths):
             all_images.extend(images)
     return all_images
 
-def solider_result(folder_path=""):
-    loaded_model = torch.load(SOLIDER_MODEL_PATH)
-    loaded_model.eval()  # Set the model to evaluation mode
-    images = extract_images_from_subfolders(folder_path)
-    # Extract image names from paths
-    image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images]
-    
-
-    image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images]
+def solider_result(folder_path="", soldier_weight=''):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    loaded_model.to(device)
-    # Extract features
-    total_batch = [torch.stack([preprocess_image(img,384,128)], dim=0) for img in images]
+    loaded_model = torch.load(soldier_weight)
+    loaded_model.eval().to(device)
+
+    images = extract_images_from_subfolders(folder_path)
+    image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images]
+
+    # Process images to tensor
+    images_tensor = preprocess_images(images, 384, 128).to(device)
+    
     with torch.no_grad():
-        features_list, _ = loaded_model(torch.cat(total_batch,dim=0).to(device))
+        features_list, _ = loaded_model(images_tensor)
     
     features_array = features_list.cpu().numpy()
     return features_array, image_names
 
-def img_to_feature(images_path=[]):
-    loaded_model = torch.load(SOLIDER_MODEL_PATH)
+def img_to_feature(images_path=[],solider_weight=''):
+    loaded_model = torch.load(solider_weight)
     loaded_model.eval()  # Set the model to evaluation mode
     # Extract image names from paths
 
