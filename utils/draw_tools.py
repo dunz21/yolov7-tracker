@@ -20,12 +20,14 @@ def draw_boxes_entrance_exit(image=None,polygon_in=np.array([[265, 866],[583, 63
     # 1 -> 0 means entrance
     #Inside 
     RED = (0, 0, 255) #BGR
+    RED = (84,27,227) #BGR
     pts_entrance = polygon_in.reshape((-1, 1, 2))
     if image is not None:
         cv2.polylines(image, [pts_entrance], isClosed=True, color=RED, thickness=2)
 
     #Outside
     BLUE = (255,0,0) #BGR
+    BLUE = (116,186,79) #BGR
     pts_exit = polygon_out.reshape((-1, 1, 2))
     if image is not None:
         cv2.polylines(image, [pts_exit], isClosed=True, color=BLUE, thickness=2)

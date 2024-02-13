@@ -41,8 +41,8 @@ DATA = [
         'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce",
-        'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
-        'polygons_out' : np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32),
+        'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
+        'polygons_out' : np.array([[202, 794],[508, 608],[583, 637],[263, 865]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
     {
@@ -74,11 +74,11 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_better_img_3.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_demo.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug",
-        'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
-        'polygons_out' : np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32),
+        'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
+        'polygons_out' : np.array([[202, 794],[508, 608],[583, 637],[263, 865]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
 ]
@@ -277,7 +277,7 @@ def detect(save_img=False,video_data=None):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
         original_image = im0s.copy()
-        draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
+        # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
         center_of_interested = np.mean(polygons_in_out[0][:2],axis=0).squeeze()
 
@@ -390,7 +390,7 @@ def detect(save_img=False,video_data=None):
                         extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
 
 
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=extra_info)
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=None)
             
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
@@ -436,7 +436,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = True
+        self.view_img = False
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -520,7 +520,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[0]
+                video_data = DATA[4]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
