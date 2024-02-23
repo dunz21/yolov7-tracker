@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import zip_longest
-
+import torch
 
 import pandas as pd
 import numpy as np
@@ -18,11 +18,12 @@ from sklearn.cluster import KMeans
 # For clustering and evaluation
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import base64
-from utils.solider import in_out_status,seconds_to_time,solider_result,custom_threshold_analysis
+from utils.solider import in_out_status,seconds_to_time,model_selection,custom_threshold_analysis
 from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import cosine as cosine_distance
 import time
 from scipy.spatial.distance import cdist
+import torch.nn.functional as F
 
 # NO ES IMPORTANTE
 def evaluate_clustering(features, image_names, num_clusters=2):
@@ -106,8 +107,6 @@ def _parseDataSolider(dataframe_solider):
         dataframe_solider.loc[dataframe_solider['ID'] == id, 'Direction'] = new_direction
     return dataframe_solider
 
-
-
 # 0.- Get Folders
 def get_folders(parent_folder, limit=None):
     # List all entries in the parent folder
@@ -125,7 +124,7 @@ def get_folders(parent_folder, limit=None):
         return subfolder_paths[:limit]
     return subfolder_paths
 
-# 1.- Analisis pureza 
+ # 1.- Analisis pureza 
 def folder_analysis(folders):
     result = {
     'In': [],
@@ -157,7 +156,7 @@ def folder_analysis(folders):
     return total_folders,total_in,total_out,total_in_out,result
 
 # 2.- Generate Feature Solider and save to csv
-def save_folders_to_solider_csv(list_folders_in_out, name_csv,solider_weight=''):
+def save_folders_to_solider_csv(list_folders_in_out, name_csv,weights='',model=''):
     full_path = []
     for folder in list_folders_in_out:
         entries = os.listdir(folder)
@@ -170,7 +169,7 @@ def save_folders_to_solider_csv(list_folders_in_out, name_csv,solider_weight='')
     all_data = []
 
     for chunk in chunks:
-        features_array, image_names = solider_result(chunk,solider_weight)
+        features_array, image_names = model_selection(name=model,folder_path=chunk,weights=weights)
         
         # Process each image and its features
         for image_name, features in zip(image_names, features_array):
@@ -192,9 +191,12 @@ def save_folders_to_solider_csv(list_folders_in_out, name_csv,solider_weight='')
     return df
 
 # 2.- Get Feature Solider
-def get_feature_img_csv(start_row=0, end_row=900, csv_file='solider_result.csv'):
-    chunksize = end_row - start_row
-    df = pd.read_csv(csv_file, skiprows=range(1, start_row + 1), nrows=chunksize)
+def get_feature_img_csv(start_row=0, end_row=900, csv_file='features.csv'):
+    # chunksize = end_row - start_row
+    # df = pd.read_csv(csv_file, skiprows=range(1, start_row + 1), nrows=chunksize)
+    # df = _parseDataSolider(df)
+    
+    df = pd.read_csv(csv_file)
     df = _parseDataSolider(df)
     return df
 
@@ -224,22 +226,79 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
     # Convert distance matrix to DataFrame for easier handling
     unique_ids_in = features[features['Direction'] == 'In']['ID'].unique()
     unique_ids_out = features[features['Direction'] == 'Out']['ID'].unique()
-    silhouette_avg = pd.DataFrame(dist_matrix, index=unique_ids_in, columns=unique_ids_out)
+    # distance_matrix = pd.DataFrame(dist_matrix, index=unique_ids_in, columns=unique_ids_out)
+
+    # Create a matrix of zeros with the same shape as `dist_matrix`
+    adjusted_matrix = np.zeros_like(dist_matrix)
+    # Fill in the adjusted matrix with dist_matrix values where row index <= column index
+    for i, row_id in enumerate(unique_ids_in):
+        for j, col_id in enumerate(unique_ids_out):
+            if row_id <= col_id:
+                # If the row index is NOT greater than the column index, copy the value
+                adjusted_matrix[i, j] = dist_matrix[i, j]
+    # Convert the adjusted matrix back to a DataFrame
+    distance_matrix = pd.DataFrame(adjusted_matrix, index=unique_ids_in, columns=unique_ids_out)
+    distance_matrix.replace(0, np.nan, inplace=True)
+
+    ### SOFTMAX ###
+    # Convert the adjusted numpy matrix to a PyTorch tensor
+    tensor_matrix = torch.tensor(adjusted_matrix, dtype=torch.float32)
+
+    #TEST
+
+    # Approach 1: Adjusting the scale (e.g., temperature scaling) with inverted distances for emphasizing the right match
+    temperature = 0.1  # Adjust this parameter to scale the distances
+    # Invert the distances to make them act like similarities
+    inverted_distances = 1 - tensor_matrix
+    # Apply temperature scaling to the inverted distances
+    scaled_similarities = inverted_distances / temperature
+    # Apply softmax to get a probability distribution across columns
+    softmax_prob_distribution_scaled = F.softmax(scaled_similarities, dim=0)
+
+    # Approach 2: Direct conversion of distances to similarities before applying softmax without additional scaling
+    cosine_similarities = 1 - tensor_matrix  # Convert distances to similarities
+    # Apply softmax directly to these similarities
+    softmax_prob_distribution = F.softmax(cosine_similarities, dim=0)
+
+    # Convert softmax outputs to numpy arrays for DataFrame conversion
+    softmax_prob_distribution_scaled_np = softmax_prob_distribution_scaled.numpy()
+    softmax_prob_distribution_np = softmax_prob_distribution.numpy()
+
+    # Assuming `unique_ids_in` and `unique_ids_out` are your row and column identifiers
+    # Save the scaled softmax probabilities to a CSV
+    distance_softmax_scaled = pd.DataFrame(softmax_prob_distribution_scaled_np, index=unique_ids_in, columns=unique_ids_out)
+    distance_softmax_scaled.to_csv('softmax_prob_distribution_scaled.csv')
+
+    # Save the direct softmax probabilities to a CSV
+    distance_softmax = pd.DataFrame(softmax_prob_distribution_np, index=unique_ids_in, columns=unique_ids_out)
+    distance_softmax.to_csv('softmax_prob_distribution.csv')
+    #TEST
+
+
+    # Apply softmax on the column dimension
+    softmax_matrix = F.softmax(tensor_matrix, dim=0)
+
+    # Convert the softmax tensor back to a numpy array (if needed)
+    softmax_matrix_np = softmax_matrix.numpy()
+
+    # Alternatively, directly convert to a DataFrame
+    distance_softmax = pd.DataFrame(softmax_matrix_np, index=unique_ids_in, columns=unique_ids_out)
+    distance_softmax.to_csv('softmax.csv')
 
     # Optionally save to CSV
     if csv_file_path is not None:
-        silhouette_avg.to_csv(csv_file_path)
+        distance_matrix.to_csv(csv_file_path)
 
     # Optionally plot
     if plot:
         plt.figure(figsize=(20, 16))
-        sns.heatmap(silhouette_avg, annot=True, cmap='coolwarm')
+        sns.heatmap(distance_matrix, annot=True, cmap='coolwarm')
         plt.title(f'{distance.capitalize()} Distance between In and Out IDs')
         plt.xlabel('Out IDs')
         plt.ylabel('In IDs')
         plt.show()
 
-    return silhouette_avg
+    return distance_matrix,distance_softmax
 
 # 4.- Get Match
 def get_match_pair(distance_data, row_or_col='row'):
@@ -301,6 +360,58 @@ def get_match_pair(distance_data, row_or_col='row'):
                 distance_data_output = distance_data_output.drop(col, axis=1)
     return pair_row_col,distance_data_output
 
+# 4.5- Get Match
+def create_sorted_matrix(df, k, base_path):
+    # A list to store the results
+    result_list = []
+    
+    # Iterate over each column (person out)
+    for col in df.columns:  # Skipping the first column as it's the row identifier
+        # Sort the column to get k smallest distances and their corresponding row indices (ignoring zeros)
+        row = []
+        sorted_indices = df[df[col] > 0][col].nsmallest(k).index.tolist()
+        sorted_distances = df.loc[sorted_indices, col].tolist()
+        
+        # Add the image path and id for the column itself
+        image_out = os.path.join(base_path,str(col),os.listdir(os.path.join(base_path,str(col)))[0])
+        row.append({'img': f'{image_out}', 'id': col})
+        
+        # Add the sorted distances and their corresponding row indices
+        for i in range(min(k,len(sorted_distances))):
+            image_in = os.path.join(base_path,str(sorted_indices[i]),os.listdir(os.path.join(base_path,str(sorted_indices[i])))[0])
+            time_diff = int((int(image_out.split('/')[-1].split('_')[2]) - int(image_in.split('/')[-1].split('_')[2])) / 15)
+            if time_diff < 0:
+                time_diff = seconds_to_time(0)
+            else:
+                time_diff = seconds_to_time(time_diff)
+            obj_img = {'img': f'{image_in}', 'id': sorted_indices[i], 'distance': f"{sorted_distances[i]:.2f}", 'time_diff': time_diff}
+            row.append(obj_img)
+        result_list.append(row)
+    
+    return result_list
+
+def export_ranking_html(result_list, filename='export.html'):
+    # Create a list of HTML strings for each row
+    html_rows = []
+    for row in result_list:
+        # Create a list of HTML strings for each cell in the row
+        html_cells = []
+        for cell in row:
+            # Create the HTML string for the cell
+            cell_html = f'<td><img height="200" width="125" src="{cell["img"]}"><br>ID: {cell["id"]}<br>Distance: {cell.get("distance", "N/A")} <br>Time: {cell.get("time_diff", "N/A")} </td>'
+            html_cells.append(cell_html)
+        
+        # Join the HTML strings for the cells
+        html_row = '<tr>' + ''.join(html_cells) + '</tr>'
+        html_rows.append(html_row)
+    
+    # Join the HTML strings for the rows
+    html_content = '<table>' + ''.join(html_rows) + '</table>'
+    
+    # Write the HTML content to a file
+    with open(filename, 'w') as file:
+        file.write(html_content)
+
 # 5.- Export to HTML
 def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folders, total_in, total_out, total_in_out, scoreOut,  filename='export.html',frame_rate=15):
     # Check if lists are of the same length
@@ -339,8 +450,6 @@ def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folde
 
     df['Start'] = df.apply(lambda row: seconds_to_time((int(row['ImageIn'].split('/')[-1].split('_')[2])// frame_rate)), axis=1)
     df['End'] = df.apply(lambda row: seconds_to_time((int(row['ImageOut'].split('/')[-1].split('_')[2])// frame_rate)), axis=1)
-    
-
 
     # Format images
     df['ImageIn'] = df['ImageIn'].apply(_image_formatter)
@@ -365,20 +474,22 @@ def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folde
         file.write(combined_html)
 
 # FINAL PIPLELINE
-def getFinalScore(folder_name,solider_weight='',solider_file='solider_results.csv',distance_file='', html_file='export.html',distance_method='euclidean',frame_rate=15):
+def getFinalScore(folder_name,weights='',model='',features_file='features.csv',distance_file='', html_file='export.html',distance_method='euclidean',frame_rate=15):
     list_folders = get_folders(folder_name)
 
     base_path = os.path.dirname(list_folders[0])
 
     total_folders,total_in,total_out,total_in_out,result = folder_analysis(list_folders)
-    # if os.path.exists(solider_file):
-    #     solider_df = get_feature_img_csv(csv_file=solider_file,start_row=0,end_row=4000)
-    # else:
+    if os.path.exists(features_file):
+        solider_df = get_feature_img_csv(csv_file=features_file,start_row=0,end_row=4000)
+    else:
+        list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
+        solider_df = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model)
+        
 
-    list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
-    solider_df = save_folders_to_solider_csv(list_folders_in_out,solider_file,solider_weight)
+    distance_data,softmax_data = generate_in_out_distance_plot_csv(solider_df, plot=False, csv_file_path=distance_file, distance=distance_method)
 
-    distance_data = generate_in_out_distance_plot_csv(solider_df, plot=False, csv_file_path=distance_file, distance=distance_method)
+    test = create_sorted_matrix(distance_data, 5, base_path)
 
     pair_result, distance_data_output = get_match_pair(distance_data=distance_data, row_or_col='col')
 
@@ -391,7 +502,7 @@ def getFinalScore(folder_name,solider_weight='',solider_file='solider_results.cs
 
     list_image_in = [os.path.join(base_path,str(row),os.listdir(os.path.join(base_path,str(row)))[0]) for row in pair_result['row']]
     list_image_out = [os.path.join(base_path,str(col),os.listdir(os.path.join(base_path,str(col)))[0]) for col in pair_result['col']]
-
+    # export_ranking_html(test, html_file)
     export_to_html(list_image_in=list_image_in, list_in=pair_result['row'],list_image_out=list_image_out, list_out=pair_result['col'], total_folders=total_folders, total_in=total_in,total_out=total_out,total_in_out=total_in_out, scoreOut=scoreOut,filename=html_file,frame_rate=frame_rate)
 
 

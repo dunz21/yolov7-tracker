@@ -10,8 +10,19 @@ from sklearn.manifold import MDS
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
+from torch import nn
+from torch.nn import functional as F
+import torchvision
+from models.ResNet import ResNet50
 
 
+def model_selection(name='', folder_path='', weights=''):
+    if 'solider' in name:
+        return solider_result(folder_path, weights)
+    elif 'alignReID' in name:
+        return alignReID(folder_path, weights)
+    raise KeyError("Unknown model: {}".format(name))
+    
 
 def plot_mds(features_array="", image_names=[],simpleLegend=True, title="", figsize=(12,10), scaler=False):
     if len(features_array) == 0:
@@ -95,9 +106,34 @@ def extract_images_from_subfolders(folder_paths):
             all_images.extend(images)
     return all_images
 
-def solider_result(folder_path="", soldier_weight=''):
+def alignReID(folder_path="", weight=''):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    loaded_model = torch.load(soldier_weight)
+    # Initialize the model architecture
+    model = ResNet50(num_classes=1768, aligned=True)
+    # Load the state dictionary
+    checkpoint = torch.load(weight, map_location=device)
+    state_dict = checkpoint['state_dict']
+    # If trained with DataParallel, which adds 'module.' prefix to all parameters. Remove this prefix
+    new_state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+    model.load_state_dict(new_state_dict)
+    model = model.to(device)
+    model.eval()  # Set model to evaluation mode
+    
+    images = extract_images_from_subfolders(folder_path)
+    image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images]
+    
+    # Assume preprocess_images is a function you've defined to transform images to tensor
+    images_tensor = preprocess_images(images, 384, 128).to(device)
+    
+    with torch.no_grad():
+        features_list, _ = model(images_tensor)
+    
+    features_array = features_list.cpu().numpy()
+    return features_array, image_names
+
+def solider_result(folder_path="", weight=''):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    loaded_model = torch.load(weight)
     loaded_model.eval().to(device)
 
     images = extract_images_from_subfolders(folder_path)
