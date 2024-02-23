@@ -1,7 +1,8 @@
 import numpy as np
 import cv2
 import sys
-
+from reid.utils import save_image_based_on_sub_frame,save_csv_bbox
+from reid.BoundingBox import BoundingBox
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -37,33 +38,44 @@ class PersonImage:
             self.ready = False
             self._initialized = True  # Mark as initialized
 
-    def append_sorted_image(self, new_image):
+
+    @classmethod
+    def save(cls, id):
         """
-        Append an image to the list in a sorted manner based on overlap and distance_to_center.
-        The list is maintained with the best image at the front.
-
-        :param list_images: The list of images to append to.
-        :param new_image: The new image data to append.
+            Save the instance with the specified id to a file.
         """
-        # If the list is empty, simply append the new image
-        if not self.list_images:
-            self.list_images.append(new_image)
-            return
+        instance = cls.get_instance(id)
+        save_image_based_on_sub_frame(instance.list_images[0]['frame_number'], instance.list_images[0]['img_frame'], instance.id, name='images_subframe', direction=instance.direction, bbox=instance.list_images[0]['bbox'])
+        save_csv_bbox(instance, 'bbox.csv')
+        cls.delete_instance(id)
 
-        # Extract overlap and distance_to_center from the new image
-        new_overlap = new_image['overlap']
-        new_distance = new_image['distance_to_center']
+    # def append_sorted_image(self, new_image:BoundingBox):
+    #     """
+    #     Append an image to the list in a sorted manner based on overlap and distance_to_center.
+    #     The list is maintained with the best image at the front.
 
-        # Extract overlap and distance_to_center from the current best image
-        best_image = self.list_images[0]
-        best_overlap = best_image['overlap']
-        best_distance = best_image['distance_to_center']
+    #     :param list_images: The list of images to append to.
+    #     :param new_image: The new image data to append.
+    #     """
+    #     # If the list is empty, simply append the new image
+    #     if not self.list_images:
+    #         self.list_images.append(new_image)
+    #         return
 
-        # Compare and decide whether to prepend the new image
-        if new_overlap < best_overlap or (new_overlap == best_overlap and new_distance < best_distance):
-            self.list_images.insert(0, new_image)  # Prepend the new image
-            # Optionally, trim the list to keep only the best image
-            # self.list_images = self.list_images[:1]
+    #     # Extract overlap and distance_to_center from the new image
+    #     new_overlap = new_image['overlap']
+    #     new_distance = new_image['distance_to_center']
+
+    #     # Extract overlap and distance_to_center from the current best image
+    #     best_image = self.list_images[0]
+    #     best_overlap = best_image['overlap']
+    #     best_distance = best_image['distance_to_center']
+
+    #     # Compare and decide whether to prepend the new image
+    #     if new_overlap < best_overlap or (new_overlap == best_overlap and new_distance < best_distance):
+    #         self.list_images.insert(0, new_image)  # Prepend the new image
+    #         # Optionally, trim the list to keep only the best image
+    #         # self.list_images = self.list_images[:1]
     
     @classmethod
     def clear_instances(cls):
@@ -182,6 +194,10 @@ class PersonImage:
         return inside_any_polygon
     
     def find_polygons_for_centroids(cls,polygons_list):
+        """
+        This function takes a list of polygons and a list of centroids and returns a list of indices
+        to later use it to detect if the person was first inside a polygon and then outside of it.
+        """
         if len(cls.history_deque) < 2:
             return None
         if cls.polygons.__len__() == 0:

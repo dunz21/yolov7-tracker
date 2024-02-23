@@ -21,20 +21,15 @@ from utils.torch_utils import select_device, load_classifier, \
 from utils.download_weights import download
 from intersect_ import *
 # For SORT tracking
-import skimage
 from sort import *
-import matplotlib.path as mpath
-import pandas as pd
-from datetime import datetime
 import time
-from ultralytics import NAS
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
-from utils.PersonImageComparer import PersonImageComparer
 from utils.PersonImage import PersonImage
-from utils.pipeline import getFinalScore,export_images_in_out_to_html
-import csv
+from reid.BoundingBox import BoundingBox
+
+
 from math import sqrt
-from memory_profiler import profile
+
 DATA = [
     {
         'name' : "conce",
@@ -82,39 +77,6 @@ DATA = [
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
 ]
-
-def save_csv_bbox(personImage, filename):
-    # Check if the file exists
-    file_exists = os.path.isfile(filename)
-
-    # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
-    with open(filename, 'a' if file_exists else 'w', newline='') as file:
-        writer = csv.writer(file)
-
-        # Write header if the file is being created for the first time
-        if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_bottom_x', 'centroid_bottom_y'])
-
-        # Append data
-        for bbox in personImage.history_deque:
-            x1, y1, x2, y2 = bbox
-            centroid_bottom_x = (x1 + x2) // 2
-            centroid_bottom_y = y2
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y)])
-
-def save_image_based_on_sub_frame(num_frame, sub_frame, id, name='images_subframe', direction=None, bbox=None):
-    x1,y1,x2,y2,score = bbox
-    x1 = int(x1)
-    y1 = int(y1)
-    x2 = int(x2)
-    y2 = int(y2)
-    id_directory = os.path.join(f"{name}", str(id))
-    if not os.path.exists(id_directory):
-        os.makedirs(id_directory)
-    image_name = f"img_{id}_{num_frame}_{direction}_{x1}_{y1}_{x2}_{y2}_{score:.2f}.png"
-    save_path = os.path.join(id_directory, image_name)
-    cv2.imwrite(save_path, sub_frame)
-    return image_name
 
 def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0),extra_info=None):
     for i, box in enumerate(bbox):
@@ -289,16 +251,19 @@ def detect(save_img=False,video_data=None):
                 if tracker.history.__len__() == sort_max_age:
                     PersonImage.delete_instance(tracker.id + 1)
                     continue
-                person_obj = PersonImage.get_instance(tracker.id + 1)
-                if person_obj is not None and person_obj.direction is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
+                if tracker.history.__len__() == 10:
+                    PersonImage.save(tracker.id + 1)
+                
+                # person_obj = PersonImage.get_instance(tracker.id + 1)
+                # if person_obj is not None and person_obj.direction is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
                     # Falta ordenar por las que es mas cerca de mi punto de comparacion y que tb tenga la bbox mas grande!!
                     # for img_obj in sorted(person_obj.list_images, key=lambda x: (x['overlap'], x['distance_to_center']))[:2]:
                     # Ahora guardo solo una imagen
-                    save_image_based_on_sub_frame(num_frame=person_obj.list_images[0]['actual_frame'],name=video_data['folder_img'],sub_frame=person_obj.list_images[0]['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=person_obj.list_images[0]['bbox'])
-                    if person_obj.ready == False:
-                        save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
-                        person_obj.ready = True
-                        PersonImage.delete_instance(person_obj.id)
+                    # save_image_based_on_sub_frame(num_frame=person_obj.list_images[0]['actual_frame'],name=video_data['folder_img'],sub_frame=person_obj.list_images[0]['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=person_obj.list_images[0]['bbox'])
+                    # if person_obj.ready == False:
+                    #     save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
+                    #     person_obj.ready = True
+                    #     PersonImage.delete_instance(person_obj.id)
 
 
         # Process detections
@@ -330,28 +295,31 @@ def detect(save_img=False,video_data=None):
                 for track in tracks:
                     x1, y1, x2, y2 = track.bbox_history[-1][:4]
                     sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
-                    if len(sub_frame) != 0:
-                        pass
-                    if track.history.__len__() == sort_max_age:
-                        PersonImage.delete_instance(track.id + 1)
-                        continue
-                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=[his[:4] for his in track.bbox_history])
+                    # if len(sub_frame) != 0:
+                    #     pass
+                    # if track.history.__len__() == sort_max_age:
+                    #     PersonImage.delete_instance(track.id + 1)
+                    #     continue
+                    only_bboxes = [box[:4] for box in track.bbox_history]
+                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
+
+
                     result = new_person.find_polygons_for_centroids(polygons_in_out)
-                    inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     direction_and_position = new_person.detect_pattern_change(result)
+
+                    inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     distance_to_center = distance_to_bbox_centroid(center_of_interested,track.bbox_history[-1][:4])
+
+
                     total_overlap_tracker = 0
                     for other_track in tracks:
                         if track.id != other_track.id:
                             total_overlap_tracker += calculate_overlap(track.bbox_history[-1][:4], other_track.bbox_history[-1][:4])
 
-                    new_person.append_sorted_image({
-                        'img': sub_frame,
-                        'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
-                        'bbox': track.bbox_history[-1][:5],
-                        'overlap' : total_overlap_tracker,
-                        'distance_to_center' : distance_to_center
-                    })
+
+                    bbox = BoundingBox(img_frame=sub_frame, frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,bbox=track.bbox_history[-1][:5],overlap=total_overlap_tracker,distance_to_center=distance_to_center)
+                    new_person.list_images.append(bbox)
+                
 
 
                     if direction_and_position is not None and inside_any_polygon:
