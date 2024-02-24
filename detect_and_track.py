@@ -69,7 +69,7 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_demo.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_debug_1.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -234,10 +234,12 @@ def detect(save_img=False,video_data=None):
         t1 = time_synchronized()
         pred = model(img, augment=opt.augment)[0]
         t2 = time_synchronized()
-
         # Apply NMS
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
+
+
+
         original_image = im0s.copy()
         # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
@@ -252,19 +254,7 @@ def detect(save_img=False,video_data=None):
                     PersonImage.delete_instance(tracker.id + 1)
                     continue
                 if tracker.history.__len__() == 10:
-                    PersonImage.save(tracker.id + 1)
-                
-                # person_obj = PersonImage.get_instance(tracker.id + 1)
-                # if person_obj is not None and person_obj.direction is not None and len(tracker.history) == 10 and len(person_obj.list_images) > 0:
-                    # Falta ordenar por las que es mas cerca de mi punto de comparacion y que tb tenga la bbox mas grande!!
-                    # for img_obj in sorted(person_obj.list_images, key=lambda x: (x['overlap'], x['distance_to_center']))[:2]:
-                    # Ahora guardo solo una imagen
-                    # save_image_based_on_sub_frame(num_frame=person_obj.list_images[0]['actual_frame'],name=video_data['folder_img'],sub_frame=person_obj.list_images[0]['img'], id=tracker.id + 1,direction=person_obj.direction,bbox=person_obj.list_images[0]['bbox'])
-                    # if person_obj.ready == False:
-                    #     save_csv_bbox(personImage=person_obj,filename=f"{video_data['name']}_bbox.csv")
-                    #     person_obj.ready = True
-                    #     PersonImage.delete_instance(person_obj.id)
-
+                    PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox.csv")
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -273,10 +263,9 @@ def detect(save_img=False,video_data=None):
             save_path = str(save_dir / p.name)  # img.jpg
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-                det = filter_detections_inside_polygon(detections=det.cpu().detach().numpy(),polygon_pts=video_data['polygon_area'])
-                # det = det.cpu().detach().numpy()
+                det = det.cpu().detach().numpy()
+                det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
 
-            if len(det):
                 # ..................USE TRACK FUNCTION....................
                 # pass an empty array to sort
                 dets_to_sort = np.empty((0, 6))
@@ -295,11 +284,6 @@ def detect(save_img=False,video_data=None):
                 for track in tracks:
                     x1, y1, x2, y2 = track.bbox_history[-1][:4]
                     sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
-                    # if len(sub_frame) != 0:
-                    #     pass
-                    # if track.history.__len__() == sort_max_age:
-                    #     PersonImage.delete_instance(track.id + 1)
-                    #     continue
                     only_bboxes = [box[:4] for box in track.bbox_history]
                     new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
 
@@ -307,7 +291,7 @@ def detect(save_img=False,video_data=None):
                     result = new_person.find_polygons_for_centroids(polygons_in_out)
                     direction_and_position = new_person.detect_pattern_change(result)
 
-                    inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
+                    # inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
                     distance_to_center = distance_to_bbox_centroid(center_of_interested,track.bbox_history[-1][:4])
 
 
@@ -319,25 +303,20 @@ def detect(save_img=False,video_data=None):
 
                     bbox = BoundingBox(img_frame=sub_frame, frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,bbox=track.bbox_history[-1][:5],overlap=total_overlap_tracker,distance_to_center=distance_to_center)
                     new_person.list_images.append(bbox)
+
+
+                    #### OJO CREO QUE EL SUBFRAME ES IMPORTANTE DETECTAR SI FALLA...
+                    ### pernsar en los casos que el tracking ID se pierda durante 5 frames o 15 frames,
+                    ### ahi el subframe puede morir..... 
                 
 
-
-                    if direction_and_position is not None and inside_any_polygon:
-                        if len(sub_frame) != 0:
-                            direction = direction_and_position[0]
-                            position = direction_and_position[1]
-                            if position % 2 == 0:
-                                # print(f"Add Image to ID: {track.id + 1} {x1} {y1} {x2} {y2} bbox: {len(track.bbox_history)} history: {len(track.history)} result: {result}")
-                                new_person.direction = 'In' if direction == '10' else 'Out'
-                                
-                                # new_person.list_images.append({
-                                #     'img': sub_frame,
-                                #     'actual_frame': getattr(dataset, 'total_frame_videos', 0) + frame,
-                                #     'bbox': track.bbox_history[-1][:5],
-                                #     'overlap' : total_overlap_tracker,
-                                #     'distance_to_center' : distance_to_center
-                                # })
-            else:  # SORT should be updated even with no detections
+                    # UPDATE a la direccion para luego guardar con el tracker salga
+                    if direction_and_position is not None:
+                        direction = direction_and_position[0]
+                        position = direction_and_position[1]
+                        if position % 2 == 0:
+                            new_person.direction = 'In' if direction == '10' else 'Out'
+            else:
                 tracked_dets = sort_tracker.update()
 
         # draw boxes for visualization
@@ -358,7 +337,7 @@ def detect(save_img=False,video_data=None):
                         extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
 
 
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=None)
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=extra_info)
             
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
@@ -404,7 +383,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = False
+        self.view_img = True
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -416,7 +395,7 @@ class Options:
         self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
-        self.wait_for_key = False
+        self.wait_for_key = True
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
@@ -488,7 +467,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[0]
+                video_data = DATA[4]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

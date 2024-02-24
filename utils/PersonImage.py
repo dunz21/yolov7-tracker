@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import sys
-from reid.utils import save_image_based_on_sub_frame,save_csv_bbox
+from reid.utils import save_image_based_on_sub_frame,save_csv_bbox,save_image_grid,save_csv_bbox_alternative
 from reid.BoundingBox import BoundingBox
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
@@ -40,42 +40,39 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv'):
         """
             Save the instance with the specified id to a file.
         """
         instance = cls.get_instance(id)
-        save_image_based_on_sub_frame(instance.list_images[0]['frame_number'], instance.list_images[0]['img_frame'], instance.id, name='images_subframe', direction=instance.direction, bbox=instance.list_images[0]['bbox'])
-        save_csv_bbox(instance, 'bbox.csv')
+        if instance is None or instance.direction is None or len(instance.history_deque) == 0 or len(instance.list_images) == 0:
+            return
+        best_image = instance.get_best_images(1)[0]
+
+        for i,img in enumerate(instance.list_images):
+            if i % 3 == 0:
+                save_image_based_on_sub_frame(img.frame_number, img.img_frame, instance.id, folder_name=folder_name, direction=instance.direction, bbox=img.bbox)
+
+
+        # save_image_based_on_sub_frame(best_image.frame_number, best_image.img_frame, instance.id, folder_name=folder_name, direction=instance.direction, bbox=best_image.bbox)
+        # total_list_img_frame = [img.img_frame for img in instance.list_images]
+        # save_image_grid(total_list_img_frame,folder_name=folder_name,id=instance.id, resize=(128,384))
+
+        save_csv_bbox(personImage=instance, filename=csv_box_name)
+        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}_alternative.csv")
         cls.delete_instance(id)
 
-    # def append_sorted_image(self, new_image:BoundingBox):
-    #     """
-    #     Append an image to the list in a sorted manner based on overlap and distance_to_center.
-    #     The list is maintained with the best image at the front.
 
-    #     :param list_images: The list of images to append to.
-    #     :param new_image: The new image data to append.
-    #     """
-    #     # If the list is empty, simply append the new image
-    #     if not self.list_images:
-    #         self.list_images.append(new_image)
-    #         return
+    def get_best_images(self, n=1):
+        """
+        Get the best n images from the list based on overlap and distance_to_center. 
+        PENDING.....
+        """
+        # Sort the list based on overlap and distance_to_center
+        self.list_images.sort(key=lambda x: (x.overlap, x.distance_to_center))
+        # Return the best n images
+        return self.list_images[:n]
 
-    #     # Extract overlap and distance_to_center from the new image
-    #     new_overlap = new_image['overlap']
-    #     new_distance = new_image['distance_to_center']
-
-    #     # Extract overlap and distance_to_center from the current best image
-    #     best_image = self.list_images[0]
-    #     best_overlap = best_image['overlap']
-    #     best_distance = best_image['distance_to_center']
-
-    #     # Compare and decide whether to prepend the new image
-    #     if new_overlap < best_overlap or (new_overlap == best_overlap and new_distance < best_distance):
-    #         self.list_images.insert(0, new_image)  # Prepend the new image
-    #         # Optionally, trim the list to keep only the best image
-    #         # self.list_images = self.list_images[:1]
     
     @classmethod
     def clear_instances(cls):
@@ -105,14 +102,18 @@ class PersonImage:
         return cls._instances.get(id)
     
     @classmethod
-    def calculate_centroid(cls,tlwh):
-        x, y, w, h = tlwh
-        return np.array([x + w / 2, y + h])
+    def calculate_centroid(cls,tlbr):
+        x1, y1, x2, y2 = tlbr
+        midpoint_x = (x1 + x2) // 2
+        midpoint_y = (y1 + y2) // 2
+        midpoint = (midpoint_x, midpoint_y)
+        return midpoint
+
     
     @classmethod
-    def calculate_centroid_tlbr(cls,tlbr):
-        x1, x2, y1, y2 = tlbr
-        midpoint_x = (x1 + y1) / 2
+    def calculate_centroid_bottom_tlbr(cls,tlbr):
+        x1, y1, x2, y2 = tlbr
+        midpoint_x = (x1 + x2) // 2
         midpoint_y = y2
         midpoint = (midpoint_x, midpoint_y)
         return midpoint
@@ -186,7 +187,7 @@ class PersonImage:
         return change_type, positions_forward
 
     def is_bbox_in_polygon(cls,bbox,polygons_list):
-        centroid = cls.calculate_centroid_tlbr(bbox)
+        centroid = cls.calculate_centroid_bottom_tlbr(bbox)
         inside_any_polygon = False
         for polygon in polygons_list:
             if cls.is_point_in_polygon(centroid, polygon):
@@ -202,35 +203,17 @@ class PersonImage:
             return None
         if cls.polygons.__len__() == 0:
             cls.polygons = polygons_list
-            # cls.is_in_polygon = [False for _ in range(len(cls.polygons))]
             
-        # centroids = [cls.calculate_centroid(bbox) for bbox in reversed(cls.history_deque)]
-        centroids = [cls.calculate_centroid_tlbr(bbox) for bbox in cls.history_deque]
+        # centroids = [cls.calculate_centroid_bottom_tlbr(bbox) for bbox in cls.history_deque] EX
+        centroids = [cls.calculate_centroid(bbox) for bbox in cls.history_deque]
         cls.polygon_indices = []
         
-        # exit = False
         for centroid_index , centroid in enumerate(centroids):
-            # in_any_polygon = False
             for i, polygon in enumerate(cls.polygons):
                 if cls.is_point_in_polygon(centroid, polygon): #Entra el primer punto al poligono
-                    # cls.is_in_polygon[i] = True # Alguna vez ya pase por este poligono
                     cls.polygon_indices.append(i)
-                    # in_any_polygon = True # En esta iteracion por lo menos pase
 
-            
-            # if all(value == False for value in cls.is_in_polygon) and centroid_index == 0:
-                # Esto quiere decir que el primer centroid no ha tocado ningun poligono, por ende los de atras tampoco
-                # return None 
-            # if all(cls.is_in_polygon) and in_any_polygon == False and centroid_index == 0:
-                # exit = True
-            
         return cls.polygon_indices
-        # return {
-        #     'exit': exit,
-        #     'polygon_indices': cls.polygon_indices,
-        #     'direction': cls.calculate_direction(cls.polygon_indices),
-        #     'between_polygons': cls.between_polygons(cls.polygon_indices), # La idea es para sacar fotos justo cuando este en una transicion. Revisar que funcione
-        # }
 
 
         

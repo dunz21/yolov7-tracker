@@ -103,7 +103,7 @@ class KalmanBoxTracker(object):
         self.detclass = bbox[5]
 
         # If we want to store bbox
-        self.bbox_history = [bbox]
+        self.bbox_history = [bbox] # X1, Y1, X2, Y2 TLBR
         
     def update(self, bbox):
         """
