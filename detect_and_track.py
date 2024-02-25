@@ -69,7 +69,7 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_debug_1.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_debug_2.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -250,6 +250,9 @@ def detect(save_img=False,video_data=None):
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
             for tracker in trackers:
+                if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas
+                    PersonImage.delete_instance(tracker.id + 1)
+
                 if tracker.history.__len__() == sort_max_age:
                     PersonImage.delete_instance(tracker.id + 1)
                     continue
@@ -325,19 +328,20 @@ def detect(save_img=False,video_data=None):
             identities = tracked_dets[:, 8]
             categories = tracked_dets[:, 4]
 
-            extra_info = {}
-            for actual_track in tracked_dets:
-                track_id = actual_track[8]
-                if track_id not in extra_info:
-                    extra_info[track_id] = {'overlap': 0}
-                if 'distance' not in extra_info[track_id]:
-                    extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
-                for other_track in tracked_dets:
-                    if actual_track[8] != other_track[8]:
-                        extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
+            #TODO: DEJARLO OPCIONAL CON HIPERPARAMETROS
+            # extra_info = {}
+            # for actual_track in tracked_dets:
+            #     track_id = actual_track[8]
+            #     if track_id not in extra_info:
+            #         extra_info[track_id] = {'overlap': 0}
+            #     if 'distance' not in extra_info[track_id]:
+            #         extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
+            #     for other_track in tracked_dets:
+            #         if actual_track[8] != other_track[8]:
+            #             extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
 
 
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=extra_info)
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=None)
             
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
@@ -383,7 +387,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = True
+        self.view_img = False # DEBUG
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -395,7 +399,7 @@ class Options:
         self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
-        self.wait_for_key = True
+        self.wait_for_key = False # DEBUG
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
@@ -467,7 +471,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[4]
+                video_data = DATA[0]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
