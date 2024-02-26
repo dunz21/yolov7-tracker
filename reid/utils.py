@@ -119,7 +119,7 @@ def save_csv_bbox_alternative(personImage:PersonImage, filename='bbox.csv'):
 
         # Write header if the file is being created for the first time
         if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_bottom_x', 'centroid_bottom_y','frame_number','overlap','distance_to_center'])
+            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_bottom_x', 'centroid_bottom_y','frame_number','overlap','distance_to_center','score'])
 
         # Append data
         #personImage.list_images.sort(key=lambda x: x.frame_number)
@@ -127,5 +127,5 @@ def save_csv_bbox_alternative(personImage:PersonImage, filename='bbox.csv'):
             x1, y1, x2, y2, score = img.bbox
             centroid_bottom_x = (x1 + x2) // 2
             centroid_bottom_y = y2
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y),img.frame_number,img.overlap,img.distance_to_center])
+            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y),img.frame_number,img.overlap,img.distance_to_center,score])
             

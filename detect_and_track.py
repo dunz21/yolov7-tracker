@@ -33,7 +33,7 @@ from math import sqrt
 DATA = [
     {
         'name' : "conce",
-        'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_HALF.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -69,7 +69,7 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_debug_2.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_debug_3.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -78,7 +78,7 @@ DATA = [
     },
 ]
 
-def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=(0, 0),extra_info=None):
+def draw_boxes(img, bbox, identities=None , offset=(0, 0),extra_info=None,color=None):
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = box
         x1 = int(x1)
@@ -89,16 +89,18 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None , offset=
         x2 += offset[0]
         y1 += offset[1]
         y2 += offset[1]
-        cat = int(categories[i]) if categories is not None else 0
         id = int(identities[i]) if identities is not None else 0
 
-        label = str(id) + ":" + names[cat]
+        label = str(id) + ":" + "person"
         if extra_info is not None:
-            label += str(f"o:{extra_info[id]['overlap']:.2f}")
-            label += str(f"d:{extra_info[id]['distance']:.2f}")
+            label += str(f"oc:{extra_info[id]['overlap']:.2f}")
+            label += str(f"di:{extra_info[id]['distance']:.2f}")
 
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 20), 2)
+        if color is None:
+            color = (255, 0, 20)
+
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
         cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255, 144, 30), -1)
         cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
 
@@ -282,36 +284,37 @@ def detect(save_img=False,video_data=None):
                 # Run SORT
                 tracked_dets = sort_tracker.update(dets_to_sort)
                 tracks = sort_tracker.getTrackers()
-
-                # loop over tracks
-                for track in tracks:
-                    x1, y1, x2, y2 = track.bbox_history[-1][:4]
-                    sub_frame = original_image[int(y1):int(y2), int(x1):int(x2)]
-                    only_bboxes = [box[:4] for box in track.bbox_history]
-                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
-
-
-                    result = new_person.find_polygons_for_centroids(polygons_in_out)
-                    direction_and_position = new_person.detect_pattern_change(result)
-
-                    # inside_any_polygon = new_person.is_bbox_in_polygon(track.bbox_history[-1][:4], polygons_in_out)
-                    distance_to_center = distance_to_bbox_centroid(center_of_interested,track.bbox_history[-1][:4])
+                
+                for track_det in tracked_dets:
+                    id = track_det[8]
+                    bbox_score = np.append(track_det[:4],id).astype(int)
+                    x1, y1, x2, y2 = bbox_score[:4]
+                    sub_frame = original_image[y1:y2, x1:x2]
+                    distance_to_center = distance_to_bbox_centroid(center_of_interested,bbox_score[:4])
 
 
                     total_overlap_tracker = 0
-                    for other_track in tracks:
-                        if track.id != other_track.id:
-                            total_overlap_tracker += calculate_overlap(track.bbox_history[-1][:4], other_track.bbox_history[-1][:4])
+                    for other_track_det in tracked_dets:
+                        id_other_track = other_track_det[8]
+                        if id != id_other_track:
+                            total_overlap_tracker += calculate_overlap(bbox_score[:4], other_track[:4].astype(int))
 
 
-                    bbox = BoundingBox(img_frame=sub_frame, frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,bbox=track.bbox_history[-1][:5],overlap=total_overlap_tracker,distance_to_center=distance_to_center)
+                    bbox = BoundingBox(
+                        img_frame=sub_frame,
+                        frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
+                        bbox=bbox_score,
+                        overlap=total_overlap_tracker,
+                        distance_to_center=distance_to_center)
                     new_person.list_images.append(bbox)
 
 
-                    #### OJO CREO QUE EL SUBFRAME ES IMPORTANTE DETECTAR SI FALLA...
-                    ### pernsar en los casos que el tracking ID se pierda durante 5 frames o 15 frames,
-                    ### ahi el subframe puede morir..... 
-                
+                # loop over tracks
+                for track in tracks:
+                    only_bboxes = [box[:4] for box in track.bbox_history]
+                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
+                    result = new_person.find_polygons_for_centroids(polygons_in_out)
+                    direction_and_position = new_person.detect_pattern_change(result)
 
                     # UPDATE a la direccion para luego guardar con el tracker salga
                     if direction_and_position is not None:
@@ -322,27 +325,35 @@ def detect(save_img=False,video_data=None):
             else:
                 tracked_dets = sort_tracker.update()
 
+
         # draw boxes for visualization
         if len(tracked_dets) > 0:
             bbox_xyxy = tracked_dets[:, :4]
+            # bbox_xyxy = [track.bbox_history[-1][:4] for track in sort_tracker.getTrackers() if len(track.history) == 0 and len(track.bbox_history) > 2]
             identities = tracked_dets[:, 8]
-            categories = tracked_dets[:, 4]
+            
 
             #TODO: DEJARLO OPCIONAL CON HIPERPARAMETROS
-            # extra_info = {}
-            # for actual_track in tracked_dets:
-            #     track_id = actual_track[8]
-            #     if track_id not in extra_info:
-            #         extra_info[track_id] = {'overlap': 0}
-            #     if 'distance' not in extra_info[track_id]:
-            #         extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
-            #     for other_track in tracked_dets:
-            #         if actual_track[8] != other_track[8]:
-            #             extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
+            extra_info = {}
+            for actual_track in tracked_dets:
+                track_id = actual_track[8]
+                if track_id not in extra_info:
+                    extra_info[track_id] = {'overlap': 0}
+                if 'distance' not in extra_info[track_id]:
+                    extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
+                for other_track in tracked_dets:
+                    if actual_track[8] != other_track[8]:
+                        extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
+
+            # if (len(bbox_xyxy) == len(identities)):
+            #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info,color=(0,255,0))
+            # else:
+            #     bbox_xyxy = tracked_dets[:, :4]
+                        
+            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info)
+        
 
 
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities, categories=categories,names=names,extra_info=None)
-            
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
         # Stream results
@@ -387,7 +398,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = False # DEBUG
+        self.view_img = True # DEBUG
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -471,7 +482,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[0]
+                video_data = DATA[4]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
