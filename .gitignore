@@ -9,3 +9,4 @@ images_subframe*
 imgs*
 *.html
 *.csv
+logs/*

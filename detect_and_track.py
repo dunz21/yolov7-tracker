@@ -284,30 +284,6 @@ def detect(save_img=False,video_data=None):
                 # Run SORT
                 tracked_dets = sort_tracker.update(dets_to_sort)
                 tracks = sort_tracker.getTrackers()
-                
-                for track_det in tracked_dets:
-                    id = track_det[8]
-                    bbox_score = np.append(track_det[:4],id).astype(int)
-                    x1, y1, x2, y2 = bbox_score[:4]
-                    sub_frame = original_image[y1:y2, x1:x2]
-                    distance_to_center = distance_to_bbox_centroid(center_of_interested,bbox_score[:4])
-
-
-                    total_overlap_tracker = 0
-                    for other_track_det in tracked_dets:
-                        id_other_track = other_track_det[8]
-                        if id != id_other_track:
-                            total_overlap_tracker += calculate_overlap(bbox_score[:4], other_track[:4].astype(int))
-
-
-                    bbox = BoundingBox(
-                        img_frame=sub_frame,
-                        frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
-                        bbox=bbox_score,
-                        overlap=total_overlap_tracker,
-                        distance_to_center=distance_to_center)
-                    new_person.list_images.append(bbox)
-
 
                 # loop over tracks
                 for track in tracks:
@@ -322,6 +298,34 @@ def detect(save_img=False,video_data=None):
                         position = direction_and_position[1]
                         if position % 2 == 0:
                             new_person.direction = 'In' if direction == '10' else 'Out'
+                
+                # loop over detections, in the future we can use this to not loop over tracks
+                for track_det in tracked_dets:
+                    id = int(track_det[8])
+                    conf = track_det[9]
+                    bbox = [*track_det[:4].astype(int),conf]
+                    x1, y1, x2, y2 = bbox[:4]
+                    sub_frame = original_image[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
+                    distance_to_center = distance_to_bbox_centroid(center_of_interested,bbox[:4])
+
+
+                    total_overlap_tracker = 0
+                    for other_track_det in tracked_dets:
+                        id_other_track = other_track_det[8]
+                        if id != id_other_track:
+                            total_overlap_tracker += calculate_overlap(bbox[:4], other_track_det[:4].astype(int))
+
+                    new_person = PersonImage(id=id,list_images=[])
+                    box = BoundingBox(
+                        img_frame=sub_frame,
+                        frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
+                        bbox=bbox,
+                        overlap=total_overlap_tracker,
+                        distance_to_center=distance_to_center)
+                    new_person.list_images.append(box)
+
+
+
             else:
                 tracked_dets = sort_tracker.update()
 
@@ -349,10 +353,8 @@ def detect(save_img=False,video_data=None):
             #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info,color=(0,255,0))
             # else:
             #     bbox_xyxy = tracked_dets[:, :4]
-                        
+            #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info)
             draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info)
-        
-
 
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
@@ -398,7 +400,7 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = True # DEBUG
+        self.view_img = False # DEBUG
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -482,7 +484,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[4]
+                video_data = DATA[0]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
