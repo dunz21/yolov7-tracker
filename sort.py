@@ -101,6 +101,8 @@ class KalmanBoxTracker(object):
         
         #keep yolov5 detected class information
         self.detclass = bbox[5]
+        #diego
+        self.conf = bbox[4]
 
         # If we want to store bbox
         self.bbox_history = [bbox] # X1, Y1, X2, Y2 TLBR
@@ -119,6 +121,8 @@ class KalmanBoxTracker(object):
         CY = (bbox[1]+bbox[3])//2
         self.centroidarr.append((CX,CY))
         self.bbox_history.append(bbox)
+        #diego
+        self.conf = bbox[4]
     
     def predict(self):
         """
@@ -260,7 +264,7 @@ class Sort(object):
         for trk in reversed(self.trackers):
             d = trk.get_state()[0]
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
-                ret.append(np.concatenate((d, [trk.id+1])).reshape(1,-1)) #+1'd because MOT benchmark requires positive value
+                ret.append(np.concatenate((d, [trk.id+1,trk.conf])).reshape(1,-1)) #+1'd because MOT benchmark requires positive value
             i -= 1
             #remove dead tracklet
             if(trk.time_since_update >self.max_age):
