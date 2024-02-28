@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import json
+import pandas as pd
 import matplotlib
 import cv2
 import numpy as np
@@ -20,59 +21,71 @@ CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 PORT = 3001
 FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce/'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
-DATA_FILE_JSON = '/home/diego/Documents/yolov7-tracker/logs/selected_images.json'
-BASE_FOLDER_NAME = 'logs_e'
+BASE_FOLDER_NAME = 'logs'
 VIDEO_PATH = '/home/diego/Documents/Footage/CONCEPCION_CH1.mp4'  # Your video file path
-
-
-BBOX_CSV = 'conce_bbox.csv_alternative.csv'
+BBOX_CSV = 'test.csv'
 BBOX_CSV = os.path.join(BASE_FOLDER_NAME, BBOX_CSV)
-
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
 def serve_image(filename):
     return send_from_directory(FOLDER_PATH_IMGS, filename)
-
-@app.route('/api/data-images/<id>', defaults={'id': None})
+    
 @app.route('/api/data-images/', defaults={'id': None})
+@app.route('/api/data-images/<id>')
 def data_images(id):
     try:
-        with open(DATA_FILE_JSON, 'r') as file:
-            images = json.load(file)
+        print('id',id)
+        # Read the CSV file
+        df = pd.read_csv(BBOX_CSV)
 
-        unique_ids = list(set([image['id'] for image in images]))
-        filtered_images = images
+        # Get unique IDs
+        unique_ids = df['id'].unique().tolist()
 
-        for image in filtered_images:
-            image['img'] = f"http://localhost:{PORT}{image['img'].replace(FOLDER_PATH_IMGS, SERVER_FOLDER_BASE_PATH)}"
+        # Default ID to the first unique ID if None
+        if id is None:
+            id = unique_ids[0]
+        
+        # Filter rows where 'img_name' is not empty and 'k_fold' has a value
+        df_filtered = df[(df['img_name'] != '') & (df['k_fold'].notna())]
 
-        if id is not None:
-            filtered_images = [image for image in filtered_images if str(image['id']) == id]
+        # Further filter by the requested ID
+        df_filtered = df_filtered[df_filtered['id'] == int(id)]
 
-        return jsonify({'uniqueIds': unique_ids, 'images': filtered_images})
-    except IOError:
-        return jsonify({'error': 'Error reading data file'}), 500
+        # Convert to a list of dictionaries for JSON response
+        images_data = df_filtered[['img_name','k_fold','label_img','id']].to_dict(orient='records')
 
-@app.route('/api/update-rate', methods=['POST'])
-def update_rate():
+        # Modify image paths for the server
+        for image in images_data:
+            image['img_path'] = f"http://localhost:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
+            image['label_img'] =  None if pd.isna(image['label_img']) else image['label_img']
+
+        return jsonify({'uniqueIds': unique_ids, 'images': images_data})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/update-label-img', methods=['POST'])
+def update_label():
     req_data = request.get_json()
-    img = req_data['img']
-    new_rate = req_data['newRate']
+    img_name = req_data['img_name']
+    new_label = req_data['new_label']
 
     try:
-        with open(DATA_FILE_JSON, 'r') as file:
-            images = json.load(file)
+        # Load the CSV file
+        df = pd.read_csv(BBOX_CSV)
 
-        for image in images:
-            if image['img'].replace(f"http://localhost:{PORT}{SERVER_FOLDER_BASE_PATH}", FOLDER_PATH_IMGS) == img:
-                image['rate'] = str(new_rate)
+        # Find the row with the matching image name and update the label_image column
+        match = df['img_name'] == img_name
+        if match.any():
+            df.loc[match, 'label_image'] = new_label
 
-        with open(DATA_FILE_JSON, 'w') as file:
-            json.dump(images, file, indent=2)
+            # Save the updated DataFrame back to CSV
+            df.to_csv(BBOX_CSV, index=False)
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Image not found'}), 404
 
-        return jsonify({'success': True})
-    except IOError:
-        return jsonify({'error': 'Error reading or updating data file'}), 500
+    except Exception as e:
+        return jsonify({'error': 'Error reading or updating CSV file', 'details': str(e)}), 500
     
 
 @app.route('/api/in-out-images', methods=['GET'])
