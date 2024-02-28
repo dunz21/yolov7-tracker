@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import sys
-from reid.utils import save_image_based_on_sub_frame,save_csv_bbox,save_csv_bbox_alternative
+from reid.utils import save_image_based_on_sub_frame,save_csv_bbox_alternative
 from reid.BoundingBox import BoundingBox
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
@@ -54,8 +54,8 @@ class PersonImage:
                 save_image_based_on_sub_frame(img.frame_number, img.img_frame, instance.id, folder_name=folder_name, direction=instance.direction, bbox=img.bbox)
 
 
-        save_csv_bbox(personImage=instance, filename=csv_box_name)
-        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}_alternative.csv")
+        # save_csv_bbox(personImage=instance, filename=csv_box_name) # Comprobar si esto es realmente necesario
+        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}.csv")
         cls.delete_instance(id)
 
 

@@ -33,7 +33,7 @@ from math import sqrt
 DATA = [
     {
         'name' : "conce",
-        'source' : "/home/diego/Documents/Footage/conce_HALF.mp4",
+        'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -259,7 +259,7 @@ def detect(save_img=False,video_data=None):
                     PersonImage.delete_instance(tracker.id + 1)
                     continue
                 if tracker.history.__len__() == 10:
-                    PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox.csv")
+                    PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox")
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
