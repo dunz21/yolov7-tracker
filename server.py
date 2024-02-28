@@ -12,6 +12,8 @@ import base64
 from io import BytesIO
 import matplotlib.pyplot as plt
 import os
+from utils.solider import seconds_to_time
+
 
 matplotlib.use('Agg')  # Use a non-GUI backend
 
@@ -19,17 +21,20 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 PORT = 3001
+FRAME_RATE = 15
 FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce/'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 BASE_FOLDER_NAME = 'logs'
 VIDEO_PATH = '/home/diego/Documents/Footage/CONCEPCION_CH1.mp4'  # Your video file path
-BBOX_CSV = 'test.csv'
+BBOX_CSV = 'conce_bbox.csv'
 BBOX_CSV = os.path.join(BASE_FOLDER_NAME, BBOX_CSV)
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
 def serve_image(filename):
     return send_from_directory(FOLDER_PATH_IMGS, filename)
-    
+
+### MODEL SELECTION LABELER
+
 @app.route('/api/data-images/', defaults={'id': None})
 @app.route('/api/data-images/<id>')
 def data_images(id):
@@ -88,10 +93,12 @@ def update_label():
         return jsonify({'error': 'Error reading or updating CSV file', 'details': str(e)}), 500
     
 
+
+### IN OUT IMAGES and BAD IMAGES LABELER
+
 @app.route('/api/in-out-images', methods=['GET'])
 def in_out_images():
     id_param = request.args.get('id', default=None, type=int)
-    
     time_stamp = '00:00:01'  # Timestamp for the frame
     
     df = pd.read_csv(BBOX_CSV)
@@ -104,6 +111,7 @@ def in_out_images():
     rows = df.loc[df['id'] == id_param]
     if rows.empty:
         return jsonify({'error': f'ID {id_param} not found in the dataset'}), 404
+    
 
     # Check if the 'label_direction' column exists and get its value if it does
     direction = None
@@ -156,8 +164,17 @@ def in_out_images():
     plt.close(fig)
     buf.seek(0)
     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+
+
+     # Prepare image data
+    images_data = rows[rows['img_name'].notna()][['img_name']].to_dict(orient='records')
+
+    for image in images_data:
+        image['img_path'] = f"http://localhost:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{image['img_name']}"
+
+    time_video = seconds_to_time(int(rows.iloc[0]['frame_number'] // FRAME_RATE))
     
-    return jsonify({'image': img_base64, 'id': id_param, 'direction': direction})
+    return jsonify({'image': img_base64, 'id': id_param, 'direction': direction,'images': images_data,'time_video': time_video})
 
 
 @app.route('/api/in-out-images/<int:id>', methods=['POST'])
