@@ -13,13 +13,17 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 import os
 from utils.solider import seconds_to_time
+import sqlite3
+from flask import g
 
 
 matplotlib.use('Agg')  # Use a non-GUI backend
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
+SERVER_IP = '127.0.0.1'
 PORT = 3001
 FRAME_RATE = 15
 FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce/'
@@ -28,6 +32,22 @@ BASE_FOLDER_NAME = 'logs'
 VIDEO_PATH = '/home/diego/Documents/Footage/CONCEPCION_CH1.mp4'  # Your video file path
 BBOX_CSV = 'conce_bbox.csv'
 BBOX_CSV = os.path.join(BASE_FOLDER_NAME, BBOX_CSV)
+
+#### DATABASE #####
+DATABASE = f'{BASE_FOLDER_NAME}/bbox_data.db'
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+### END DATABASE ###
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
 def serve_image(filename):
@@ -39,31 +59,23 @@ def serve_image(filename):
 @app.route('/api/data-images/<id>')
 def data_images(id):
     try:
-        print('id',id)
-        # Read the CSV file
-        df = pd.read_csv(BBOX_CSV)
-
-        # Get unique IDs
-        unique_ids = df['id'].unique().tolist()
-
-        # Default ID to the first unique ID if None
+        db = get_db()
+        db.row_factory = sqlite3.Row  # Access columns by name
+        
+        cursor = db.cursor()
+        cursor.execute("SELECT DISTINCT id FROM bbox_data")
+        unique_ids = [row['id'] for row in cursor.fetchall()]
+        
         if id is None:
             id = unique_ids[0]
         
-        # Filter rows where 'img_name' is not empty and 'k_fold' has a value
-        df_filtered = df[(df['img_name'] != '') & (df['k_fold'].notna())]
+        cursor.execute("SELECT img_name, k_fold, label_img, id FROM bbox_data WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
+        images_data = [dict(row) for row in cursor.fetchall()]
 
-        # Further filter by the requested ID
-        df_filtered = df_filtered[df_filtered['id'] == int(id)]
-
-        # Convert to a list of dictionaries for JSON response
-        images_data = df_filtered[['img_name','k_fold','label_img','id']].to_dict(orient='records')
-
-        # Modify image paths for the server
         for image in images_data:
-            image['img_path'] = f"http://localhost:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
-            image['label_img'] =  None if pd.isna(image['label_img']) else image['label_img']
-
+            image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
+            image['label_img'] = None if image['label_img'] is None else image['label_img']
+            
         return jsonify({'uniqueIds': unique_ids, 'images': images_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -73,24 +85,18 @@ def update_label():
     req_data = request.get_json()
     img_name = req_data['img_name']
     new_label = req_data['new_label']
-
+    
     try:
-        # Load the CSV file
-        df = pd.read_csv(BBOX_CSV)
-
-        # Find the row with the matching image name and update the label_image column
-        match = df['img_name'] == img_name
-        if match.any():
-            df.loc[match, 'label_image'] = new_label
-
-            # Save the updated DataFrame back to CSV
-            df.to_csv(BBOX_CSV, index=False)
-            return jsonify({'success': True})
-        else:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("UPDATE bbox_data SET label_img = ? WHERE img_name = ?", (new_label, img_name))
+        db.commit()
+        
+        if cursor.rowcount == 0:
             return jsonify({'error': 'Image not found'}), 404
-
+        return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'error': 'Error reading or updating CSV file', 'details': str(e)}), 500
+        return jsonify({'error': 'Error updating the database', 'details': str(e)}), 500
     
 
 
@@ -98,26 +104,31 @@ def update_label():
 
 @app.route('/api/in-out-images', methods=['GET'])
 def in_out_images():
+    db = get_db()
+    db.row_factory = sqlite3.Row  # Access columns by name
+    
     id_param = request.args.get('id', default=None, type=int)
     time_stamp = '00:00:01'  # Timestamp for the frame
     
-    df = pd.read_csv(BBOX_CSV)
+    # Fetch unique IDs
+    cursor = db.execute('SELECT DISTINCT id FROM bbox_data')
+    unique_ids_list = [row['id'] for row in cursor.fetchall()]
 
     if id_param is None:
-        unique_ids_list = df['id'].unique().tolist()
         return jsonify({'uniqueIds': unique_ids_list})
-
-    # Finding the row for the specific ID
-    rows = df.loc[df['id'] == id_param]
-    if rows.empty:
+    
+    # Finding the rows for the specific ID
+    cursor = db.execute('SELECT * FROM bbox_data WHERE id = ?', (id_param,))
+    rows = cursor.fetchall()
+    if not rows:
         return jsonify({'error': f'ID {id_param} not found in the dataset'}), 404
     
 
     # Check if the 'label_direction' column exists and get its value if it does
     direction = None
-    if 'label_direction' in df.columns:
-        direction_value = rows.iloc[0]['label_direction'] if not rows.empty else np.nan
-        direction = None if pd.isna(direction_value) else direction_value
+    # Assume 'label_direction' column exists; adjust as necessary
+    if rows[0]['label_direction'] is not None:
+        direction = rows[0]['label_direction']
 
     
     hours, minutes, seconds = map(int, time_stamp.split(':'))
@@ -136,14 +147,31 @@ def in_out_images():
     
     # Colormap setup
     cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
-    centroids = [(x, y) for x, y in zip(rows['centroid_x'], rows['centroid_y'])]
-    norm = plt.Normalize(0, len(centroids)-1)
+    # rows['centroid_bottom_x'] = (rows['x1'] + rows['x2']) // 2
+    # rows['centroid_bottom_y'] = rows['y2']
+    # centroids = [(x, y) for x, y in zip(rows['centroid_x'], rows['centroid_y'])]
+    # centroids = [(x, y) for x, y in zip(rows['centroid_bottom_x'], rows['centroid_bottom_y'])]
     
-    # Drawing circles with gradient colors
-    for i, centroid in enumerate(centroids):
+
+    norm = plt.Normalize(0, len(rows)-1)
+    images_data = []
+    for i,row in enumerate(rows):
+        # Calculate centroid_bottom_x and centroid_bottom_y for each row
+        centroid_bottom_x = (row['x1'] + row['x2']) // 2
+        centroid_bottom_y = row['y2']
+        centroid = (centroid_bottom_x, centroid_bottom_y)
+
         color = cmap(norm(i))
         color = tuple([int(x*255) for x in color[:3]][::-1])  # Convert from RGB to BGR
         cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
+        if row['img_name']:
+            images_data.append(
+                {
+                    'img_name': row['img_name'],
+                    'img_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{row['img_name']}",
+                }
+            )
+
     
     cap.release()
     
@@ -166,13 +194,13 @@ def in_out_images():
     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
 
 
-     # Prepare image data
-    images_data = rows[rows['img_name'].notna()][['img_name']].to_dict(orient='records')
+    #  # Prepare image data
+    # images_data = rows[rows['img_name'].notna()][['img_name']].to_dict(orient='records')
 
-    for image in images_data:
-        image['img_path'] = f"http://localhost:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{image['img_name']}"
+    # for image in images_data:
+    #     image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{image['img_name']}"
 
-    time_video = seconds_to_time(int(rows.iloc[0]['frame_number'] // FRAME_RATE))
+    time_video = seconds_to_time(int(rows[0]['frame_number'] // FRAME_RATE))
     
     return jsonify({'image': img_base64, 'id': id_param, 'direction': direction,'images': images_data,'time_video': time_video})
 
@@ -185,20 +213,24 @@ def update_direction(id):
     if direction is None:
         return jsonify({'error': 'Missing direction in request'}), 400
 
-    # Load the CSV file
-    df = pd.read_csv(BBOX_CSV)
+    db = get_db()
+    cursor = db.cursor()
 
     # Check if the ID exists
-    if id not in df['id'].values:
+    cursor.execute('SELECT * FROM bbox_data WHERE id = ?', (id,))
+    if cursor.fetchone() is None:
         return jsonify({'error': 'ID not found'}), 404
 
     # Update the direction for the given ID
-    df.loc[df['id'] == id, 'label_direction'] = direction
+    cursor.execute('UPDATE bbox_data SET label_direction = ? WHERE id = ?', (direction, id))
+    db.commit()
 
-    # Save the updated DataFrame back to CSV
-    df.to_csv(BBOX_CSV, index=False)
+    if cursor.rowcount == 0:
+        # No rows were updated, indicating the ID was not found
+        return jsonify({'error': 'ID not found'}), 404
 
     return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
 
 if __name__ == '__main__':
-    app.run(port=PORT, debug=True)
+    app.run(host='0.0.0.0', port=PORT, debug=True)
+
