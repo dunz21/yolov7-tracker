@@ -23,7 +23,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '181.160.252.67'
 PORT = 3001
 FRAME_RATE = 15
 FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce/'
@@ -65,18 +66,19 @@ def data_images(id):
         cursor = db.cursor()
         cursor.execute("SELECT DISTINCT id FROM bbox_data")
         unique_ids = [row['id'] for row in cursor.fetchall()]
-        
+        sorted_unique_ids_list = sorted(unique_ids, key=int)
+
         if id is None:
             id = unique_ids[0]
         
-        cursor.execute("SELECT img_name, k_fold, label_img, id FROM bbox_data WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
+        cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score FROM bbox_data WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
         images_data = [dict(row) for row in cursor.fetchall()]
 
         for image in images_data:
             image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
             image['label_img'] = None if image['label_img'] is None else image['label_img']
             
-        return jsonify({'uniqueIds': unique_ids, 'images': images_data})
+        return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -113,9 +115,11 @@ def in_out_images():
     # Fetch unique IDs
     cursor = db.execute('SELECT DISTINCT id FROM bbox_data')
     unique_ids_list = [row['id'] for row in cursor.fetchall()]
+    sorted_unique_ids_list = sorted(unique_ids_list, key=int)
+
 
     if id_param is None:
-        return jsonify({'uniqueIds': unique_ids_list})
+        return jsonify({'uniqueIds': sorted_unique_ids_list})
     
     # Finding the rows for the specific ID
     cursor = db.execute('SELECT * FROM bbox_data WHERE id = ?', (id_param,))
@@ -147,14 +151,10 @@ def in_out_images():
     
     # Colormap setup
     cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
-    # rows['centroid_bottom_x'] = (rows['x1'] + rows['x2']) // 2
-    # rows['centroid_bottom_y'] = rows['y2']
-    # centroids = [(x, y) for x, y in zip(rows['centroid_x'], rows['centroid_y'])]
-    # centroids = [(x, y) for x, y in zip(rows['centroid_bottom_x'], rows['centroid_bottom_y'])]
-    
-
     norm = plt.Normalize(0, len(rows)-1)
     images_data = []
+    previous_centroid = None  # Initialize previous centroid
+
     for i,row in enumerate(rows):
         # Calculate centroid_bottom_x and centroid_bottom_y for each row
         centroid_bottom_x = (row['x1'] + row['x2']) // 2
@@ -163,7 +163,12 @@ def in_out_images():
 
         color = cmap(norm(i))
         color = tuple([int(x*255) for x in color[:3]][::-1])  # Convert from RGB to BGR
-        cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
+        # cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
+        if previous_centroid is not None:
+            cv2.arrowedLine(frame, previous_centroid, centroid, color, 2, tipLength=0.5)
+        
+        previous_centroid = centroid  # Update the previous centroid
+
         if row['img_name']:
             images_data.append(
                 {
@@ -192,13 +197,6 @@ def in_out_images():
     plt.close(fig)
     buf.seek(0)
     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-
-
-    #  # Prepare image data
-    # images_data = rows[rows['img_name'].notna()][['img_name']].to_dict(orient='records')
-
-    # for image in images_data:
-    #     image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{image['img_name']}"
 
     time_video = seconds_to_time(int(rows[0]['frame_number'] // FRAME_RATE))
     
