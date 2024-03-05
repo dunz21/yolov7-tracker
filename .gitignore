@@ -10,3 +10,4 @@ imgs*
 *.html
 *.csv
 logs/*
+output/*

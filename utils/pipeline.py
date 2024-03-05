@@ -164,7 +164,7 @@ def save_folders_to_solider_csv(list_folders_in_out, name_csv,weights='',model='
             print(f"Folder {folder} is empty")
             continue
         full_path.append(folder)
-    chunks = _chunk_array(full_path, 100)
+    chunks = _chunk_array(full_path, 20)
 
     all_data = []
 

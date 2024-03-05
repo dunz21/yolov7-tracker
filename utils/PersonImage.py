@@ -3,6 +3,8 @@ import cv2
 import sys
 from reid.utils import save_image_based_on_sub_frame,save_csv_bbox_alternative
 from reid.BoundingBox import BoundingBox
+from shapely.geometry import Point, Polygon, LineString
+
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -142,7 +144,11 @@ class PersonImage:
         
         # Check if they are equal
         return count_ones == count_zeros
-
+    
+    @classmethod
+    def is_line_in_polygon(cls, line, polygon):
+        return line.intersects(polygon)
+    
     @classmethod
     def calculate_direction(cls,polygon_indices):
         """
@@ -190,23 +196,22 @@ class PersonImage:
                 inside_any_polygon = True
         return inside_any_polygon
     
-    def find_polygons_for_centroids(cls,polygons_list):
-        """
-        This function takes a list of polygons and a list of centroids and returns a list of indices
-        to later use it to detect if the person was first inside a polygon and then outside of it.
-        """
+    def find_polygons_for_centroids(cls, polygons_list):
         if len(cls.history_deque) < 2:
             return None
-        if cls.polygons.__len__() == 0:
-            cls.polygons = polygons_list
-            
-        # centroids = [cls.calculate_centroid_bottom_tlbr(bbox) for bbox in cls.history_deque] EX
+        if not cls.polygons:
+            shapely_polygons = [Polygon(polygon.reshape(-1, 2)) for polygon in polygons_list]
+            cls.polygons = [Polygon(polygon) for polygon in shapely_polygons]
+        
         centroids = [cls.calculate_centroid(bbox) for bbox in cls.history_deque]
+        bottom_centroids = [cls.calculate_centroid_bottom_tlbr(bbox) for bbox in cls.history_deque]
+        
         cls.polygon_indices = []
         
-        for centroid_index , centroid in enumerate(centroids):
+        for centroid_index, centroid in enumerate(centroids):
+            line = LineString([centroid, bottom_centroids[centroid_index]])
             for i, polygon in enumerate(cls.polygons):
-                if cls.is_point_in_polygon(centroid, polygon): #Entra el primer punto al poligono
+                if cls.is_line_in_polygon(line, polygon):  # Checks if the line enters the polygon
                     cls.polygon_indices.append(i)
 
         return cls.polygon_indices

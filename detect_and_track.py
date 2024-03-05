@@ -26,16 +26,15 @@ import time
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImage import PersonImage
 from reid.BoundingBox import BoundingBox
+from shapely.geometry import LineString, Point
 
-
-from math import sqrt
 
 DATA = [
     {
         'name' : "conce",
-        'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_HALF.mp4",
         'description' : "Video de Conce",
-        'folder_img' : "imgs_conce",
+        'folder_img' : "imgs_conce_half",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
         'polygons_out' : np.array([[202, 794],[508, 608],[583, 637],[263, 865]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
@@ -69,7 +68,7 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_debug_3.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_debug_save_img.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
@@ -135,23 +134,22 @@ def calculate_overlap(rect1, rect2):
 
     return overlap
 
-def distance_to_bbox_centroid(point, bbox):
+def distance_to_bbox_bottom_line(line=[], bbox=[]):
     """
-    Calculate the distance between a point and the center of the bottom edge of a bounding box (bbox).
-
-    :param point: A tuple representing the point (x, y).
+    Calculate the distance between the closest point on a line and the center of the bottom edge of a bounding box (bbox).
+    
+    :param line: A list of points [[x1, y1], [x2, y2]] defining the line.
     :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
-    :return: The Euclidean distance between the point and the center of the bottom edge of the bbox.
+    :return: The shortest distance between the line and the center of the bottom edge of the bbox.
     """
-    px, py = point
+    line = LineString(line)
     x1, y1, x2, y2 = bbox
 
     # Calculate the center of the bottom edge of the bbox
-    bottom_center_x = (x1 + x2) / 2
-    bottom_center_y = y2
+    bottom_center = Point((x1 + x2) / 2, y2)
 
-    # Calculate Euclidean distance from the point to the bottom center
-    distance = sqrt((bottom_center_x - px) ** 2 + (bottom_center_y - py) ** 2)
+    # Calculate the shortest distance from the bottom center to the line
+    distance = bottom_center.distance(line)
     return distance
 
 def detect(save_img=False,video_data=None):
@@ -252,7 +250,7 @@ def detect(save_img=False,video_data=None):
         trackers = sort_tracker.getTrackers()
         if len(trackers) > 0:
             for tracker in trackers:
-                if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas
+                if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas no muera por ram
                     PersonImage.delete_instance(tracker.id + 1)
 
                 if tracker.history.__len__() == sort_max_age:
@@ -306,7 +304,7 @@ def detect(save_img=False,video_data=None):
                     bbox = [*track_det[:4].astype(int),conf]
                     x1, y1, x2, y2 = bbox[:4]
                     sub_frame = original_image[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
-                    distance_to_center = distance_to_bbox_centroid(center_of_interested,bbox[:4])
+                    distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
 
 
                     total_overlap_tracker = 0
@@ -344,7 +342,7 @@ def detect(save_img=False,video_data=None):
                 if track_id not in extra_info:
                     extra_info[track_id] = {'overlap': 0}
                 if 'distance' not in extra_info[track_id]:
-                    extra_info[track_id]['distance'] = distance_to_bbox_centroid(center_of_interested, actual_track[:4])
+                    extra_info[track_id]['distance'] = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
                 for other_track in tracked_dets:
                     if actual_track[8] != other_track[8]:
                         extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
