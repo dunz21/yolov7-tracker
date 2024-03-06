@@ -32,9 +32,9 @@ from shapely.geometry import LineString, Point
 DATA = [
     {
         'name' : "conce",
-        'source' : "/home/diego/Documents/Footage/conce_HALF.mp4",
+        'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
         'description' : "Video de Conce",
-        'folder_img' : "imgs_conce_half",
+        'folder_img' : "imgs_conce",
         'polygons_in' : np.array([[263, 865],[583, 637],[671, 686],[344, 948]], np.int32),
         'polygons_out' : np.array([[202, 794],[508, 608],[583, 637],[263, 865]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),

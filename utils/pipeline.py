@@ -217,6 +217,12 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
 
     # Compute distances based on the specified metric
     if distance == 'euclidean':
+        df_in = torch.tensor(df_in.to_numpy())
+        df_out = torch.tensor(df_out.to_numpy())
+        X_in = 1. * df_in / (torch.norm(df_in, 2, dim = -1, keepdim=True).expand_as(df_in) + 1e-12)
+        X_out = 1. * df_out / (torch.norm(df_out, 2, dim = -1, keepdim=True).expand_as(df_out) + 1e-12)
+        X_in = X_in.numpy()
+        X_out = X_out.numpy()
         dist_matrix = cdist(X_in, X_out, metric='euclidean')
     elif distance == 'cosine':
         dist_matrix = cdist(X_in, X_out, metric='cosine')
