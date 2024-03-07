@@ -246,51 +246,6 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
     distance_matrix = pd.DataFrame(adjusted_matrix, index=unique_ids_in, columns=unique_ids_out)
     distance_matrix.replace(0, np.nan, inplace=True)
 
-    ### SOFTMAX ###
-    # Convert the adjusted numpy matrix to a PyTorch tensor
-    tensor_matrix = torch.tensor(adjusted_matrix, dtype=torch.float32)
-
-    #TEST
-
-    # Approach 1: Adjusting the scale (e.g., temperature scaling) with inverted distances for emphasizing the right match
-    temperature = 0.1  # Adjust this parameter to scale the distances
-    # Invert the distances to make them act like similarities
-    inverted_distances = 1 - tensor_matrix
-    # Apply temperature scaling to the inverted distances
-    scaled_similarities = inverted_distances / temperature
-    # Apply softmax to get a probability distribution across columns
-    softmax_prob_distribution_scaled = F.softmax(scaled_similarities, dim=0)
-
-    # Approach 2: Direct conversion of distances to similarities before applying softmax without additional scaling
-    cosine_similarities = 1 - tensor_matrix  # Convert distances to similarities
-    # Apply softmax directly to these similarities
-    softmax_prob_distribution = F.softmax(cosine_similarities, dim=0)
-
-    # Convert softmax outputs to numpy arrays for DataFrame conversion
-    softmax_prob_distribution_scaled_np = softmax_prob_distribution_scaled.numpy()
-    softmax_prob_distribution_np = softmax_prob_distribution.numpy()
-
-    # Assuming `unique_ids_in` and `unique_ids_out` are your row and column identifiers
-    # Save the scaled softmax probabilities to a CSV
-    distance_softmax_scaled = pd.DataFrame(softmax_prob_distribution_scaled_np, index=unique_ids_in, columns=unique_ids_out)
-    distance_softmax_scaled.to_csv('softmax_prob_distribution_scaled.csv')
-
-    # Save the direct softmax probabilities to a CSV
-    distance_softmax = pd.DataFrame(softmax_prob_distribution_np, index=unique_ids_in, columns=unique_ids_out)
-    distance_softmax.to_csv('softmax_prob_distribution.csv')
-    #TEST
-
-
-    # Apply softmax on the column dimension
-    softmax_matrix = F.softmax(tensor_matrix, dim=0)
-
-    # Convert the softmax tensor back to a numpy array (if needed)
-    softmax_matrix_np = softmax_matrix.numpy()
-
-    # Alternatively, directly convert to a DataFrame
-    distance_softmax = pd.DataFrame(softmax_matrix_np, index=unique_ids_in, columns=unique_ids_out)
-    distance_softmax.to_csv('softmax.csv')
-
     # Optionally save to CSV
     if csv_file_path is not None:
         distance_matrix.to_csv(csv_file_path)
@@ -304,7 +259,7 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
         plt.ylabel('In IDs')
         plt.show()
 
-    return distance_matrix,distance_softmax
+    return distance_matrix
 
 # 4.- Get Match
 def get_match_pair(distance_data, row_or_col='row'):
@@ -493,7 +448,7 @@ def getFinalScore(folder_name,weights='',model='',features_file='features.csv',d
         solider_df = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model)
         
 
-    distance_data,softmax_data = generate_in_out_distance_plot_csv(solider_df, plot=False, csv_file_path=distance_file, distance=distance_method)
+    distance_data = generate_in_out_distance_plot_csv(solider_df, plot=False, csv_file_path=distance_file, distance=distance_method)
 
     test = create_sorted_matrix(distance_data, 5, base_path)
 
