@@ -64,7 +64,8 @@ def save_csv_bbox(personImage:PersonImage, filename='bbox.csv'):
             centroid_bottom_y = y2
             writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y)])
 
-def save_csv_bbox_alternative(personImage: PersonImage, filename=''):
+def save_csv_bbox_alternative(personImage: PersonImage, filename='',folder_name='', direction=''):
+    EVERY_WHEN_TO_SAVE = 3
     # Check if the folder exists, create it if not
     if not os.path.exists(BASE_FOLDER_NAME):
         os.makedirs(BASE_FOLDER_NAME)
@@ -80,10 +81,13 @@ def save_csv_bbox_alternative(personImage: PersonImage, filename=''):
 
         # Write header if the file is being created for the first time
         if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number', 'overlap', 'distance_to_center', 'conf_score'])
+            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number', 'overlap', 'distance_to_center', 'conf_score','img_name'])
 
         # Append data
-        for img in sorted(personImage.list_images, key=lambda x: x.frame_number):
+        for index, img in enumerate(sorted(personImage.list_images, key=lambda x: x.frame_number)):
+            image_name = ''
+            if index % EVERY_WHEN_TO_SAVE == 0:
+                image_name = save_image_based_on_sub_frame(img.frame_number, img.img_frame, personImage.id, folder_name=folder_name, direction=direction, bbox=img.bbox)
             x1, y1, x2, y2, conf_score = img.bbox
             centroid_x = (x1 + x2) // 2
             centroid_y = (y1 + y2) // 2
@@ -91,6 +95,6 @@ def save_csv_bbox_alternative(personImage: PersonImage, filename=''):
             overlap_rounded = round(img.overlap, 2)
             distance_to_center_rounded = round(img.distance_to_center, 2)
             conf_score_rounded = round(conf_score, 2)
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number, overlap_rounded, distance_to_center_rounded, conf_score_rounded])
+            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number, overlap_rounded, distance_to_center_rounded, conf_score_rounded, image_name])
 
             

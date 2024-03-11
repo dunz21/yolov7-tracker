@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import sys
-from reid.utils import save_image_based_on_sub_frame,save_csv_bbox_alternative,path_intersects_line,point_side_of_line
+from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side_of_line
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
 
@@ -61,9 +61,8 @@ class PersonImage:
         if instance is None or cross_green_line is False:
             return
         
-        
-        final_direction = point_side_of_line(centroid_center[-1], polygons_list[0][0], polygons_list[0][1])
-        initial_direction = point_side_of_line(centroid_center[0], polygons_list[0][0], polygons_list[0][1])
+        initial_direction = point_side_of_line(centroid_bottom[0], polygons_list[0][0], polygons_list[0][1])
+        final_direction = point_side_of_line(centroid_bottom[-1], polygons_list[0][0], polygons_list[0][1])
         
         if final_direction == initial_direction:
             return
@@ -75,13 +74,7 @@ class PersonImage:
         else:
             direction = "None"
 
-        for i,img in enumerate(instance.list_images):
-            if i % 3 == 0:
-                save_image_based_on_sub_frame(img.frame_number, img.img_frame, instance.id, folder_name=folder_name, direction=direction, bbox=img.bbox)
-
-
-        # save_csv_bbox(personImage=instance, filename=csv_box_name) # Comprobar si esto es realmente necesario
-        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}.csv")
+        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}.csv",folder_name=folder_name, direction=direction)
         cls.delete_instance(id)
     
     @classmethod
