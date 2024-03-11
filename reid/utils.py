@@ -3,8 +3,25 @@ import cv2
 import csv
 import numpy as np
 import utils.PersonImage as PersonImage
+from shapely.geometry import LineString
 
 BASE_FOLDER_NAME = 'logs'
+
+def path_intersects_line(centroids, line):
+    path = LineString(centroids)
+    line = LineString(line)
+    return path.intersects(line)
+
+def point_side_of_line(point, line_start, line_end):
+    line_vec = [line_end[0] - line_start[0], line_end[1] - line_start[1]]
+    point_vec = [point[0] - line_start[0], point[1] - line_start[1]]
+    cross_product = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
+    if cross_product > 0:
+        return "In"
+    elif cross_product < 0:
+        return "Out"
+    else:
+        return "on the line"
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox

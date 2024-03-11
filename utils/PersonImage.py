@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import sys
-from reid.utils import save_image_based_on_sub_frame,save_csv_bbox_alternative
+from reid.utils import save_image_based_on_sub_frame,save_csv_bbox_alternative,path_intersects_line,point_side_of_line
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
 
@@ -42,35 +42,47 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv'):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[]):
         """
             Save the instance with the specified id to a file.
         """
         instance = cls.get_instance(id)
-        if instance is None or instance.direction is None or len(instance.history_deque) == 0 or len(instance.list_images) == 0:
+    
+        if instance is None or len(instance.history_deque) == 0 or len(instance.list_images) == 0:
             return
-        best_image = instance.get_best_images(1)[0]
+        
+        centroids = [(cls.calculate_centroid_bottom_tlbr(bbox), cls.calculate_centroid(bbox)) for bbox in instance.history_deque]
+        centroid_bottom, centroid_center = zip(*centroids) if centroids else ([], [])
+        cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2])) or path_intersects_line(centroid_bottom, LineString(polygons_list[0][2:]))
+        
+        if id == 4:
+            print(f"Cross green line: {cross_green_line}")
+            
+        if instance is None or cross_green_line is False:
+            return
+        
+        
+        final_direction = point_side_of_line(centroid_center[-1], polygons_list[0][0], polygons_list[0][1])
+        initial_direction = point_side_of_line(centroid_center[0], polygons_list[0][0], polygons_list[0][1])
+        
+        if final_direction == initial_direction:
+            return
+        
+        if final_direction == "Out" and initial_direction == "In":
+            direction = "Out"
+        elif final_direction == "In" and initial_direction == "Out":
+            direction = "In"
+        else:
+            direction = "None"
 
         for i,img in enumerate(instance.list_images):
             if i % 3 == 0:
-                save_image_based_on_sub_frame(img.frame_number, img.img_frame, instance.id, folder_name=folder_name, direction=instance.direction, bbox=img.bbox)
+                save_image_based_on_sub_frame(img.frame_number, img.img_frame, instance.id, folder_name=folder_name, direction=direction, bbox=img.bbox)
 
 
         # save_csv_bbox(personImage=instance, filename=csv_box_name) # Comprobar si esto es realmente necesario
         save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}.csv")
         cls.delete_instance(id)
-
-
-    def get_best_images(self, n=1):
-        """
-        Get the best n images from the list based on overlap and distance_to_center. 
-        PENDING.....
-        """
-        # Sort the list based on overlap and distance_to_center
-        self.list_images.sort(key=lambda x: (x.overlap, x.distance_to_center))
-        # Return the best n images
-        return self.list_images[:n]
-
     
     @classmethod
     def clear_instances(cls):
