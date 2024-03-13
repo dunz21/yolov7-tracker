@@ -34,8 +34,8 @@ DATA = [
         'source' : "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce",
-        'polygons_in' : np.array([[263, 825], [583, 637],[671, 686],[344, 928]], np.int32),
-        'polygons_out' : np.array([[221, 769],[508, 608],[583, 637],[263, 825]], np.int32),
+        'polygons_in' : np.array([[225, 780], [520, 610],[671, 686],[344, 928]], np.int32),
+        'polygons_out' : np.array([[221, 769],[508, 608],[520, 610],[225, 780]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
     {
@@ -67,11 +67,11 @@ DATA = [
     },
     {
         'name' : "conce_test",
-        'source' : "/home/diego/Documents/Footage/conce_HALF.mp4",
+        'source' : "/home/diego/Documents/Footage/conce_logic_in_out_5.mp4",
         'description' : "Video de Conce",
         'folder_img' : "imgs_conce_debug_half",
-        'polygons_in' : np.array([[263, 825], [583, 637],[671, 686],[344, 928]], np.int32),
-        'polygons_out' : np.array([[221, 769],[508, 608],[583, 637],[263, 825]], np.int32),
+        'polygons_in' : np.array([[225, 780], [520, 610],[671, 686],[344, 928]], np.int32),
+        'polygons_out' : np.array([[221, 769],[508, 608],[520, 610],[225, 780]], np.int32),
         'polygon_area' : np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32),
     },
 ]
@@ -396,7 +396,6 @@ class Options:
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
-        self.view_img = False # DEBUG IMAGE
         self.save_txt = False
         self.save_conf = False
         self.nosave = False
@@ -408,10 +407,11 @@ class Options:
         self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
-        self.wait_for_key = False # DEBUG KEY
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
+        self.view_img = True # DEBUG IMAGE
+        self.wait_for_key = False # DEBUG KEY
 
 
 if __name__ == '__main__':
@@ -480,7 +480,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             # try:
-                video_data = DATA[1]
+                video_data = DATA[4]
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
@@ -490,7 +490,7 @@ if __name__ == '__main__':
             #     print("Error")
             
             # try:
-                video_data = DATA[1]
+                video_data = DATA[4]
             #     detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

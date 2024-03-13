@@ -22,6 +22,49 @@ def point_side_of_line(point, line_start, line_end):
         return "Out"
     else:
         return "on the line"
+    
+def guess_final_direction(arr, initial_value):
+    """
+    Removes all occurrences of initial_value from the beginning of the array until a different value is encountered.
+    Then calculates the percentage of remaining elements in the array that are equal to initial_value.
+    
+    Parameters:
+    - arr: List of strings, each being "In" or "Out"
+    - initial_value: The initial value to remove and then calculate the percentage for ("In" or "Out")
+    
+    Returns:
+    - Percentage of elements equal to initial_value in the remaining array
+    """
+    # Find the first index where the value is not initial_value
+    first_different_index = None
+    for i, value in enumerate(arr):
+        if value != initial_value:
+            first_different_index = i
+            break
+    
+    # If all values are the same as initial_value, the remaining list is empty
+    if first_different_index is None:
+        return initial_value
+    
+    # Slice the array to remove the initial_values
+    filtered_arr = arr[first_different_index:]
+    
+    # Count the occurrences of initial_value in the remaining array
+    count_initial = filtered_arr.count(initial_value)
+    
+    # How many values of the initial value I have in the next part of the array
+    # If its lower than 20% then I consider that the person is not going in the same direction
+    if len(filtered_arr) > 0:
+        percentage = (count_initial / len(filtered_arr)) * 100
+        if percentage < 20:
+            if initial_value == "In":
+                return "Out"
+            else:
+                return "In"
+    return initial_value
+    
+
+
 
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox
