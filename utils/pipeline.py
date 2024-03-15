@@ -24,6 +24,7 @@ from scipy.spatial.distance import cosine as cosine_distance
 import time
 from scipy.spatial.distance import cdist
 import torch.nn.functional as F
+import sqlite3
 
 # NO ES IMPORTANTE
 def evaluate_clustering(features, image_names, num_clusters=2):
@@ -85,7 +86,7 @@ def _save_solider_csv_by_chunks(features_array, images_names, filename):
 
         # Write headers if the file is new
         if not file_exists:
-            writer.writerow(['Name', 'ID', 'Direction'] + [f'Feature_{i+1}' for i in range(len(features_array[0]))])
+            writer.writerow(['img_name', 'id', 'direction'] + [f'Feature_{i+1}' for i in range(len(features_array[0]))])
 
         # Write data
         for image_name, features in zip(images_names, features_array):
@@ -99,12 +100,12 @@ def _parseDataSolider(dataframe_solider):
     for col in dataframe_solider.columns[3:]:  
         dataframe_solider[col] = dataframe_solider[col].astype(float)
 
-    dataframe_solider['ID'] = dataframe_solider['ID'].astype(int)
+    dataframe_solider['id'] = dataframe_solider['id'].astype(int)
 
-    for id in dataframe_solider['ID'].unique():
-        directions = dataframe_solider.loc[dataframe_solider['ID'] == id, 'Direction'].tolist()
+    for id in dataframe_solider['id'].unique():
+        directions = dataframe_solider.loc[dataframe_solider['id'] == id, 'direction'].tolist()
         new_direction = in_out_status(directions)
-        dataframe_solider.loc[dataframe_solider['ID'] == id, 'Direction'] = new_direction
+        dataframe_solider.loc[dataframe_solider['id'] == id, 'direction'] = new_direction
     return dataframe_solider
 
 # 0.- Get Folders
@@ -156,7 +157,7 @@ def folder_analysis(folders):
     return total_folders,total_in,total_out,total_in_out,result
 
 # 2.- Generate Feature Solider and save to csv
-def save_folders_to_solider_csv(list_folders_in_out, name_csv,weights='',model=''):
+def save_folders_to_solider_csv(list_folders_in_out, name_csv, weights='', model='', save_to_db=None):
     full_path = []
     for folder in list_folders_in_out:
         entries = os.listdir(folder)
@@ -169,12 +170,12 @@ def save_folders_to_solider_csv(list_folders_in_out, name_csv,weights='',model='
     all_data = []
 
     for chunk in chunks:
-        features_array, image_names = model_selection(name=model,folder_path=chunk,weights=weights)
+        features_array, image_names = model_selection(name=model, folder_path=chunk, weights=weights)
         
         # Process each image and its features
         for image_name, features in zip(image_names, features_array):
             id = image_name.split('_')[1]
-            direction = image_name.split('_')[3]
+            direction = image_name.split('_')[3].replace('.jpg','') # Assuming image names end with '.jpg'
             feature_list = [str(f) for f in features]  # Convert features to a list of strings
             row_data = [image_name, id, direction] + feature_list
             all_data.append(row_data)
@@ -183,11 +184,18 @@ def save_folders_to_solider_csv(list_folders_in_out, name_csv,weights='',model='
         _save_solider_csv_by_chunks(features_array, image_names, name_csv)
 
     # Define the DataFrame columns
-    columns = ['Name', 'ID', 'Direction'] + [f'Feature_{i+1}' for i in range(len(features_array[0]))]
+    columns = ['img_name', 'id', 'direction'] + [f'feature_{i+1}' for i in range(len(features_array[0]))]
 
     # Create a DataFrame from the collected data
     df = pd.DataFrame(all_data, columns=columns)
     df = _parseDataSolider(df)
+
+    # If save_to_db is provided, save DataFrame to SQLite database
+    if save_to_db:
+        conn = sqlite3.connect(name_csv.replace('.csv','.db'))
+        df.to_sql('features', conn, if_exists='replace', index=False)
+        conn.close()
+
     return df
 
 # 2.- Get Feature Solider
@@ -203,12 +211,12 @@ def get_feature_img_csv(start_row=0, end_row=900, csv_file='features.csv'):
 # 3.- Distances with silhoutte score
 def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, distance='euclidean'):
     # Separate 'In' and 'Out' data
-    df_in = features[features['Direction'] == 'In']
-    df_in = df_in.drop_duplicates(subset=['ID'])
+    df_in = features[features['direction'] == 'In']
+    df_in = df_in.drop_duplicates(subset=['id'])
     df_in = df_in.iloc[:, 3:]
 
-    df_out = features[features['Direction'] == 'Out']
-    df_out = df_out.drop_duplicates(subset=['ID'])
+    df_out = features[features['direction'] == 'Out']
+    df_out = df_out.drop_duplicates(subset=['id'])
     df_out = df_out.iloc[:, 3:]
 
     # Convert to numpy arrays for efficient computation
@@ -230,8 +238,8 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
         raise ValueError("Unsupported distance metric. Use 'euclidean' or 'cosine'.")
 
     # Convert distance matrix to DataFrame for easier handling
-    unique_ids_in = features[features['Direction'] == 'In']['ID'].unique()
-    unique_ids_out = features[features['Direction'] == 'Out']['ID'].unique()
+    unique_ids_in = features[features['direction'] == 'In']['id'].unique()
+    unique_ids_out = features[features['direction'] == 'Out']['id'].unique()
     # distance_matrix = pd.DataFrame(dist_matrix, index=unique_ids_in, columns=unique_ids_out)
 
     # Create a matrix of zeros with the same shape as `dist_matrix`
@@ -445,7 +453,7 @@ def getFinalScore(folder_name,weights='',model='',features_file='features.csv',d
         solider_df = get_feature_img_csv(csv_file=features_file,start_row=0,end_row=4000)
     else:
         list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
-        solider_df = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model)
+        solider_df = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model,save_to_db=True)
         
 
     distance_data = generate_in_out_distance_plot_csv(solider_df, plot=False, csv_file_path=distance_file, distance=distance_method)
@@ -484,8 +492,8 @@ def export_images_in_out_to_html(csv_file_distance, csv_solider, base_path, file
         out_folder_path = os.path.join(base_path, str(out_folder)) if out_folder is not None else None
 
         # Load features from the dataframe
-        features_in = solider_df[solider_df['ID'] == int(in_folder)].iloc[:, 3:] if in_folder is not None else None
-        features_out = solider_df[solider_df['ID'] == int(out_folder)].iloc[:, 3:] if out_folder is not None else None
+        features_in = solider_df[solider_df['id'] == int(in_folder)].iloc[:, 3:] if in_folder is not None else None
+        features_out = solider_df[solider_df['id'] == int(out_folder)].iloc[:, 3:] if out_folder is not None else None
 
         # Get the first image, count images, and calculate silhouette score
         first_image_in = os.path.join(in_folder_path, os.listdir(in_folder_path)[0]) if in_folder_path and os.path.isdir(in_folder_path) else "No Image"

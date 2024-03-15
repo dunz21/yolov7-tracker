@@ -4,7 +4,7 @@ import sys
 from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side_of_line,guess_final_direction
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
-
+import os
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -86,13 +86,15 @@ class PersonImage:
         
         
         if final_direction == initial_direction:
-            total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
-            new_guess_final_direction = guess_final_direction(total_in_out, initial_direction)
-            if new_guess_final_direction == final_direction:        
-                return
-            direction = new_guess_final_direction
-            with open(f'{folder_name}/{csv_box_name}.txt', 'a') as log_file:
-                log_file.write(f"ID: {id} - Total: {total_in_out} - New guess: {new_guess_final_direction}\n")
+            return
+            # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
+            # new_guess_final_direction = guess_final_direction(total_in_out, initial_direction)
+            # if new_guess_final_direction == final_direction:        
+            #     return
+            # direction = new_guess_final_direction
+            # os.makedirs(folder_name, exist_ok=True)
+            # with open(f'{folder_name}/{csv_box_name}.txt', 'a') as log_file:
+            #     log_file.write(f"ID: {id} - Total: {total_in_out} - New guess: {new_guess_final_direction}\n")
         
         if final_direction == "Out" and initial_direction == "In":
             direction = "Out"
