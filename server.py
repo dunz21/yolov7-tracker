@@ -331,6 +331,21 @@ def re_ranking():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/get_list_ids_out', methods=['GET'])
+def get_list_ids_out():
+    db = get_db_connection()
+    cursor = db.cursor()
+    
+    # Select distinct id values from the features table
+    cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')
+    rows = cursor.fetchall()
+
+    # Extract the id values from the rows
+    ids_out = [row['id'] for row in rows]
+
+    # Return the list of unique id values
+    return jsonify(ids_out=ids_out), 200
 
 @app.route('/api/reranking/match', methods=['POST'])
 def reranking_match():
