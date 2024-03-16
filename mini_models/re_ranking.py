@@ -113,7 +113,7 @@ def load_data(features_csv):
 
     return ids, img_names, directions, feature_tensor
 
-def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1):
+def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1,matches=None):
     results_dict = {}  # Initialize as a dictionary
     posible_pair_matches, ids_correct_ins = np.array([]), np.array([])
     id_in_list = np.unique(ids[directions == 'In'])
@@ -122,10 +122,16 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
     for id_out in tqdm(id_out_list, desc="Processing IDs"):
         if id_out < id_in_list[0]:
             continue
-
+        
         query_indices = np.where((ids == id_out) & (directions == 'Out'))[0]
         query = feature_tensor[query_indices]
         q_pids = img_names[query_indices]
+
+        if matches:
+            ids_correct_ins = []
+            all_id_except_match_out = [matches.get(key_out) for key_out in matches.keys() if key_out != id_out]
+            ids_correct_ins = np.append(ids_correct_ins, all_id_except_match_out)
+
 
         gallery_candidate_indices = np.where((ids < id_out) & (directions == 'In') & (~np.isin(ids, ids_correct_ins)))[0]
         if len(gallery_candidate_indices) > max_number_back_to_compare:
@@ -141,7 +147,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
         rank1_match = find_repeating_values(rank1_list)
         if rank1_match:
             np.append(posible_pair_matches, (id_out, rank1_match))
-            np.append(ids_correct_ins, rank1_match)
+            # np.append(ids_correct_ins, rank1_match)
 
         results_dict[id_out] = matching_gallery_ids[:,:n_images + 1]
 

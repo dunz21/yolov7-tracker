@@ -262,7 +262,10 @@ def ids():
 
 @app.route('/api/re_ranking', methods=['POST'])
 def re_ranking():
-    ids_out = request.json.get('ids_out', [])
+    data = request.json
+    ids_out = data.get('ids_out', [])
+    all_param = data.get('all', True)  # Get the 'all' parameter, defaulting to True
+
     if not ids_out:
         return jsonify({'error': 'No ids_out provided'}), 400
 
@@ -270,14 +273,26 @@ def re_ranking():
         db = get_db_connection()
         placeholders = ', '.join(['?'] * len(ids_out))
         ids_out_twice = ids_out + ids_out
+
         query = f"""
         SELECT * FROM features WHERE (id IN ({placeholders}) AND direction = 'Out')
             OR
             (direction = 'In' AND id < (SELECT MAX(id) FROM features WHERE id IN ({placeholders}) AND direction = 'Out'))
-            """
+        """
         cursor = db.cursor()
         cursor.execute(query, ids_out_twice)
         rows = cursor.fetchall()
+        
+        if all_param:
+            # QUERY FOR reranking_matches and get all the data
+            # filter the rows above by the following logic
+            # if re renaking matches has the id_out and id_in then
+            # filter all id_in except the id_in that has the id_out
+            # Fetch all data from reranking_matches
+            cursor.execute('SELECT * FROM reranking_matches')
+            reranking_rows = cursor.fetchall()
+            reranking_data = {row['id_out']: row['id_in'] for row in reranking_rows}
+
 
         # Assuming all rows have the same number of columns and the first three are id, img_name, and direction.
         ids = np.array([row['id'] for row in rows])
@@ -290,7 +305,7 @@ def re_ranking():
         feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
 
         
-        results_list, _ = process_re_ranking(ids, img_names, directions,feature_tensor, n_images=5, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1)
+        results_list, _ = process_re_ranking(ids, img_names, directions,feature_tensor, n_images=5, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, matches=reranking_data)
         
         
         def seconds_to_time(seconds):
