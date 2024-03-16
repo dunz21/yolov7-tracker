@@ -87,8 +87,6 @@ def eval_simplified_with_matches(distmat, q_pids, g_pids):
     matchs = np.hstack((q_pids[:, np.newaxis], g_pids[indices]))
     return matchs
 
-
-
 def find_repeating_values(input_list, min_repeats=3):
     frequency = Counter(input_list)
     repeating_values = [value for value, count in frequency.items() if count >= min_repeats]
@@ -96,58 +94,122 @@ def find_repeating_values(input_list, min_repeats=3):
         return repeating_values if len(repeating_values) > 1 else repeating_values[0]
     else:
         return False
-
-
-def perform_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=4, K2=2, LAMBDA=0.3, filter_know_matches=None, save_csv_dir=None):
-    features = pd.read_csv(features_csv)
-    for col in features.columns[3:]:
-        features[col] = features[col].astype(float)
     
-    ids_correct_outs = []
-    ids_correct_ins = []
     
-    if filter_know_matches:
-        correct_labels = pd.read_csv(filter_know_matches)
-        ids_correct_outs = correct_labels['OUT'].values
-        ids_correct_ins = correct_labels['IN'].values
+def load_data(features_csv):
+    # Read features and convert to floats
+    features_df = pd.read_csv(features_csv)
+    for col in features_df.columns[3:]:
+        features_df[col] = features_df[col].astype(float)
+    
+    # Extracting ids, img_names, and directions for filtering
+    ids = features_df['id'].values
+    img_names = features_df['img_name'].values
+    directions = features_df['direction'].values
+    
+    # Convert features to tensor and normalize
+    feature_tensor = torch.tensor(features_df.iloc[:, 3:].values, dtype=torch.float32)
+    feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
 
-    # print(f"Correct OUTs: {len(ids_correct_outs)} Total OUTs: {len(features[features['direction'] == 'Out']['id'].unique())} Diff: {len(features[(features['direction'] == 'Out') & (~features['id'].isin(ids_correct_outs)) ]['id'].unique())}")
-    # print(f"Correct INs: {len(ids_correct_ins)} Total INs: {len(features[features['direction'] == 'In']['id'].unique())} Diff: {len(features[(features['direction'] == 'In') & (~features['id'].isin(ids_correct_ins)) ]['id'].unique())}")
+    return ids, img_names, directions, feature_tensor
 
-    id_out_list = features[(features['direction'] == 'Out') & (~features['id'].isin(ids_correct_outs))]['id'].unique()
-    id_in_list = features[(features['direction'] == 'In') & (~features['id'].isin(ids_correct_ins))]['id'].unique()
+def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1):
+    results_dict = {}  # Initialize as a dictionary
+    posible_pair_matches, ids_correct_ins = np.array([]), np.array([])
+    id_in_list = np.unique(ids[directions == 'In'])
+    id_out_list = np.unique(ids[directions == 'Out'])
 
-    results_list = []
-    posible_in_matches = []
-    posible_pair_matches = []
     for id_out in tqdm(id_out_list, desc="Processing IDs"):
         if id_out < id_in_list[0]:
             continue
 
-        filtered_query_features = features[features['id'] == id_out]
-        query_features = filtered_query_features.iloc[:, 3:].to_numpy()
-        query = torch.tensor(query_features, dtype=torch.float32)
-        q_pids = filtered_query_features['img_name'].values
+        query_indices = np.where((ids == id_out) & (directions == 'Out'))[0]
+        query = feature_tensor[query_indices]
+        q_pids = img_names[query_indices]
 
-        subset_ids_gallery_comparisson = features[(features['id'] < id_out) & (features['direction'] == 'In')]['id'].unique()[-max_number_back_to_compare:]
-        subset_ids_gallery_comparisson = subset_ids_gallery_comparisson[~np.isin(subset_ids_gallery_comparisson, posible_in_matches)]
-        interest_gallery = features[features['id'].isin(subset_ids_gallery_comparisson)]
+        gallery_candidate_indices = np.where((ids < id_out) & (directions == 'In') & (~np.isin(ids, ids_correct_ins)))[0]
+        if len(gallery_candidate_indices) > max_number_back_to_compare:
+            gallery_candidate_indices = gallery_candidate_indices[-max_number_back_to_compare:]
 
-        gallery_features = interest_gallery.iloc[:, 3:].to_numpy()
-        gallery = torch.tensor(gallery_features, dtype=torch.float32)
-        g_pids = interest_gallery['img_name'].values
+        gallery = feature_tensor[gallery_candidate_indices]
+        g_pids = img_names[gallery_candidate_indices]
 
-        query = query / query.norm(dim=1, keepdim=True)
-        gallery = gallery / gallery.norm(dim=1, keepdim=True)
+        distmat = re_ranking(query, gallery, K1, K2, LAMBDA)
+        matching_gallery_ids = eval_simplified_with_matches(distmat, q_pids, g_pids)
 
+        rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1]]
+        rank1_match = find_repeating_values(rank1_list)
+        if rank1_match:
+            np.append(posible_pair_matches, (id_out, rank1_match))
+            np.append(ids_correct_ins, rank1_match)
+
+        results_dict[id_out] = matching_gallery_ids[:,:n_images + 1]
+
+    return results_dict, posible_pair_matches
+
+def save_results(results_list, K1, K2, LAMBDA, n_images, filter_known_matches, save_csv_dir):
+
+    column_names = ['query'] + [f'rank{i}' for i in range(1, n_images + 1)]
+    re_ranking_results = pd.DataFrame(results_list, columns=column_names)
+
+    file_name = f're_ranking_k1_{K1}_k2_{K2}_lambda_{LAMBDA}_num_img_{n_images}_{"filtered" if filter_known_matches else "all"}'
+    if save_csv_dir:
+        CSV_FILE_PATH = os.path.join(save_csv_dir, f'{file_name}.csv')
+        re_ranking_results.to_csv(CSV_FILE_PATH, index=False)
+
+    return re_ranking_results, file_name
+
+def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, filter_known_matches=None, save_csv_dir=None):
+    ids, img_names, directions, feature_tensor = load_data(features_csv)
+    results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA)
+    re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
+    return re_ranking_results, file_name
+
+#ANTIGUO
+def perform_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, filter_known_matches=None, save_csv_dir=None):
+    # Read features and convert to floats
+    features_df = pd.read_csv(features_csv)
+    for col in features_df.columns[3:]:
+        features_df[col] = features_df[col].astype(float)
+    
+    # Extracting ids and directions for filtering
+    ids = features_df['id'].values
+    img_names = features_df['img_name'].values
+    directions = features_df['direction'].values
+    # Convert features to tensor and normalize
+    feature_tensor = torch.tensor(features_df.iloc[:, 3:].values, dtype=torch.float32)
+    feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
+
+
+    results_list, posible_pair_matches, ids_correct_ins = [], np.array([]) , np.array([])
+    id_in_list = np.unique(ids[directions == 'In'])
+    id_out_list = np.unique(ids[directions == 'Out'])
+    
+    for id_out in tqdm(id_out_list, desc="Processing IDs"):
+        if id_out < id_in_list[0]:
+            continue
+
+        query_indices = np.where((ids == id_out) & (directions == 'Out'))[0]
+        query = feature_tensor[query_indices]
+        q_pids = img_names[query_indices]
+
+        # Identify gallery candidates
+        gallery_candidate_indices = np.where((ids < id_out) & (directions == 'In') & (~np.isin(ids, ids_correct_ins)))[0]
+        if len(gallery_candidate_indices) > max_number_back_to_compare:
+            gallery_candidate_indices = gallery_candidate_indices[-max_number_back_to_compare:]
+        
+        gallery = feature_tensor[gallery_candidate_indices]
+        g_pids = img_names[gallery_candidate_indices]
+        
+        # Compute re-ranking and evaluate matches
         distmat = re_ranking(query, gallery, K1, K2, LAMBDA)
         matching_gallery_ids = eval_simplified_with_matches(distmat, q_pids, g_pids)
         
         rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1]]
         rank1_match = find_repeating_values(rank1_list)
         if rank1_match:
-            posible_in_matches.append(rank1_match)
-            posible_pair_matches.append((id_out, rank1_match))
+            np.append(posible_pair_matches, (id_out, rank1_match))
+            np.append(ids_correct_ins, rank1_match)
             
         for row in matching_gallery_ids[:, :n_images + 1]:
             results_list.append(row.tolist())
@@ -155,13 +217,12 @@ def perform_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, 
     column_names = ['query'] + [f'rank{i}' for i in range(1, n_images + 1)]
     re_ranking_results = pd.DataFrame(results_list, columns=column_names)
 
-    file_name = f're_ranking_k1_{K1}_k2_{K2}_lamba_{LAMBDA}_num_img_{n_images}_{"filtered" if filter_know_matches else "all"}'
+    file_name = f're_ranking_k1_{K1}_k2_{K2}_lamba_{LAMBDA}_num_img_{n_images}_{"filtered" if filter_known_matches else "all"}'
     if save_csv_dir:
         CSV_FILE_PATH = os.path.join(save_csv_dir, f'{file_name}.csv')
         re_ranking_results.to_csv(CSV_FILE_PATH, index=False)
 
-    # print(f"Possible matches: Total:{len(posible_in_matches)} {posible_in_matches}")
-    print(f"Possible matches: Total: {len(posible_pair_matches)}/{len(id_out_list)} ({len(posible_pair_matches) / len(id_out_list)}) {posible_pair_matches}")
+    # print(f"Possible matches: Total: {len(posible_pair_matches)}/{len(id_out_list)} ({len(posible_pair_matches) / len(id_out_list)}) {posible_pair_matches}")
     return re_ranking_results,file_name
 
 
@@ -215,25 +276,25 @@ def generate_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html)
 
 
 if __name__ == '__main__':
-    features_csv = '/home/diego/Documents/yolov7-tracker/output/santos_dumont_solider_in-out_DB.csv'
-    BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
+    features_csv = '/home/diego/Documents/yolov7-tracker/output/conce_solider_in-out_DB.csv'
+    BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/imgs_conce_top4/'
     FRAME_RATE = 15
     n_images = 8
     max_number_back_to_compare = 57
     K1 = 8
     K2 = 3
     LAMBDA = 0
-    # filter_know_matches = '/home/diego/Desktop/MatchSimple.csv'  
-    # filter_know_matches = None
+    # filter_known_matches = '/home/diego/Desktop/MatchSimple.csv'  
+    # filter_known_matches = None
     save_csv_dir = '/home/diego/Documents/yolov7-tracker/output'
 
-    results, file_name = perform_re_ranking(features_csv,
+    results, file_name = complete_re_ranking(features_csv,
                                             n_images=n_images,
                                             max_number_back_to_compare=max_number_back_to_compare,
                                             K1=K1,
                                             K2=K2,
                                             LAMBDA=LAMBDA,
-                                            filter_know_matches=None,
+                                            filter_known_matches=None,
                                             save_csv_dir=save_csv_dir)
 
     # Complete

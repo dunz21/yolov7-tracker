@@ -15,19 +15,22 @@ import os
 from utils.solider import seconds_to_time
 import sqlite3
 from flask import g
-
-
+import torch
+from mini_models.re_ranking import process_re_ranking
+import datetime
+    
+    
 matplotlib.use('Agg')  # Use a non-GUI backend
 
 app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.160.252.67'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '181.160.252.67'
 PORT = 3001
 FRAME_RATE = 15
-FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce/'
+FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce_top4/'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 BASE_FOLDER_NAME = 'logs'
 VIDEO_PATH = '/home/diego/Documents/Footage/CONCEPCION_CH1.mp4'  # Your video file path
@@ -228,6 +231,207 @@ def update_direction(id):
         return jsonify({'error': 'ID not found'}), 404
 
     return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
+
+
+def get_db_connection(db_name="output/conce_solider_in-out_DB.db"):
+    conn = sqlite3.connect(db_name)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+@app.route('/api/ids')
+def ids():
+    try:
+        db = get_db_connection()
+        db.row_factory = sqlite3.Row
+
+        cursor = db.cursor()
+
+        # Fetch unique IDs for 'in' direction
+        cursor.execute("SELECT DISTINCT id FROM features WHERE direction = 'In'")
+        ids_in = [row['id'] for row in cursor.fetchall()]
+        ids_in_sorted = sorted(ids_in, key=int)
+
+        # Fetch unique IDs for 'out' direction
+        cursor.execute("SELECT DISTINCT id FROM features WHERE direction = 'Out'")
+        ids_out = [row['id'] for row in cursor.fetchall()]
+        ids_out_sorted = sorted(ids_out, key=int)
+
+        return jsonify({'list_in': ids_in_sorted, 'list_out': ids_out_sorted})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/re_ranking', methods=['POST'])
+def re_ranking():
+    ids_out = request.json.get('ids_out', [])
+    if not ids_out:
+        return jsonify({'error': 'No ids_out provided'}), 400
+
+    try:
+        db = get_db_connection()
+        placeholders = ', '.join(['?'] * len(ids_out))
+        ids_out_twice = ids_out + ids_out
+        query = f"""
+        SELECT * FROM features WHERE (id IN ({placeholders}) AND direction = 'Out')
+            OR
+            (direction = 'In' AND id < (SELECT MAX(id) FROM features WHERE id IN ({placeholders}) AND direction = 'Out'))
+            """
+        cursor = db.cursor()
+        cursor.execute(query, ids_out_twice)
+        rows = cursor.fetchall()
+
+        # Assuming all rows have the same number of columns and the first three are id, img_name, and direction.
+        ids = np.array([row['id'] for row in rows])
+        img_names = np.array([row['img_name'] for row in rows])
+        directions = np.array([row['direction'] for row in rows])
+
+        # Convert feature columns to numpy array, then to tensor
+        features = np.array([list(row)[3:] for row in rows], dtype=np.float32)
+        feature_tensor = torch.tensor(features, dtype=torch.float32)
+        feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
+
+        
+        results_list, _ = process_re_ranking(ids, img_names, directions,feature_tensor, n_images=5, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1)
+        
+        
+        def seconds_to_time(seconds):
+            td = datetime.timedelta(seconds=seconds)
+            time = (datetime.datetime.min + td).time()
+            return time.strftime("%H:%M:%S")
+        def number_to_letters(num):
+            mapping = {i: chr(122 - i) for i in range(10)}
+            num_str = str(num)
+            letter_code = ''.join(mapping[int(digit)] for digit in num_str)
+            return letter_code
+        def format_value(img_name,query_frame_number):
+            img_frame_number = int(img_name.split('_')[2])
+            video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
+            time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
+            return {
+                'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
+                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{img_name.split('_')[1]}/{img_name}.png",
+                'time': time,
+                'video_time': video_time
+            }
+        
+        def format_row(arr):
+            new_list = []
+            for row in arr:
+                query = row[0]
+                query_frame_number = int(query.split('_')[2])
+                new_list.append([format_value(value,query_frame_number) for value in row])
+            return new_list
+
+        list_out = {}
+        for id_out in results_list:
+            list_out[str(id_out)] = format_row(results_list[id_out])
+        
+        
+        return jsonify({
+            'results': list_out
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/reranking/match', methods=['POST'])
+def reranking_match():
+    # Extract data from the request
+    data = request.json
+    id_in = data.get('id_in')
+    id_out = data.get('id_out')
+    count_matches = data.get('count_matches')
+    obs = data.get('obs')
+    # Extract the optional isSelected parameter, defaults to False if not provided
+    isSelected = data.get('isSelected', False)
+
+    if None in [id_in, id_out, count_matches, obs]:
+        return jsonify({'error': 'Missing data'}), 400
+
+    # Ensure all integer fields are indeed integers
+    try:
+        id_in = int(id_in)
+        id_out = int(id_out)
+        count_matches = int(count_matches)
+    except ValueError:
+        return jsonify({'error': 'Invalid data type for id_in, id_out, or count_matches'}), 400
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    # Check or create table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS reranking_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_in INTEGER NOT NULL,
+        id_out INTEGER NOT NULL UNIQUE,
+        count_matches INTEGER NOT NULL,
+        obs TEXT NOT NULL
+    )
+    ''')
+
+    if isSelected:
+        # If isSelected is true, delete the row with the same id_out and id_in before inserting or updating
+        cursor.execute('''
+        DELETE FROM reranking_matches WHERE id_out = ? AND id_in = ?
+        ''', (id_out, id_in))
+        db.commit()
+        return jsonify({'message': 'Delete Success'}), 200
+        
+    
+    # Attempt to insert or update
+    try:
+        cursor.execute('''
+        INSERT INTO reranking_matches (id_in, id_out, count_matches, obs)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id_out) DO UPDATE SET
+            id_in = excluded.id_in,
+            count_matches = excluded.count_matches,
+            obs = excluded.obs
+        ''', (id_in, id_out, count_matches, obs))
+        db.commit()
+    except sqlite3.IntegrityError as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'message': 'Success'}), 200
+
+
+@app.route('/api/reranking/match', methods=['GET'])
+def get_reranking_matches():
+    # Get ids_out from query parameter as a comma-separated string
+    ids_out_str = request.args.get('ids_out', '')
+    # Convert to a list of integers
+    try:
+        ids_out = [int(id_str) for id_str in ids_out_str.split(',') if id_str]
+    except ValueError:
+        return jsonify({'error': 'Invalid ids_out. Must be a list of integers.'}), 400
+
+    if not ids_out:
+        return jsonify({'error': 'No ids_out provided'}), 400
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    # Prepare placeholders for the query
+    placeholders = ', '.join(['?'] * len(ids_out))
+    query = f'''
+    SELECT * FROM reranking_matches WHERE id_out IN ({placeholders})
+    '''
+    cursor.execute(query, ids_out)
+    rows = cursor.fetchall()
+
+    # Initialize an empty dictionary for the results
+    matches = {}
+    for row in rows:
+        # Assuming your row factory returns a dictionary-like object
+        # If not, you may need to manually extract values from a tuple
+        id_out = row['id_out']
+        # Construct the desired dictionary structure for each id_out
+        matches[id_out] = {
+            'count_matches': row['count_matches'],
+            'id_in': row['id_in'],
+            'obs': row['obs']
+        }
+
+    return jsonify(matches), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT, debug=True)
