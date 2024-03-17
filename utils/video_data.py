@@ -15,8 +15,8 @@ def get_video_data():
             'source' : "/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4",
             'description' : "Video de Santos Dumont",
             'folder_img' : "imgs_santos_dumont",
-            'polygons_in' : np.array([[831,581],[1115,635],[1099,681],[789,614]], np.int32),
-            'polygons_out' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
+            'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
+            'polygons_out' : np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
             'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
         },
         {
