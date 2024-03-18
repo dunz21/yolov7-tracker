@@ -463,6 +463,40 @@ def get_reranking_matches():
 
     return jsonify(matches), 200
 
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    # Query for counting unique 'OUT' and 'IN' in the features table
+    cursor.execute("SELECT direction, COUNT(DISTINCT id) AS total FROM features GROUP BY direction")
+    direction_counts = cursor.fetchall()
+
+    # Initialize counts
+    out_count = 0
+    in_count = 0
+
+    # Iterate through the results and assign the counts
+    for row in direction_counts:
+        if row['direction'] == 'Out':
+            out_count = row['total']
+        elif row['direction'] == 'In':
+            in_count = row['total']
+
+    # Query for total number of rows in the reranking_matches table
+    cursor.execute("SELECT COUNT(*) AS total_matches FROM reranking_matches")
+    total_matches_row = cursor.fetchone()
+    total_matches = total_matches_row['total_matches'] if total_matches_row else 0
+
+    # Structuring the response
+    response = {
+        'in': in_count,
+        'out': out_count,
+        'total_matches': total_matches
+    }
+
+    return jsonify(response)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT, debug=True)
 

@@ -48,7 +48,7 @@ class PersonImage:
         """
         instance = cls.get_instance(id)
         
-        if id == 5:
+        if id == 3:
             print(f"Cross green line")
     
         if instance is None or len(instance.history_deque) == 0 or len(instance.list_images) == 0:
@@ -62,7 +62,7 @@ class PersonImage:
         centroid_bottom, centroid_center = zip(*centroids) if centroids else ([], [])
         cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2])) or path_intersects_line(centroid_bottom, LineString(polygons_list[0][2:]))
         
-        if id == 2:
+        if id == 3:
             print(f"Cross green line: {cross_green_line}")
             
         if instance is None or cross_green_line is False:

@@ -266,7 +266,7 @@ def detect(save_img=False,video_data=None):
                         if id != id_other_track:
                             total_overlap_tracker += calculate_overlap(bbox[:4], other_track_det[:4].astype(int))
 
-                    new_person = PersonImage(id=id,list_images=[])
+                    new_person = PersonImage.get_instance(id)
                     box = BoundingBox(
                         img_frame=sub_frame,
                         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
@@ -365,7 +365,7 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.view_img = True # DEBUG IMAGE
+        self.view_img = False # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY
 
 

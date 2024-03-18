@@ -20,6 +20,15 @@ def get_video_data():
             'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
         },
         {
+            'name' : "santos_dumont_debug",
+            'source' : "/home/diego/Documents/Footage/dumont_debug1.mp4",
+            'description' : "Video de Santos Dumont",
+            'folder_img' : "imgs_santos_dumont_debug",
+            'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
+            'polygons_out' : np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
+            'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+        },
+        {
             'name' : "santos_dumont_split",
             'source' : "/home/diego/Documents/Footage/TEST_FRAMES/",
             'description' : "Video de Santos Dumont",
