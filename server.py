@@ -26,8 +26,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.161.112.110'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '181.161.112.110'
 PORT = 3001
 FRAME_RATE = 15
 FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
@@ -265,12 +265,37 @@ def re_ranking():
     data = request.json
     ids_out = data.get('ids_out', [])
     all_param = data.get('all', True)  # Get the 'all' parameter, defaulting to True
+    filter_param = data.get('filter', 'all') 
 
     if not ids_out:
         return jsonify({'error': 'No ids_out provided'}), 400
 
     try:
         db = get_db_connection()
+        cursor = db.cursor()
+        
+        
+        if filter_param == 'matches':
+        # Get only the IDs of features that have a corresponding row in reranking_matches
+            cursor.execute('''
+                SELECT DISTINCT f.id FROM features f
+                JOIN reranking_matches rm ON f.id = rm.id_out
+            ''')
+            rows = cursor.fetchall()
+            ids_out = [row['id'] for row in rows]
+        elif filter_param == 'not_matches':
+            # Get only the IDs of features that do not have a corresponding row in reranking_matches
+            cursor.execute('''
+                SELECT f.id FROM features f
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out
+                )
+            ''')
+            rows = cursor.fetchall()
+            ids_out = [row['id'] for row in rows]
+        
+            
+        
         placeholders = ', '.join(['?'] * len(ids_out))
         ids_out_twice = ids_out + ids_out
 
@@ -279,7 +304,6 @@ def re_ranking():
             OR
             (direction = 'In' AND id < (SELECT MAX(id) FROM features WHERE id IN ({placeholders}) AND direction = 'Out'))
         """
-        cursor = db.cursor()
         cursor.execute(query, ids_out_twice)
         rows = cursor.fetchall()
         
@@ -294,6 +318,7 @@ def re_ranking():
         ''')
         
         if all_param:
+            # Will filter out the IN that has the OUT
             # QUERY FOR reranking_matches and get all the data
             # filter the rows above by the following logic
             # if re renaking matches has the id_out and id_in then
@@ -315,7 +340,17 @@ def re_ranking():
         feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
 
         
-        results_list, _ = process_re_ranking(ids, img_names, directions,feature_tensor, n_images=5, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, matches=reranking_data)
+        results_list, _ = process_re_ranking(
+            ids, 
+            img_names, 
+            directions,
+            feature_tensor, 
+            n_images=5, 
+            max_number_back_to_compare=60, 
+            K1=8, 
+            K2=3, 
+            LAMBDA=0.1, 
+            matches=reranking_data)
         
         
         def seconds_to_time(seconds):
@@ -359,17 +394,29 @@ def re_ranking():
     
 @app.route('/api/get_list_ids_out', methods=['GET'])
 def get_list_ids_out():
+    filter_param = request.args.get('filter', default=None, type=str)
+    
     db = get_db_connection()
     cursor = db.cursor()
-    
-    # Select distinct id values from the features table
-    cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')
+    if filter_param == 'matches':
+        # Get only the IDs of features that have a corresponding row in reranking_matches
+        cursor.execute('''
+            SELECT DISTINCT f.id FROM features f
+            JOIN reranking_matches rm ON f.id = rm.id_out
+        ''')
+    elif filter_param == 'notMatches':
+        # Get only the IDs of features that do not have a corresponding row in reranking_matches
+        cursor.execute('''
+            SELECT distinct f.id FROM features f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out
+            ) and f.direction='Out'
+        ''')
+    else:
+        cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')        
+
     rows = cursor.fetchall()
-
-    # Extract the id values from the rows
     ids_out = [row['id'] for row in rows]
-
-    # Return the list of unique id values
     return jsonify(ids_out=ids_out), 200
 
 @app.route('/api/reranking/match', methods=['POST'])
@@ -433,7 +480,6 @@ def reranking_match():
 
     return jsonify({'message': 'Success'}), 200
 
-
 @app.route('/api/reranking/match', methods=['GET'])
 def get_reranking_matches():
     # Get ids_out from query parameter as a comma-separated string
@@ -493,6 +539,11 @@ def get_stats():
     # Query for counting unique 'OUT' and 'IN' in the features table
     cursor.execute("SELECT direction, COUNT(DISTINCT id) AS total FROM features GROUP BY direction")
     direction_counts = cursor.fetchall()
+    
+    cursor.execute("SELECT count(DISTINCT f.id) as total FROM features f WHERE NOT EXISTS (SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out) and f.direction='Out'")
+    missing_matches_row = cursor.fetchone()
+    missing_matches = missing_matches_row['total'] if missing_matches_row else 0
+    
 
     # Initialize counts
     out_count = 0
@@ -514,7 +565,8 @@ def get_stats():
     response = {
         'in': in_count,
         'out': out_count,
-        'total_matches': total_matches
+        'total_matches': total_matches,
+        'missing_matches': missing_matches,
     }
 
     return jsonify(response)
