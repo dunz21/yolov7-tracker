@@ -25,13 +25,15 @@ from sort import *
 import time
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImage import PersonImage
+from utils.bytetrack.byte_tracker import BYTETracker
 from utils.video_data import get_video_data
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
+from types import SimpleNamespace
 
 
 
-def draw_boxes(img, bbox, identities=None , offset=(0, 0),extra_info=None,color=None):
+def draw_boxes(img, bbox, identities=None , offset=(0, 0),extra_info=None,color=None,position='Top'):
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = box
         x1 = int(x1)
@@ -52,10 +54,15 @@ def draw_boxes(img, bbox, identities=None , offset=(0, 0),extra_info=None,color=
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         if color is None:
             color = (255, 0, 20)
+            # color_rect_text = (255, 144, 30)
 
         cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-        cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), (255, 144, 30), -1)
-        cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        if position == 'Top':
+            cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
+            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        else:
+            cv2.rectangle(img, (x1, y2 - 20), (x1 + w, y2), color, -1)
+            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
 
     return img
 
@@ -117,6 +124,14 @@ def detect(save_img=False,video_data=None):
     sort_tracker = Sort(max_age=sort_max_age,
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
+    obj = SimpleNamespace()
+    obj.track_thresh = 0.5
+    obj.track_buffer = 50
+    obj.mot20 = False
+    obj.match_thresh = 0.8
+    obj.aspect_ratio_thresh = 1.6
+    obj.min_box_area = 10
+    bytetrack = BYTETracker(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
 
@@ -165,6 +180,8 @@ def detect(save_img=False,video_data=None):
     width = 0
     height = 0
     time_for_each_100_frames = []
+    results = []
+    
     for path, img, im0s, vid_cap, frame in dataset:
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -202,6 +219,9 @@ def detect(save_img=False,video_data=None):
 
         #Puedo tener trackers y ninguna deteccion. Ya que pueden ser del pasado
         trackers = sort_tracker.getTrackers()
+
+
+
         if len(trackers) > 0:
             for tracker in trackers:
                 if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas no muera por ram
@@ -222,6 +242,10 @@ def detect(save_img=False,video_data=None):
                 det = det.cpu().detach().numpy()
                 det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
 
+
+               
+
+
                 # ..................USE TRACK FUNCTION....................
                 # pass an empty array to sort
                 dets_to_sort = np.empty((0, 6))
@@ -232,6 +256,18 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
 
+                if(dets_to_sort.size > 0):
+                    online_targets = bytetrack.update(dets_to_sort.copy(), [int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))], img.shape[2:])
+                    bbox = [track.tlbr for track in  online_targets]
+                    identities = [track.track_id for track in online_targets]
+                    draw_boxes(img=im0, bbox=bbox, identities=identities,extra_info=None,color=(0,0,255),position='Bottom')
+                    
+                    print(f"Online targets: {online_targets}")
+
+                
+                
+                
+                            
                 # Run SORT
                 tracked_dets = sort_tracker.update(dets_to_sort)
                 tracks = sort_tracker.getTrackers()
@@ -240,15 +276,6 @@ def detect(save_img=False,video_data=None):
                 for track in tracks:
                     only_bboxes = [box[:4] for box in track.bbox_history]
                     new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
-                    # result = new_person.find_polygons_for_centroids(polygons_in_out)
-                    # direction_and_position = new_person.detect_pattern_change(result)
-
-                    # # UPDATE a la direccion para luego guardar con el tracker salga
-                    # if direction_and_position is not None:
-                    #     direction = direction_and_position[0]
-                    #     position = direction_and_position[1]
-                    #     if position % 2 == 0:
-                    #         new_person.direction = 'In' if direction == '10' else 'Out'
                 
                 # loop over detections, in the future we can use this to not loop over tracks
                 for track_det in tracked_dets:
@@ -365,8 +392,8 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.view_img = False # DEBUG IMAGE
-        self.wait_for_key = False # DEBUG KEY
+        self.view_img = True # DEBUG IMAGE
+        self.wait_for_key = True # DEBUG KEY
 
 
 if __name__ == '__main__':
@@ -420,7 +447,7 @@ if __name__ == '__main__':
                         help='save results with object id to *.txt')
 
     parser.set_defaults(download=True)
-    # opt = parser.parse_args() OLD
+# opt = parser.parse_args() OLD
     opt = Options()
     print(opt.__dict__)
     # check_requirements(exclude=('pycocotools', 'thop'))
@@ -436,7 +463,7 @@ if __name__ == '__main__':
         else:
             # try:
                 DATA = get_video_data()
-                video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
+                video_data = next((final for final in DATA if final['name'] == 'conce_test'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

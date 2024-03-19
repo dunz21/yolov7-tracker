@@ -48,7 +48,7 @@ def get_video_data():
         },
         {
             'name' : "conce_test",
-            'source' : "/home/diego/Documents/Footage/conce_logic_in_out_5.mp4",
+            'source' : "/home/diego/Documents/Footage/conce_logic_in_out_10.mp4",
             'description' : "Video de Conce",
             'folder_img' : "imgs_conce_debug_half",
             'polygons_in' : np.array([[225, 780], [520, 610],[671, 686],[344, 928]], np.int32),
