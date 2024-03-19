@@ -9,5 +9,6 @@ images_subframe*
 imgs*
 *.html
 *.csv
+*.db
 logs/*
 output/*
