@@ -115,7 +115,7 @@ def load_data(features_csv):
 ## 2. Process re-ranking
 def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1,matches=None):
     results_dict = {}  # Initialize as a dictionary
-    posible_pair_matches, ids_correct_ins = np.array([]), np.array([])
+    posible_pair_matches, ids_correct_ins,out_without_in = np.array([]), np.array([]),[]
     id_in_list = np.unique(ids[directions == 'In'])
     id_out_list = np.unique(ids[directions == 'Out'])
 
@@ -134,6 +134,9 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
 
 
         gallery_candidate_indices = np.where((ids < id_out) & (directions == 'In') & (~np.isin(ids, ids_correct_ins)))[0]
+        if len(gallery_candidate_indices) == 0:
+            out_without_in.append(id_out)
+            continue
         if len(gallery_candidate_indices) > max_number_back_to_compare:
             gallery_candidate_indices = gallery_candidate_indices[-max_number_back_to_compare:]
 

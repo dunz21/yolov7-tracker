@@ -26,15 +26,15 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
-# SERVER_IP = '181.160.252.67'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '181.161.112.110'
 PORT = 3001
 FRAME_RATE = 15
-FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_conce_top4/'
+FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
+VIDEO_PATH = '/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4'  # Your video file path
+BBOX_CSV = 'conce_bbox.csv'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 BASE_FOLDER_NAME = 'logs'
-VIDEO_PATH = '/home/diego/Documents/Footage/CONCEPCION_CH1.mp4'  # Your video file path
-BBOX_CSV = 'conce_bbox.csv'
 BBOX_CSV = os.path.join(BASE_FOLDER_NAME, BBOX_CSV)
 
 #### DATABASE #####
@@ -61,7 +61,7 @@ def serve_image(filename):
 
 @app.route('/api/data-images/', defaults={'id': None})
 @app.route('/api/data-images/<id>')
-def data_images(id):
+def data_images(id): 
     try:
         db = get_db()
         db.row_factory = sqlite3.Row  # Access columns by name
@@ -233,7 +233,7 @@ def update_direction(id):
     return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
 
 
-def get_db_connection(db_name="output/conce_solider_in-out_DB.db"):
+def get_db_connection(db_name="output/santos_dumont_solider_in-out_DB.db"):
     conn = sqlite3.connect(db_name)
     conn.row_factory = sqlite3.Row
     return conn
@@ -282,6 +282,16 @@ def re_ranking():
         cursor = db.cursor()
         cursor.execute(query, ids_out_twice)
         rows = cursor.fetchall()
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS reranking_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_in INTEGER NOT NULL,
+            id_out INTEGER NOT NULL UNIQUE,
+            count_matches INTEGER NOT NULL,
+            obs TEXT NOT NULL
+        )
+        ''')
         
         if all_param:
             # QUERY FOR reranking_matches and get all the data
@@ -440,6 +450,17 @@ def get_reranking_matches():
     db = get_db_connection()
     cursor = db.cursor()
 
+    # Check and create the reranking_matches table if it does not exist
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS reranking_matches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_in INTEGER NOT NULL,
+        id_out INTEGER NOT NULL UNIQUE,
+        count_matches INTEGER NOT NULL,
+        obs TEXT NOT NULL
+    )
+    ''')
+
     # Prepare placeholders for the query
     placeholders = ', '.join(['?'] * len(ids_out))
     query = f'''
@@ -451,16 +472,17 @@ def get_reranking_matches():
     # Initialize an empty dictionary for the results
     matches = {}
     for row in rows:
-        # Assuming your row factory returns a dictionary-like object
-        # If not, you may need to manually extract values from a tuple
-        id_out = row['id_out']
+        # Convert row to dictionary (assuming row factory is set)
+        row_dict = dict(row)
+        id_out = row_dict['id_out']
         # Construct the desired dictionary structure for each id_out
         matches[id_out] = {
-            'count_matches': row['count_matches'],
-            'id_in': row['id_in'],
-            'obs': row['obs']
+            'count_matches': row_dict['count_matches'],
+            'id_in': row_dict['id_in'],
+            'obs': row_dict['obs']
         }
 
+    db.close()  # Don't forget to close the database connection
     return jsonify(matches), 200
 
 @app.route('/api/stats', methods=['GET'])
