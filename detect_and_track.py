@@ -33,18 +33,19 @@ from types import SimpleNamespace
 
 
 
-def draw_boxes(img, bbox, identities=None , offset=(0, 0),extra_info=None,color=None,position='Top'):
-    for i, box in enumerate(bbox):
-        x1, y1, x2, y2 = box
+def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
+    for box in bbox:
+        x1, y1, x2, y2,id,score = box
         x1 = int(x1)
         y1 = int(y1)
         x2 = int(x2)
         y2 = int(y2)
+        id = int(id)
         x1 += offset[0]
         x2 += offset[0]
         y1 += offset[1]
         y2 += offset[1]
-        id = int(identities[i]) if identities is not None else 0
+        # id = int(identities[i]) if identities is not None else 0
 
         label = str(id) + ":" + "person"
         if extra_info is not None:
@@ -222,16 +223,26 @@ def detect(save_img=False,video_data=None):
 
 
 
-        if len(trackers) > 0:
-            for tracker in trackers:
-                if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas no muera por ram
-                    PersonImage.delete_instance(tracker.id + 1)
-
-                if tracker.history.__len__() == sort_max_age:
-                    PersonImage.delete_instance(tracker.id + 1)
-                    continue
-                if tracker.history.__len__() == 10:
-                    PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
+        # if len(trackers) > 0:
+        #     for tracker in trackers:
+        #         if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas no muera por ram
+        #             PersonImage.delete_instance(tracker.id + 1)
+        #         if tracker.history.__len__() == sort_max_age:
+        #             PersonImage.delete_instance(tracker.id + 1)
+        #             continue
+        #         if tracker.history.__len__() == 10:
+        #             PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
+                    
+        if (bytetrack.removed_stracks.__len__() > 0):
+            for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
+                if (PersonImage.get_instance(id)):    
+                    PersonImage.save(id=id,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
+                    PersonImage.delete_instance(id)
+                    folder_name = 'logs'
+                    os.makedirs(folder_name, exist_ok=True)
+                    with open(f'{folder_name}/bytetrack.txt', 'a') as log_file:
+                        log_file.write(f"SAVED: {id} \n")
+            
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
@@ -246,7 +257,7 @@ def detect(save_img=False,video_data=None):
                
 
 
-                # ..................USE TRACK FUNCTION....................
+                # ..................USEa TRACK FUNCTION....................
                 # pass an empty array to sort
                 dets_to_sort = np.empty((0, 6))
 
@@ -255,52 +266,74 @@ def detect(save_img=False,video_data=None):
                 for x1, y1, x2, y2, conf, detclass in det:
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
-
-                if(dets_to_sort.size > 0):
-                    online_targets = bytetrack.update(dets_to_sort.copy(), [int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))], img.shape[2:])
-                    bbox = [track.tlbr for track in  online_targets]
-                    identities = [track.track_id for track in online_targets]
-                    draw_boxes(img=im0, bbox=bbox, identities=identities,extra_info=None,color=(0,0,255),position='Bottom')
+                #### BYTETRACK
+                online_targets = bytetrack.update(dets_to_sort.copy(), [int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))], img.shape[2:])
+                bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
+                for box in bbox_id:
+                    x1, y1, x2, y2, id, score = box
+                    id = int(id)
+                    if (PersonImage.get_instance(id) == None):
+                        new_person = PersonImage(id=id,list_images=[],history_deque=[])
+                    else:
+                        new_person = PersonImage.get_instance(id)
+                        
+                    sub_frame = original_image[max(0,int(y1)):max(0,int(y2)), max(0,int(x1)):max(0,int(x2))]
+                    distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=box[:4])
+                    objBbox = BoundingBox(
+                        img_frame=sub_frame,
+                        frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
+                        bbox=[*box[:4].astype(int),score],
+                        overlap=0,
+                        distance_to_center=distance_to_center)
                     
-                    print(f"Online targets: {online_targets}")
+                    new_person.list_images.append(objBbox)
+                    new_person.history_deque.append(box[:4])
+                    if(new_person.history_deque.__len__() > 500):
+                        folder_name = 'logs'
+                        os.makedirs(folder_name, exist_ok=True)
+                        with open(f'{folder_name}/bytetrack.txt', 'a') as log_file:
+                            log_file.write(f"DELETE: {id} History: {new_person.history_deque.__len__()}  \n")
+                        PersonImage.delete_instance(id)
+                
+                draw_boxes(img=im0, bbox=bbox_id, extra_info=None,color=(0,0,255),position='Top')
 
                 
                 
                 
                             
                 # Run SORT
-                tracked_dets = sort_tracker.update(dets_to_sort)
-                tracks = sort_tracker.getTrackers()
+                # tracked_dets = sort_tracker.update(dets_to_sort)
+                # tracks = sort_tracker.getTrackers()
 
-                # loop over tracks
-                for track in tracks:
-                    only_bboxes = [box[:4] for box in track.bbox_history]
-                    new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
+                # # loop over tracks
+                # for track in tracks:
+                #     only_bboxes = [box[:4] for box in track.bbox_history]
+                #     new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
                 
-                # loop over detections, in the future we can use this to not loop over tracks
-                for track_det in tracked_dets:
-                    id = int(track_det[8])
-                    conf = track_det[9]
-                    bbox = [*track_det[:4].astype(int),conf]
-                    x1, y1, x2, y2 = bbox[:4]
-                    sub_frame = original_image[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
-                    distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
+                # # loop over detections, in the future we can use this to not loop over tracks
+                # for track_det in tracked_dets:
+                #     id = int(track_det[8])
+                #     conf = track_det[9]
+                #     bbox = [*track_det[:4].astype(int),conf]
+                #     x1, y1, x2, y2 = bbox[:4]
+                #     sub_frame = original_image[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
+                #     distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
 
 
-                    total_overlap_tracker = 0
-                    for other_track_det in tracked_dets:
-                        id_other_track = other_track_det[8]
-                        if id != id_other_track:
-                            total_overlap_tracker += calculate_overlap(bbox[:4], other_track_det[:4].astype(int))
+                #     total_overlap_tracker = 0
+                #     for other_track_det in tracked_dets:
+                #         id_other_track = other_track_det[8]
+                #         if id != id_other_track:
+                #             total_overlap_tracker += calculate_overlap(bbox[:4], other_track_det[:4].astype(int))
 
-                    new_person = PersonImage.get_instance(id)
-                    box = BoundingBox(
-                        img_frame=sub_frame,
-                        frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
-                        bbox=bbox,
-                        overlap=total_overlap_tracker,
-                        distance_to_center=distance_to_center)
-                    new_person.list_images.append(box)
+                #     new_person = PersonImage.get_instance(id)
+                #     box = BoundingBox(
+                #         img_frame=sub_frame,
+                #         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
+                #         bbox=bbox,
+                #         overlap=total_overlap_tracker,
+                #         distance_to_center=distance_to_center)
+                #     new_person.list_images.append(box)
 
 
 
@@ -309,10 +342,10 @@ def detect(save_img=False,video_data=None):
 
 
         # draw boxes for visualization
-        if len(tracked_dets) > 0:
-            bbox_xyxy = tracked_dets[:, :4]
-            # bbox_xyxy = [track.bbox_history[-1][:4] for track in sort_tracker.getTrackers() if len(track.history) == 0 and len(track.bbox_history) > 2]
-            identities = tracked_dets[:, 8]
+        # if len(tracked_dets) > 0:
+        #     bbox_xyxy = tracked_dets[:, :4]
+        #     # bbox_xyxy = [track.bbox_history[-1][:4] for track in sort_tracker.getTrackers() if len(track.history) == 0 and len(track.bbox_history) > 2]
+        #     identities = tracked_dets[:, 8]
             
 
             #TODO: DEJARLO OPCIONAL CON HIPERPARAMETROS
@@ -332,7 +365,7 @@ def detect(save_img=False,video_data=None):
             # else:
             #     bbox_xyxy = tracked_dets[:, :4]
             #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info)
-            draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=None)
+            # draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=None)
 
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
@@ -392,8 +425,8 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.view_img = True # DEBUG IMAGE
-        self.wait_for_key = True # DEBUG KEY
+        self.view_img = False # DEBUG IMAGE
+        self.wait_for_key = False # DEBUG KEY
 
 
 if __name__ == '__main__':
@@ -463,7 +496,7 @@ if __name__ == '__main__':
         else:
             # try:
                 DATA = get_video_data()
-                video_data = next((final for final in DATA if final['name'] == 'conce_test'), None)
+                video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

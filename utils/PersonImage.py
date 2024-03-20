@@ -51,7 +51,7 @@ class PersonImage:
         if id == 3:
             print(f"Cross green line")
     
-        if instance is None or len(instance.history_deque) == 0 or len(instance.list_images) == 0:
+        if instance is None or len(instance.history_deque) < 5 or len(instance.list_images) < 5:
             return
         
         

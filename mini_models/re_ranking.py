@@ -91,14 +91,22 @@ def find_repeating_values(input_list, min_repeats=3):
     frequency = Counter(input_list)
     repeating_values = [value for value, count in frequency.items() if count >= min_repeats]
     if repeating_values:
-        return repeating_values if len(repeating_values) > 1 else repeating_values[0]
+        return repeating_values[0]
     else:
         return False
     
 ## 1. Load data
 def load_data(features_csv):
+    
+    # Check if re_ranking_data is a path (string) or a DataFrame and load accordingly
+    if isinstance(features_csv, str):
+        features_df = pd.read_csv(features_csv)
+    elif isinstance(features_csv, pd.DataFrame):
+        features_df = features_csv
+    else:
+        raise ValueError("features_df must be a path to a CSV file or a pandas DataFrame")
+
     # Read features and convert to floats
-    features_df = pd.read_csv(features_csv)
     for col in features_df.columns[3:]:
         features_df[col] = features_df[col].astype(float)
     
@@ -119,7 +127,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
     id_in_list = np.unique(ids[directions == 'In'])
     id_out_list = np.unique(ids[directions == 'Out'])
 
-    for id_out in tqdm(id_out_list, desc="Processing IDs"):
+    for id_out in tqdm(id_out_list, desc="Processing Re Rank IDs"):
         if id_out < id_in_list[0]:
             continue
         
@@ -183,7 +191,7 @@ def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60,
 
 
 
-def generate_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html):
+def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html):
     def seconds_to_time(seconds):
         td = datetime.timedelta(seconds=seconds)
         time = (datetime.datetime.min + td).time()
@@ -193,7 +201,6 @@ def generate_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html)
         num_str = str(num)
         letter_code = ''.join(mapping[int(digit)] for digit in num_str)
         return letter_code
-
     def _image_formatter(image_name, query_frame_number):
         folder_id = image_name.split('_')[1]
         img_path = os.path.join(base_folder, str(folder_id), f"{image_name}.png")
@@ -256,4 +263,4 @@ if __name__ == '__main__':
     # Complete
     RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
 
-    generate_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
+    generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)

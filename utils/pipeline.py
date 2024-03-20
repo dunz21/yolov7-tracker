@@ -442,6 +442,15 @@ def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folde
     with open(filename, 'w') as file:
         file.write(combined_html)
 
+
+def get_features_from_model(model, folder_path='',features_file='features.csv', weights=''):
+    list_folders = get_folders(folder_path)
+    _,_,_,_,result = folder_analysis(list_folders)
+    base_path = os.path.dirname(list_folders[0])
+    list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
+    features = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model,save_to_db=True)
+    return features
+
 # FINAL PIPLELINE
 def getFinalScore(folder_name,weights='',model='',features_file='features.csv',distance_file='', html_file='export.html',distance_method='euclidean',frame_rate=15):
     list_folders = get_folders(folder_name)
