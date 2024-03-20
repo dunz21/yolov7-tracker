@@ -9,34 +9,10 @@ from sklearn.model_selection import KFold
 import shutil
 import sqlite3
 from utils.pipeline import getFinalScore,get_features_from_model
-from .re_ranking import complete_re_ranking, generate_re_ranking_html_report
+from re_ranking import complete_re_ranking, generate_re_ranking_html_report
+from utils.tools import convert_csv_to_sqlite
 
 
-def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
-    """
-    Convert a CSV file to a SQLite table and return the data from the table.
-    
-    Parameters:
-    - csv_file_path: The file path of the CSV to be converted.
-    - db_file_path: The file path of the SQLite database.
-    - table_name: The name of the table where the CSV data will be inserted. Defaults to 'bbox_data'.
-    
-    Returns:
-    - A pandas DataFrame containing the data from the specified SQLite table.
-    """
-    # Load the CSV file into a pandas DataFrame
-    df = pd.read_csv(csv_file_path)
-    
-    # Create a connection to the SQLite database
-    with sqlite3.connect(db_file_path) as conn:
-        # Write the data to a SQLite table
-        df.to_sql(table_name, conn, if_exists='replace', index=False)
-        
-        # Fetch the newly inserted data to verify
-        fetched_data = pd.read_sql(f'SELECT * FROM {table_name}', conn)
-    
-    # Return the fetched data
-    return fetched_data
     
 def train_and_save_model(training_data_path, model_save_path):
     INTEREST_LABEL = 'label_img'
@@ -111,7 +87,7 @@ def clean_img_folder_top_k(predict_csv, base_folder_images, dest_folder_results,
     - k_fold: Number of folds for k-fold cross-validation.
     - threshold: Confidence threshold for selecting images.
     """
-	# Load the predictions
+    # Load the predictions
     if isinstance(predict_csv, str):
         df = pd.read_csv(predict_csv)
     elif isinstance(predict_csv, pd.DataFrame):
@@ -164,33 +140,29 @@ def clean_img_folder_top_k(predict_csv, base_folder_images, dest_folder_results,
 
 
 if __name__ == '__main__':
-    base_folder_images = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont/'
-    dest_folder_results = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
+    MODEL_WEIGHT = '/home/diego/Documents/yolov7-tracker/mini_models/results/image_selection_model.pkl'
+    SOLIDER_MODEL_PATH = '/home/diego/Documents/detectron2/solider_model.pth'
+    ROOT_FOLDER = "/home/diego/Documents/yolov7-tracker/runs/detect/"
+    
+    
+    RUN_FOLDER = 'bytetrack_santos_dumont' #ACA SE CAMBIA
+    base_folder_images = 'imgs_santos_dumont'
+    dest_folder_results = 'imgs_santos_dumont_top4'
+    CSV_FILE = 'santos_dumont_bbox.db'
+    FEAT_FILE = 'santos_dumont_features.csv'
+    
+    
+    ROOT_FOLDER = os.path.join(ROOT_FOLDER, RUN_FOLDER)
+    base_folder_images = os.path.join(ROOT_FOLDER, base_folder_images)
+    dest_folder_results = os.path.join(ROOT_FOLDER, dest_folder_results)
+    DB_FILE_PATH = os.path.join(ROOT_FOLDER, CSV_FILE)
+    
+    
+    DISTANCE_METHOD = "cosine"
+    features_file = os.path.join(ROOT_FOLDER, FEAT_FILE)
+    
     k_fold = 4
     threshold = 0.9
-    
-    model_weight = '/home/diego/Documents/yolov7-tracker/mini_models/results/image_selection_model.pkl'
-    
-    BASE_FOLDER_NAME = '/home/diego/Documents/yolov7-tracker/logs/'
-    CSV_FILE = 'santos_dumont_bbox.csv'
-    CSV_FILE_PATH = os.path.join(BASE_FOLDER_NAME, CSV_FILE)
-    db_file_path = f'{BASE_FOLDER_NAME}/{CSV_FILE.replace(".csv", ".db")}'
-    
-    
-    # 1.- To DB. Esto vendria despues listo
-    
-    # bbox_data = convert_csv_to_sqlite(CSV_FILE_PATH, db_file_path)
-    
-    # 2.- Predcit que imagenes son buenas
-    # bbox_img_selection = predict_img_selection(bbox_data,model_weights_path=model_weight)
-    # 3.- Aplicar separacion de imagenes basado en el resultado del modelo
-    # clean_img_folder_top_k(bbox_img_selection, base_folder_images, dest_folder_results, k_fold, threshold)
-    
-    SOLIDER_MODEL_PATH = '/home/diego/Documents/detectron2/solider_model.pth'
-    DISTANCE_METHOD = "cosine"
-    features_file = f"/home/diego/Documents/yolov7-tracker/output/conce_solider_in-out_DB.csv"
-    
-    # features = get_features_from_model(folder_path=dest_folder_results,weights=SOLIDER_MODEL_PATH,model='solider',features_file=features_file)
     
     
     FRAME_RATE = 15
@@ -199,17 +171,16 @@ if __name__ == '__main__':
     K1 = 8
     K2 = 3
     LAMBDA = 0
-    save_csv_dir = '/home/diego/Documents/yolov7-tracker/output'
+    save_csv_dir = ROOT_FOLDER
 
     
     
     with tqdm(total=6, desc="Overall Progress", unit="step") as pbar:
-        # 1.- To DB. This would be ready afterwards
-        bbox_data = convert_csv_to_sqlite(CSV_FILE_PATH, db_file_path)
-        pbar.update(1)  # Update progress after each major step
+
+        bbox_data = pd.read_sql(f'SELECT * FROM bbox_raw', sqlite3.connect(DB_FILE_PATH))
 
         # 2.- Predict which images are good
-        bbox_img_selection = predict_img_selection(bbox_data, model_weights_path=model_weight)
+        bbox_img_selection = predict_img_selection(bbox_data, model_weights_path=MODEL_WEIGHT)
         pbar.update(1)
 
         # 3.- Apply image separation based on model results

@@ -30,93 +30,12 @@ from utils.video_data import get_video_data
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
 from types import SimpleNamespace
-
-
-
-def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
-    for box in bbox:
-        x1, y1, x2, y2,id,score = box
-        x1 = int(x1)
-        y1 = int(y1)
-        x2 = int(x2)
-        y2 = int(y2)
-        id = int(id)
-        x1 += offset[0]
-        x2 += offset[0]
-        y1 += offset[1]
-        y2 += offset[1]
-        # id = int(identities[i]) if identities is not None else 0
-
-        label = str(id) + ":" + "person"
-        if extra_info is not None:
-            label += str(f"oc:{extra_info[id]['overlap']:.2f}")
-            label += str(f"di:{extra_info[id]['distance']:.2f}")
-
-        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        if color is None:
-            color = (255, 0, 20)
-            # color_rect_text = (255, 144, 30)
-
-        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-        if position == 'Top':
-            cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
-            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
-        else:
-            cv2.rectangle(img, (x1, y2 - 20), (x1 + w, y2), color, -1)
-            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
-
-    return img
-
-def calculate_overlap(rect1, rect2):
-    # Extract coordinates
-    x1_1, y1_1, x2_1, y2_1 = rect1
-    x1_2, y1_2, x2_2, y2_2 = rect2
-
-    # Calculate intersection area
-    x_left = max(x1_1, x1_2)
-    y_top = max(y1_1, y1_2)
-    x_right = min(x2_1, x2_2)
-    y_bottom = min(y2_1, y2_2)
-
-    # Check if there is an intersection
-    if x_right < x_left or y_bottom < y_top:
-        return 0  # No overlap
-
-    intersection_area = (x_right - x_left) * (y_bottom - y_top)
-
-    # Calculate the area of both rectangles
-    area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
-    area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
-
-    # Calculate union area
-    union_area = area1 + area2 - intersection_area
-
-    # Calculate the overlap percentage
-    overlap = intersection_area / union_area
-
-    return overlap
-
-def distance_to_bbox_bottom_line(line=[], bbox=[]):
-    """
-    Calculate the distance between the closest point on a line and the center of the bottom edge of a bounding box (bbox).
-    
-    :param line: A list of points [[x1, y1], [x2, y2]] defining the line.
-    :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
-    :return: The shortest distance between the line and the center of the bottom edge of the bbox.
-    """
-    line = LineString(line)
-    x1, y1, x2, y2 = bbox
-
-    # Calculate the center of the bottom edge of the bbox
-    bottom_center = Point((x1 + x2) / 2, y2)
-
-    # Calculate the shortest distance from the bottom center to the line
-    distance = bottom_center.distance(line)
-    return distance
+from datetime import datetime
+from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite
 
 def detect(save_img=False,video_data=None):
-    source, weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
-    save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
+    weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
+    save_img = not opt.nosave
 
     # .... Initialize SORT ....
     sort_max_age = 50
@@ -136,9 +55,11 @@ def detect(save_img=False,video_data=None):
     # .........................
     PersonImage.clear_instances()
 
-    opt.name = video_data['folder_img']
+    # opt.name = video_data['folder_img']
     # Directories
-    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
+    formatted_date = datetime.now().strftime('%Y_%m_%d')
+    folder_name = f"{formatted_date}_{video_data['name']}"
+    save_dir = Path(increment_path(Path(opt.project) / folder_name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Initialize
@@ -215,7 +136,6 @@ def detect(save_img=False,video_data=None):
         original_image = im0s.copy()
         # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
-        center_of_interested = np.mean(polygons_in_out[0][:2],axis=0).squeeze()
 
 
         #Puedo tener trackers y ninguna deteccion. Ya que pueden ser del pasado
@@ -236,11 +156,9 @@ def detect(save_img=False,video_data=None):
         if (bytetrack.removed_stracks.__len__() > 0):
             for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
                 if (PersonImage.get_instance(id)):    
-                    PersonImage.save(id=id,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
+                    PersonImage.save(id=id,folder_name=f"{str(save_dir)}/{video_data['folder_img']}",csv_box_name=f"{str(save_dir)}/{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
                     PersonImage.delete_instance(id)
-                    folder_name = 'logs'
-                    os.makedirs(folder_name, exist_ok=True)
-                    with open(f'{folder_name}/bytetrack.txt', 'a') as log_file:
+                    with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
                         log_file.write(f"SAVED: {id} \n")
             
         # Process detections
@@ -279,19 +197,23 @@ def detect(save_img=False,video_data=None):
                         
                     sub_frame = original_image[max(0,int(y1)):max(0,int(y2)), max(0,int(x1)):max(0,int(x2))]
                     distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=box[:4])
+
+                    total_over_lap = 0
+                    for other_box in bbox_id:
+                        if box[4] != other_box[4]:
+                            total_over_lap += calculate_overlap(box[:4].astype(int), other_box[:4].astype(int))
+                    
                     objBbox = BoundingBox(
                         img_frame=sub_frame,
                         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
                         bbox=[*box[:4].astype(int),score],
-                        overlap=0,
+                        overlap=total_over_lap,
                         distance_to_center=distance_to_center)
                     
                     new_person.list_images.append(objBbox)
                     new_person.history_deque.append(box[:4])
                     if(new_person.history_deque.__len__() > 500):
-                        folder_name = 'logs'
-                        os.makedirs(folder_name, exist_ok=True)
-                        with open(f'{folder_name}/bytetrack.txt', 'a') as log_file:
+                        with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
                             log_file.write(f"DELETE: {id} History: {new_person.history_deque.__len__()}  \n")
                         PersonImage.delete_instance(id)
                 
@@ -396,6 +318,7 @@ def detect(save_img=False,video_data=None):
                 vid_writer = cv2.VideoWriter(
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
             vid_writer.write(im0)
+    convert_csv_to_sqlite(csv_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.csv",db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",table_name='bbox_raw')
     print(f'Done. ({time.time() - t0:.3f}s)')
     print([f"{t:.2f}" for t in time_for_each_100_frames])
     
@@ -404,9 +327,6 @@ def detect(save_img=False,video_data=None):
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        # self.source = '/home/diego/Documents/Footage/santos10_min.mp4'
-        self.source = '/home/diego/Documents/detectron2/mini_conce.mp4'
-        # self.source = 'retail.mp4'
         self.img_size = 640
         self.conf_thres = 0.25
         self.iou_thres = 0.45
@@ -419,7 +339,6 @@ class Options:
         self.augment = False
         self.update = False
         self.project = 'runs/detect'
-        self.name = 'diponti_sto_dumont'
         self.exist_ok = False
         self.no_trace = False
         self.save_bbox_dim = False
@@ -496,7 +415,7 @@ if __name__ == '__main__':
         else:
             # try:
                 DATA = get_video_data()
-                video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
+                video_data = next((final for final in DATA if final['name'] == 'conce_test'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
@@ -506,7 +425,7 @@ if __name__ == '__main__':
             #     print("Error")
             
             # try:
-                video_data = DATA[4]
+                # video_data = DATA[4]
             #     detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

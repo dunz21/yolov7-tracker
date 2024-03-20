@@ -103,7 +103,7 @@ class PersonImage:
         else:
             direction = "None"
 
-        save_csv_bbox_alternative(personImage=instance, filename=f"{csv_box_name}.csv",folder_name=folder_name, direction=direction)
+        save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction=direction)
         cls.delete_instance(id)
     
     @classmethod

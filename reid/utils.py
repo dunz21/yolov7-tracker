@@ -5,8 +5,6 @@ import numpy as np
 import utils.PersonImage as PersonImage
 from shapely.geometry import LineString
 
-BASE_FOLDER_NAME = 'logs'
-
 def path_intersects_line(centroids, line):
     path = LineString(centroids)
     line = LineString(line)
@@ -80,46 +78,19 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-
-def save_csv_bbox(personImage:PersonImage, filename='bbox.csv'):
-    # Check if the folder exists, create it if not
-    if not os.path.exists(BASE_FOLDER_NAME):
-        os.makedirs(BASE_FOLDER_NAME)
-    
-    # Update the filename to include the folder path
-    filename = os.path.join(BASE_FOLDER_NAME, filename)
-
-    # Check if the file exists
-    file_exists = os.path.isfile(filename)
-
-    # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
-    with open(filename, 'a' if file_exists else 'w', newline='') as file:
-        writer = csv.writer(file)
-
-        # Write header if the file is being created for the first time
-        if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_bottom_x', 'centroid_bottom_y'])
-
-        # Append data
-        for bbox in personImage.history_deque:
-            x1, y1, x2, y2 = bbox
-            centroid_bottom_x = (x1 + x2) // 2
-            centroid_bottom_y = y2
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_bottom_x), int(centroid_bottom_y)])
-
-def save_csv_bbox_alternative(personImage: PersonImage, filename='',folder_name='', direction=''):
+def save_csv_bbox_alternative(personImage: PersonImage, filepath='',folder_name='', direction=''):
     EVERY_WHEN_TO_SAVE = 3
     # Check if the folder exists, create it if not
-    if not os.path.exists(BASE_FOLDER_NAME):
-        os.makedirs(BASE_FOLDER_NAME)
+    # if not os.path.exists(BASE_FOLDER_NAME):
+        # os.makedirs(BASE_FOLDER_NAME)
     
-    # Update the filename to include the folder path
-    filename = os.path.join(BASE_FOLDER_NAME, filename)
+    # Update the filepath to include the folder path
+    # filepath = os.path.join(BASE_FOLDER_NAME, filepath)
     # Check if the file exists
-    file_exists = os.path.isfile(filename)
+    file_exists = os.path.isfile(filepath)
 
     # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
-    with open(filename, 'a' if file_exists else 'w', newline='') as file:
+    with open(filepath, 'a' if file_exists else 'w', newline='') as file:
         writer = csv.writer(file)
 
         # Write header if the file is being created for the first time
