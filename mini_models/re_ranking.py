@@ -85,7 +85,9 @@ def eval_simplified_with_matches(distmat, q_pids, g_pids):
     indices = np.argsort(distmat, axis=1)  # Sorted indices of gallery samples for each query, axis=1 means columns so horizontally
     # q_pids[:, np.newaxis] == q_pids.reshape(4,1) or better q_pids.reshape(-1,1)
     matchs = np.hstack((q_pids[:, np.newaxis], g_pids[indices]))
-    return matchs
+    
+    dist_matrix_sort = np.hstack((q_pids[:, np.newaxis], np.sort(distmat, axis=1)))
+    return np.dstack((matchs, dist_matrix_sort))
 
 def find_repeating_values(input_list, min_repeats=3):
     frequency = Counter(input_list)
@@ -154,7 +156,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
         distmat = re_ranking(query, gallery, K1, K2, LAMBDA)
         matching_gallery_ids = eval_simplified_with_matches(distmat, q_pids, g_pids)
 
-        rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1]]
+        rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1,0]]
         rank1_match = find_repeating_values(rank1_list)
         if rank1_match:
             np.append(posible_pair_matches, (id_out, rank1_match))
@@ -169,7 +171,9 @@ def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, s
     data_for_df = []
     for query_id, matches in results_dict.items():
         for row in matches:
-            data_for_df.append(row)
+            # Suma el nombre de la imagen con el valor de la distancia
+            new_join_row = row[:,0] +'|'+ np.append(['-'],np.around(row[1:,1].astype(float), decimals=2))
+            data_for_df.append(new_join_row)
 
     # Defining column names dynamically based on n_images
     column_names = ['query'] + [f'rank{i}' for i in range(1, n_images + 1)]
@@ -203,14 +207,16 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
         return letter_code
     def _image_formatter(image_name, query_frame_number):
         folder_id = image_name.split('_')[1]
-        img_path = os.path.join(base_folder, str(folder_id), f"{image_name}.png")
+        img_path = os.path.join(base_folder, str(folder_id), f"{image_name.split('|')[0]}.png")
+        distance = image_name.split('|')[1]
         try:
             img_frame_number = int(image_name.split('_')[2])
             with open(img_path, "rb") as f:
                 encoded_string = base64.b64encode(f.read()).decode()
                 time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // frame_rate)
                 video_time = seconds_to_time((int(image_name.split('_')[2])// frame_rate))
-                return f'<div><img width="125" src="data:image/png;base64,{encoded_string}"><div>ID: {image_name.split("_")[1]}_{number_to_letters(image_name.split("_")[2])} - {time} </div><div>{video_time}</div></div>'
+                html_distance = f'<div>Distance: {distance}</div>' if distance != '-' else ''
+                return f'<div><img width="125" src="data:image/png;base64,{encoded_string}">{html_distance}<div>ID: {image_name.split("_")[1]}_{number_to_letters(image_name.split("_")[2])} - {time} </div><div>{video_time}</div></div>'
         except OSError as e:
             return f"OSError: {e}, File: {img_path}"
 
@@ -239,8 +245,8 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
 
 
 if __name__ == '__main__':
-    features_csv = '/home/diego/Documents/yolov7-tracker/output/santos_dumont_solider_in-out_DB.csv'
-    BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
+    features_csv = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_features.csv'
+    BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/imgs_santos_dumont_top4'
     FRAME_RATE = 15
     n_images = 8
     max_number_back_to_compare = 57
@@ -249,7 +255,7 @@ if __name__ == '__main__':
     LAMBDA = 0
     # filter_known_matches = '/home/diego/Desktop/MatchSimple.csv'  
     # filter_known_matches = None
-    save_csv_dir = '/home/diego/Documents/yolov7-tracker/output'
+    save_csv_dir = '/home/diego/Documents/yolov7-tracker/logs'
 
     results, file_name = complete_re_ranking(features_csv,
                                             n_images=n_images,

@@ -351,7 +351,7 @@ def re_ranking():
             img_names, 
             directions,
             feature_tensor, 
-            n_images=5, 
+            n_images=8, 
             max_number_back_to_compare=60, 
             K1=8, 
             K2=3, 
@@ -368,7 +368,11 @@ def re_ranking():
             num_str = str(num)
             letter_code = ''.join(mapping[int(digit)] for digit in num_str)
             return letter_code
-        def format_value(img_name,query_frame_number):
+        
+        def format_value(tuple,query):
+            query_frame_number = int(query.split('_')[2])
+            img_name, distance = tuple
+            distance = np.round(float(distance),decimals=2) if isinstance(distance,str) and img_name != query else ''
             img_frame_number = int(img_name.split('_')[2])
             video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
             time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
@@ -376,15 +380,15 @@ def re_ranking():
                 'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
                 'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{img_name.split('_')[1]}/{img_name}.png",
                 'time': time,
-                'video_time': video_time
+                'video_time': video_time,
+                'distance': distance
             }
         
         def format_row(arr):
             new_list = []
             for row in arr:
-                query = row[0]
-                query_frame_number = int(query.split('_')[2])
-                new_list.append([format_value(value,query_frame_number) for value in row])
+                query = row[0][0]
+                new_list.append([format_value(value,query) for value in row])
             return new_list
 
         list_out = {}
