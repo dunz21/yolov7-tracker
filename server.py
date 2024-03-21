@@ -26,19 +26,27 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
-# SERVER_IP = '181.161.112.110'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '181.160.238.200'
+SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
-FOLDER_PATH_IMGS = '/home/diego/Documents/yolov7-tracker/imgs_santos_dumont_top4/'
+
+# Santos Dumont
+ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
+FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_santos_dumont" 
+DATABASE = f'{ROOT_FOLDER}/santos_dumont_bbox.db'
+DATABASE_FEATURES = f'{ROOT_FOLDER}/santos_dumont_features.db'
+
+# CONCER
+# ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_conce/'
+# FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_conce" 
+# DATABASE = f'{ROOT_FOLDER}/conce_bbox.db'
+# DATABASE_FEATURES = f'{ROOT_FOLDER}/conce_features.db'
+
 VIDEO_PATH = '/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4'  # Your video file path
-BBOX_CSV = 'conce_bbox.csv'
-SERVER_FOLDER_BASE_PATH = '/server-images/'
-BASE_FOLDER_NAME = 'logs'
-BBOX_CSV = os.path.join(BASE_FOLDER_NAME, BBOX_CSV)
 
 #### DATABASE #####
-DATABASE = f'{BASE_FOLDER_NAME}/bbox_data.db'
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
@@ -51,6 +59,10 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
+def get_db_connection(db_name=DATABASE_FEATURES):
+    conn = sqlite3.connect(db_name)
+    conn.row_factory = sqlite3.Row
+    return conn
 ### END DATABASE ###
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
@@ -67,14 +79,14 @@ def data_images(id):
         db.row_factory = sqlite3.Row  # Access columns by name
         
         cursor = db.cursor()
-        cursor.execute("SELECT DISTINCT id FROM bbox_data")
+        cursor.execute("SELECT DISTINCT id FROM bbox_img_selection")
         unique_ids = [row['id'] for row in cursor.fetchall()]
         sorted_unique_ids_list = sorted(unique_ids, key=int)
 
         if id is None:
             id = unique_ids[0]
         
-        cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score FROM bbox_data WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
+        cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score FROM bbox_img_selection WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
         images_data = [dict(row) for row in cursor.fetchall()]
 
         for image in images_data:
@@ -94,7 +106,7 @@ def update_label():
     try:
         db = get_db()
         cursor = db.cursor()
-        cursor.execute("UPDATE bbox_data SET label_img = ? WHERE img_name = ?", (new_label, img_name))
+        cursor.execute("UPDATE bbox_img_selection SET label_img = ? WHERE img_name = ?", (new_label, img_name))
         db.commit()
         
         if cursor.rowcount == 0:
@@ -107,136 +119,130 @@ def update_label():
 
 ### IN OUT IMAGES and BAD IMAGES LABELER
 
-@app.route('/api/in-out-images', methods=['GET'])
-def in_out_images():
-    db = get_db()
-    db.row_factory = sqlite3.Row  # Access columns by name
+# @app.route('/api/in-out-images', methods=['GET'])
+# def in_out_images():
+#     db = get_db()
+#     db.row_factory = sqlite3.Row  # Access columns by name
     
-    id_param = request.args.get('id', default=None, type=int)
-    time_stamp = '00:00:01'  # Timestamp for the frame
+#     id_param = request.args.get('id', default=None, type=int)
+#     time_stamp = '00:00:01'  # Timestamp for the frame
     
-    # Fetch unique IDs
-    cursor = db.execute('SELECT DISTINCT id FROM bbox_data')
-    unique_ids_list = [row['id'] for row in cursor.fetchall()]
-    sorted_unique_ids_list = sorted(unique_ids_list, key=int)
+#     # Fetch unique IDs
+#     cursor = db.execute('SELECT DISTINCT id FROM bbox_data')
+#     unique_ids_list = [row['id'] for row in cursor.fetchall()]
+#     sorted_unique_ids_list = sorted(unique_ids_list, key=int)
 
 
-    if id_param is None:
-        return jsonify({'uniqueIds': sorted_unique_ids_list})
+#     if id_param is None:
+#         return jsonify({'uniqueIds': sorted_unique_ids_list})
     
-    # Finding the rows for the specific ID
-    cursor = db.execute('SELECT * FROM bbox_data WHERE id = ?', (id_param,))
-    rows = cursor.fetchall()
-    if not rows:
-        return jsonify({'error': f'ID {id_param} not found in the dataset'}), 404
+#     # Finding the rows for the specific ID
+#     cursor = db.execute('SELECT * FROM bbox_data WHERE id = ?', (id_param,))
+#     rows = cursor.fetchall()
+#     if not rows:
+#         return jsonify({'error': f'ID {id_param} not found in the dataset'}), 404
     
 
-    # Check if the 'label_direction' column exists and get its value if it does
-    direction = None
-    # Assume 'label_direction' column exists; adjust as necessary
-    if rows[0]['label_direction'] is not None:
-        direction = rows[0]['label_direction']
+#     # Check if the 'label_direction' column exists and get its value if it does
+#     direction = None
+#     # Assume 'label_direction' column exists; adjust as necessary
+#     if rows[0]['label_direction'] is not None:
+#         direction = rows[0]['label_direction']
 
     
-    hours, minutes, seconds = map(int, time_stamp.split(':'))
-    total_seconds = hours * 3600 + minutes * 60 + seconds
-    cap = cv2.VideoCapture(VIDEO_PATH)
-    if not cap.isOpened():
-        return jsonify({'error': 'Cannot open the video file'}), 500
-    cap.set(cv2.CAP_PROP_POS_MSEC, total_seconds * 1000)
-    ret, frame = cap.read()
-    if not ret:
-        return jsonify({'error': f'Cannot read the frame at {time_stamp}'}), 500
+#     hours, minutes, seconds = map(int, time_stamp.split(':'))
+#     total_seconds = hours * 3600 + minutes * 60 + seconds
+#     cap = cv2.VideoCapture(VIDEO_PATH)
+#     if not cap.isOpened():
+#         return jsonify({'error': 'Cannot open the video file'}), 500
+#     cap.set(cv2.CAP_PROP_POS_MSEC, total_seconds * 1000)
+#     ret, frame = cap.read()
+#     if not ret:
+#         return jsonify({'error': f'Cannot read the frame at {time_stamp}'}), 500
     
-    # Get video frame dimensions
-    video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     # Get video frame dimensions
+#     video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
-    # Colormap setup
-    cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
-    norm = plt.Normalize(0, len(rows)-1)
-    images_data = []
-    previous_centroid = None  # Initialize previous centroid
+#     # Colormap setup
+#     cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
+#     norm = plt.Normalize(0, len(rows)-1)
+#     images_data = []
+#     previous_centroid = None  # Initialize previous centroid
 
-    for i,row in enumerate(rows):
-        # Calculate centroid_bottom_x and centroid_bottom_y for each row
-        centroid_bottom_x = (row['x1'] + row['x2']) // 2
-        centroid_bottom_y = row['y2']
-        centroid = (centroid_bottom_x, centroid_bottom_y)
+#     for i,row in enumerate(rows):
+#         # Calculate centroid_bottom_x and centroid_bottom_y for each row
+#         centroid_bottom_x = (row['x1'] + row['x2']) // 2
+#         centroid_bottom_y = row['y2']
+#         centroid = (centroid_bottom_x, centroid_bottom_y)
 
-        color = cmap(norm(i))
-        color = tuple([int(x*255) for x in color[:3]][::-1])  # Convert from RGB to BGR
-        # cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
-        if previous_centroid is not None:
-            cv2.arrowedLine(frame, previous_centroid, centroid, color, 2, tipLength=0.5)
+#         color = cmap(norm(i))
+#         color = tuple([int(x*255) for x in color[:3]][::-1])  # Convert from RGB to BGR
+#         # cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
+#         if previous_centroid is not None:
+#             cv2.arrowedLine(frame, previous_centroid, centroid, color, 2, tipLength=0.5)
         
-        previous_centroid = centroid  # Update the previous centroid
+#         previous_centroid = centroid  # Update the previous centroid
 
-        if row['img_name']:
-            images_data.append(
-                {
-                    'img_name': row['img_name'],
-                    'img_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{row['img_name']}",
-                }
-            )
+#         if row['img_name']:
+#             images_data.append(
+#                 {
+#                     'img_name': row['img_name'],
+#                     'img_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{row['img_name']}",
+#                 }
+#             )
 
     
-    cap.release()
+#     cap.release()
     
-    # Convert the frame to a format suitable for JSON response
-    frame_with_figure_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#     # Convert the frame to a format suitable for JSON response
+#     frame_with_figure_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-    # Set figure size based on video resolution
-    dpi = 100.0
-    figsize = (video_width / dpi, video_height / dpi)  # Figure size in inches
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-    ax.imshow(frame_with_figure_rgb)
-    ax.axis('off')
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+#     # Set figure size based on video resolution
+#     dpi = 100.0
+#     figsize = (video_width / dpi, video_height / dpi)  # Figure size in inches
+#     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+#     ax.imshow(frame_with_figure_rgb)
+#     ax.axis('off')
+#     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     
-    # Convert figure to image
-    buf = BytesIO()
-    plt.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', pad_inches=0)
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+#     # Convert figure to image
+#     buf = BytesIO()
+#     plt.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', pad_inches=0)
+#     plt.close(fig)
+#     buf.seek(0)
+#     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
 
-    time_video = seconds_to_time(int(rows[0]['frame_number'] // FRAME_RATE))
+#     time_video = seconds_to_time(int(rows[0]['frame_number'] // FRAME_RATE))
     
-    return jsonify({'image': img_base64, 'id': id_param, 'direction': direction,'images': images_data,'time_video': time_video})
+#     return jsonify({'image': img_base64, 'id': id_param, 'direction': direction,'images': images_data,'time_video': time_video})
 
 
-@app.route('/api/in-out-images/<int:id>', methods=['POST'])
-def update_direction(id):
-    data = request.get_json()
-    direction = data.get('direction')
+# @app.route('/api/in-out-images/<int:id>', methods=['POST'])
+# def update_direction(id):
+#     data = request.get_json()
+#     direction = data.get('direction')
 
-    if direction is None:
-        return jsonify({'error': 'Missing direction in request'}), 400
+#     if direction is None:
+#         return jsonify({'error': 'Missing direction in request'}), 400
 
-    db = get_db()
-    cursor = db.cursor()
+#     db = get_db()
+#     cursor = db.cursor()
 
-    # Check if the ID exists
-    cursor.execute('SELECT * FROM bbox_data WHERE id = ?', (id,))
-    if cursor.fetchone() is None:
-        return jsonify({'error': 'ID not found'}), 404
+#     # Check if the ID exists
+#     cursor.execute('SELECT * FROM bbox_data WHERE id = ?', (id,))
+#     if cursor.fetchone() is None:
+#         return jsonify({'error': 'ID not found'}), 404
 
-    # Update the direction for the given ID
-    cursor.execute('UPDATE bbox_data SET label_direction = ? WHERE id = ?', (direction, id))
-    db.commit()
+#     # Update the direction for the given ID
+#     cursor.execute('UPDATE bbox_data SET label_direction = ? WHERE id = ?', (direction, id))
+#     db.commit()
 
-    if cursor.rowcount == 0:
-        # No rows were updated, indicating the ID was not found
-        return jsonify({'error': 'ID not found'}), 404
+#     if cursor.rowcount == 0:
+#         # No rows were updated, indicating the ID was not found
+#         return jsonify({'error': 'ID not found'}), 404
 
-    return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
-
-
-def get_db_connection(db_name="output/santos_dumont_solider_in-out_DB.db"):
-    conn = sqlite3.connect(db_name)
-    conn.row_factory = sqlite3.Row
-    return conn
+#     return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
 
 @app.route('/api/ids')
 def ids():

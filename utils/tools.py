@@ -4,6 +4,64 @@ import pandas as pd
 import cv2
 import numpy as np
 from shapely.geometry import LineString, Point
+from sklearn.model_selection import KFold
+
+
+# Sirve para preparar el dataset para entrenar el modelo con el img. selection del labeler
+def set_folds_db(db_path, table_name, k_folds, n_images):
+    """
+    Apply KFold logic to data in a SQLite table and save the results to a new table.
+
+    Parameters:
+    - db_path: Path to the SQLite database file.
+    - table_name: Name of the source table to read data from.
+    - k_folds: Number of folds for KFold.
+    - n_images: Number of images to select per fold.
+    """
+    # Connect to the SQLite database
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Check if the new table (bbox_img_selection) exists, and drop it if it does
+    cursor.execute("DROP TABLE IF EXISTS bbox_img_selection")
+    conn.commit()
+
+    # Read data from the specified table
+    df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+
+    # Apply the logic from set_folds function
+    if 'img_name' not in df.columns:
+        raise ValueError("img_name column doesn't exist in the dataset.")
+
+    df['k_fold'] = np.nan
+    df['label_img'] = np.nan
+    df_filtered = df[df['img_name'] != ''].copy()
+    df_filtered.sort_values(by=['id', 'frame_number'], inplace=True)
+
+    for id_value in df_filtered['id'].unique():
+        subset = df_filtered[(df_filtered['id'] == id_value) & (df_filtered['img_name'].notna())]
+
+        if len(subset) < k_folds * n_images:
+            df.loc[subset.index, 'k_fold'] = 0
+        else:
+            kf = KFold(n_splits=k_folds)
+            for fold, (_, test_index) in enumerate(kf.split(subset)):
+                selected_indices = np.random.choice(test_index, min(n_images, len(test_index)), replace=False)
+                df.loc[subset.iloc[selected_indices].index, 'k_fold'] = fold
+                df.loc[subset.iloc[selected_indices].index, 'label_img'] = 0
+
+    # Create a new table and write the modified DataFrame to it
+    df.to_sql("bbox_img_selection", conn, if_exists="replace", index=False)
+
+    # Close the connection to the database
+    conn.close()
+
+# Example usage
+# db_path = "/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_bbox.db"
+# table_name = "bbox_raw"
+# k_folds = 4
+# n_images = 5
+# set_folds_db(db_path, table_name, k_folds, n_images)
 
 def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
     """
@@ -30,6 +88,9 @@ def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
     
     # Return the fetched data
     return fetched_data
+
+
+
 
 def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
     for box in bbox:

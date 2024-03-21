@@ -202,7 +202,7 @@ if __name__ == '__main__':
         pbar.update(1) 
         
         RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
-        generate_re_ranking_html_report(results, dest_folder_results, FRAME_RATE, RE_RANK_HTML)
+        generate_re_ranking_html_report(results, base_folder_images, FRAME_RATE, RE_RANK_HTML)
         pbar.update(1)         
         
 
