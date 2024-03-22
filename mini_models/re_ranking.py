@@ -171,15 +171,6 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
                 ids_correct_ins = np.append(ids_correct_ins, rank1_match)
         results_dict[id_out] = matching_gallery_ids[:,:n_images + 1]
 
-
-    if autoeval:
-        df = pd.DataFrame(posible_pair_matches, columns=['id_out','id_in'])
-        df.to_csv('/home/diego/Documents/yolov7-tracker/logs/posible_pair_matches.csv',index=False)
-        
-        conn = sqlite3.connect('/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_features.db')
-        df.to_sql('auto_match', conn, if_exists='replace', index=False)
-        conn.close()
-
     return results_dict,posible_pair_matches
 ## 3. Save results
 def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, save_csv_dir):
@@ -203,13 +194,43 @@ def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, s
 
     return re_ranking_results, file_name
 
+def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
+    # Initialize the results
+    results = {'total_rows': 0, 'total_matched': 0}
+    
+    if len(posible_pair_matches) > 0:
+        # Convert the input matches to a DataFrame and save to CSV
+        df = pd.DataFrame(posible_pair_matches, columns=['id_out', 'id_in'])
+        df.to_csv(filename_csv, index=False)
+        
+        # Connect to the database and replace 'auto_match' table with the DataFrame
+        conn = sqlite3.connect(db_path)
+        df.to_sql('auto_match', conn, if_exists='replace', index=False)
+        
+        # Approach 1: Count total rows in 'auto_match'
+        results['total_rows'] = len(df)
+
+        # Approach 2: Using CTE to find total matched
+        query_cte = """
+        WITH Matched AS (
+            SELECT am.*
+            FROM auto_match am
+            INNER JOIN reranking_matches rm ON am.id_out = rm.id_out AND am.id_in = rm.id_in
+        )
+        SELECT COUNT(*) as total_matched FROM Matched;
+        """
+        results['total_matched'] = pd.read_sql_query(query_cte, conn).iloc[0]['total_matched']
+        
+        # Close the database connection
+        conn.close()
+    
+    return results
+        
 def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, filter_known_matches=None, save_csv_dir=None):
     ids, img_names, directions, feature_tensor = load_data(features_csv)
     results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA, autoeval=True)
     re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
     return re_ranking_results, file_name, posible_pair_matches
-
-
 
 def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html):
     def _image_formatter(image_name, query_frame_number):
@@ -248,11 +269,8 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
     with open(re_rank_html, 'w') as file:
         file.write(html_df)
         
-        
-
-
 if __name__ == '__main__':
-    features_csv = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_features.csv'
+    ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
     BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/imgs_santos_dumont_top4'
     FRAME_RATE = 15
     n_images = 8
@@ -264,6 +282,11 @@ if __name__ == '__main__':
     # filter_known_matches = None
     save_csv_dir = '/home/diego/Documents/yolov7-tracker/logs'
 
+    conn = sqlite3.connect(f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+    cursor = conn.cursor()    
+    features_csv = pd.read_sql('SELECT * FROM features', conn)
+    
+    
     results, file_name, posible_pair_matches = complete_re_ranking(features_csv,
                                             n_images=n_images,
                                             max_number_back_to_compare=max_number_back_to_compare,
@@ -273,8 +296,10 @@ if __name__ == '__main__':
                                             filter_known_matches=None,
                                             save_csv_dir=save_csv_dir)
     print(posible_pair_matches)
-    exit(0)
     # Complete
-    RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
+    # RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
 
-    generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
+    # generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
+    final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+    print(final_classifier)
+    

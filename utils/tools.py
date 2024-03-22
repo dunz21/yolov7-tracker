@@ -5,10 +5,55 @@ import cv2
 import numpy as np
 from shapely.geometry import LineString, Point
 from sklearn.model_selection import KFold
-
-
+import os
+from sklearn.model_selection import KFold
+import shutil
+import sqlite3
+import joblib  # For saving and loading the model
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score
 # Sirve para preparar el dataset para entrenar el modelo con el img. selection del labeler
 # Tb va a tener anotada la prediccion del modelo
+
+
+# Example usage
+# db_path = "/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_bbox.db"
+# origin_table = "bbox_raw"
+# k_folds = 4
+# n_images = 5
+# prepare_data_img_selection(db_path, origin_table, k_folds, n_images)
+
+
+
+## 0.- Convertir CSV BBOX a SQLite
+def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
+    """
+    Convert a CSV file to a SQLite table and return the data from the table.
+    
+    Parameters:
+    - csv_file_path: The file path of the CSV to be converted.
+    - db_file_path: The file path of the SQLite database.
+    - table_name: The name of the table where the CSV data will be inserted. Defaults to 'bbox_data'.
+    
+    Returns:
+    - A pandas DataFrame containing the data from the specified SQLite table.
+    """
+    # Load the CSV file into a pandas DataFrame
+    df = pd.read_csv(csv_file_path)
+    
+    # Create a connection to the SQLite database
+    with sqlite3.connect(db_file_path) as conn:
+        # Write the data to a SQLite table
+        df.to_sql(table_name, conn, if_exists='replace', index=False)
+        
+        # Fetch the newly inserted data to verify
+        fetched_data = pd.read_sql(f'SELECT * FROM {table_name}', conn)
+    
+    # Return the fetched data
+    return fetched_data
+
+## 1.- Agrergar columnas a la tabla, para que funcione el img_selection y el predict
 def prepare_data_img_selection(db_path='', origin_table='', k_folds=4, n_images=5, new_table_name='bbox_img_selection'):
     """
     Apply KFold logic to data in a SQLite table and save the results to a new table.
@@ -61,41 +106,124 @@ def prepare_data_img_selection(db_path='', origin_table='', k_folds=4, n_images=
     # Close the connection to the database
     conn.close()
 
-# Example usage
-# db_path = "/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_bbox.db"
-# origin_table = "bbox_raw"
-# k_folds = 4
-# n_images = 5
-# prepare_data_img_selection(db_path, origin_table, k_folds, n_images)
+## 2.- Predict Image Selection, previo a seleccionar el topK
+def predict_img_selection(db_file_path='', model_weights_path='', export_csv=False, csv_dir=None):
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
+    
+    # Load data from the database
+    data = pd.read_sql('SELECT * FROM bbox_img_selection', conn)
+    features = ['area', 'centroid_x', 'centroid_y', 'frame_number', 'overlap', 'distance_to_center', 'conf_score']
+    
+    # Ensure the input data contains all the required features
+    assert all(f in data.columns for f in features), "Some required columns for prediction are missing."
+    
+    # Load the model
+    model = joblib.load(model_weights_path)
+    
+    # Perform predictions
+    predictions = model.predict(data[features])
+    predicted_confidences = model.predict_proba(data[features]).max(axis=1)
+    
+    # Update the database
+    # TODO: FIX ACA ESTA haciendo update a muchos IDS
+    for i, row in data.iterrows():
+        sql = """UPDATE bbox_img_selection SET model_label_img = ?, model_label_conf = ? WHERE id = ? and img_name = ?"""
+        cursor.execute(sql, (int(predictions[i]), round(predicted_confidences[i], 2), row['id'], row['img_name']))
+    
+    conn.commit()
+    
+    if export_csv:
+        if csv_dir is None:
+            raise ValueError("csv_dir must be specified if export_csv is True")
+        # Export to CSV
+        data['model_label_img'] = predictions
+        data['model_label_conf'] = predicted_confidences.round(2)
+        csv_path = os.path.join(csv_dir, "img_selection_predicted.csv")
+        data.to_csv(csv_path, index=False)
+        print(f"Predictions exported to CSV at: {csv_path}")
+    
+    conn.close()
 
-def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
-    """
-    Convert a CSV file to a SQLite table and return the data from the table.
+## 3.- Crear el topK de las imagenes seleccionadas, y guardar esa info en la BD
+def clean_img_folder_top_k(db_file_path='', base_folder_images='', dest_folder_results='', k_fold=5, threshold=0.9, export_csv=False, csv_dir=None):
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
     
-    Parameters:
-    - csv_file_path: The file path of the CSV to be converted.
-    - db_file_path: The file path of the SQLite database.
-    - table_name: The name of the table where the CSV data will be inserted. Defaults to 'bbox_data'.
+    # Load the modified data from the database
+    data = pd.read_sql('SELECT * FROM bbox_img_selection WHERE img_name IS NOT NULL', conn)
+    data.sort_values(by=['id', 'frame_number'], inplace=True)
     
-    Returns:
-    - A pandas DataFrame containing the data from the specified SQLite table.
-    """
-    # Load the CSV file into a pandas DataFrame
-    df = pd.read_csv(csv_file_path)
-    
-    # Create a connection to the SQLite database
-    with sqlite3.connect(db_file_path) as conn:
-        # Write the data to a SQLite table
-        df.to_sql(table_name, conn, if_exists='replace', index=False)
+    for id_value in data['id'].unique():
+        local_threshold = threshold
+        while True:
+            id_df = data[data['id'] == id_value]
+            filtered_id_df = id_df[(id_df['model_label_conf'] > local_threshold) & (id_df['model_label_img'] == 2)].copy()
+            
+            if len(filtered_id_df) >= k_fold or local_threshold <= 0:
+                break
+            local_threshold -= 0.05
         
-        # Fetch the newly inserted data to verify
-        fetched_data = pd.read_sql(f'SELECT * FROM {table_name}', conn)
+        if len(filtered_id_df) >= k_fold:
+            from sklearn.model_selection import KFold
+            kf = KFold(n_splits=k_fold)
+            
+            for fold_number, (_, test_index) in enumerate(kf.split(filtered_id_df), start=1):
+                fold_df = filtered_id_df.iloc[test_index]
+                selected_row = fold_df.sample(n=1)
+                selected_index = selected_row.index[0]
+                
+                # Update the database with fold and selection information
+                sql = """UPDATE bbox_img_selection SET k_fold_selection = ?, selected_image = ? WHERE id = ? and img_name = ?"""
+                cursor.execute(sql, (int(fold_number), True, int(selected_row.iloc[0]['id']),selected_row.iloc[0]['img_name']))
+                
+                # # Copy the selected image
+                id_img = selected_row.iloc[0]['img_name'].split('_')[1]
+                source_path = os.path.join(base_folder_images, id_img ,selected_row.iloc[0]['img_name'])
+                dest_path = source_path.replace(base_folder_images, dest_folder_results)
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                shutil.copy(source_path, dest_path)
     
-    # Return the fetched data
-    return fetched_data
+    conn.commit()
+
+### En construccion
+# def train_and_save_model(training_data_path, model_save_path):
+#     INTEREST_LABEL = 'label_img'
+#     interest_values = [1, 2]
+
+#     only_train_data = pd.read_csv(training_data_path)
+#     only_train_data = only_train_data.dropna(subset=['img_name'])
+#     only_train_data = only_train_data[only_train_data[INTEREST_LABEL].isin(interest_values)]
+
+#     features = ['area', 'centroid_x', 'centroid_y', 'frame_number', 'overlap', 'distance_to_center', 'conf_score']
+#     target = INTEREST_LABEL
+
+#     assert all(f in only_train_data.columns for f in features + [target]), "Some required columns are missing."
+
+#     X_train, X_val, y_train, y_val = train_test_split(only_train_data[features], only_train_data[target], test_size=0.2, random_state=42)
+
+#     model = GradientBoostingClassifier(random_state=42)
+#     model.fit(X_train, y_train)
+
+#     # Save the trained model
+#     joblib.dump(model, model_save_path)
+
+#     val_predictions = model.predict(X_val)
+#     val_accuracy = accuracy_score(y_val, val_predictions)
+#     print(f"Validation Accuracy: {val_accuracy}")
 
 
+    
+#     if export_csv:
+#         if csv_dir is None:
+#             raise ValueError("csv_dir must be specified if export_csv is True")
+#         # Export to CSV
+#         csv_path = os.path.join(csv_dir, "cleaned_images_selection.csv")
+#         data.to_csv(csv_path, index=False)
+#         print(f"Cleaned data exported to CSV at: {csv_path}")
+#     conn.close()
 
+### OTROS ####
 
 def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
     for box in bbox:

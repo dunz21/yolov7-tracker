@@ -24,8 +24,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
-# SERVER_IP = '181.160.238.200'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
@@ -34,13 +34,11 @@ FRAME_RATE = 15
 ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
 FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_santos_dumont" 
 DATABASE = f'{ROOT_FOLDER}/santos_dumont_bbox.db'
-DATABASE_FEATURES = f'{ROOT_FOLDER}/santos_dumont_features.db'
 
 # CONCER
 # ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_conce/'
 # FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_conce" 
 # DATABASE = f'{ROOT_FOLDER}/conce_bbox.db'
-# DATABASE_FEATURES = f'{ROOT_FOLDER}/conce_features.db'
 
 VIDEO_PATH = '/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4'  # Your video file path
 
@@ -57,7 +55,7 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-def get_db_connection(db_name=DATABASE_FEATURES):
+def get_db_connection(db_name=DATABASE):
     conn = sqlite3.connect(db_name)
     conn.row_factory = sqlite3.Row
     return conn
