@@ -9,8 +9,8 @@ from sklearn.model_selection import KFold
 import shutil
 import sqlite3
 from utils.pipeline import getFinalScore,get_features_from_model
-from re_ranking import complete_re_ranking, generate_re_ranking_html_report
-from utils.tools import convert_csv_to_sqlite
+from mini_models.re_ranking import complete_re_ranking, generate_re_ranking_html_report
+from utils.tools import convert_csv_to_sqlite,prepare_data_img_selection
 
 
     
@@ -39,18 +39,12 @@ def train_and_save_model(training_data_path, model_save_path):
     val_accuracy = accuracy_score(y_val, val_predictions)
     print(f"Validation Accuracy: {val_accuracy}")
 
-def predict_img_selection(data, model_weights_path, save_csv_dir=None):
-    """
-    Predict image selection using a trained model and input data.
+def predict_img_selection(db_file_path='', model_weights_path='', export_csv=False, csv_dir=None):
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
     
-    Parameters:
-    - data: A pandas DataFrame containing the input data for prediction.
-    - model_weights_path: The file path to the trained model weights.
-    - save_csv_dir: Optional directory path to save the prediction results as a CSV file.
-    
-    Returns:
-    - A pandas DataFrame with the prediction results added.
-    """
+    # Load data from the database
+    data = pd.read_sql('SELECT * FROM bbox_img_selection', conn)
     features = ['area', 'centroid_x', 'centroid_y', 'frame_number', 'overlap', 'distance_to_center', 'conf_score']
     
     # Ensure the input data contains all the required features
@@ -63,80 +57,74 @@ def predict_img_selection(data, model_weights_path, save_csv_dir=None):
     predictions = model.predict(data[features])
     predicted_confidences = model.predict_proba(data[features]).max(axis=1)
     
-    # Add predictions to the DataFrame
-    data['model_label_img'] = predictions
-    data['model_label_conf'] = predicted_confidences
-    data['model_label_conf'] = data['model_label_conf'].round(2)
+    # Update the database
+    # TODO: FIX ACA ESTA haciendo update a muchos IDS
+    for i, row in data.iterrows():
+        sql = """UPDATE bbox_img_selection SET model_label_img = ?, model_label_conf = ? WHERE id = ? and img_name = ?"""
+        cursor.execute(sql, (int(predictions[i]), round(predicted_confidences[i], 2), row['id'], row['img_name']))
     
-    if save_csv_dir:
-        # Save the modified DataFrame to a new CSV file
-        predicted_csv_path = os.path.join(save_csv_dir, "img_selection_predicted.csv")
-        data.to_csv(predicted_csv_path, index=False)
-        print(f"Predictions saved to: {predicted_csv_path}")
+    conn.commit()
     
-    return data
+    if export_csv:
+        if csv_dir is None:
+            raise ValueError("csv_dir must be specified if export_csv is True")
+        # Export to CSV
+        data['model_label_img'] = predictions
+        data['model_label_conf'] = predicted_confidences.round(2)
+        csv_path = os.path.join(csv_dir, "img_selection_predicted.csv")
+        data.to_csv(csv_path, index=False)
+        print(f"Predictions exported to CSV at: {csv_path}")
+    
+    conn.close()
 
-def clean_img_folder_top_k(predict_csv, base_folder_images, dest_folder_results, k_fold, threshold=0.9):
-    """
-    Process and select images for re-identification based on predictions and k-fold cross-validation.
+def clean_img_folder_top_k(db_file_path='', base_folder_images='', dest_folder_results='', k_fold=5, threshold=0.9, export_csv=False, csv_dir=None):
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
     
-    Parameters:
-    - predict_csv: Path to the CSV file containing predictions.
-    - base_folder_images: Base folder path where images are stored.
-    - dest_folder_results: Destination folder path where selected images will be stored.
-    - k_fold: Number of folds for k-fold cross-validation.
-    - threshold: Confidence threshold for selecting images.
-    """
-    # Load the predictions
-    if isinstance(predict_csv, str):
-        df = pd.read_csv(predict_csv)
-    elif isinstance(predict_csv, pd.DataFrame):
-        df = predict_csv
-    else:
-        raise ValueError("predict_csv must be a path to a CSV file or a pandas DataFrame")
+    # Load the modified data from the database
+    data = pd.read_sql('SELECT * FROM bbox_img_selection WHERE img_name IS NOT NULL', conn)
+    data.sort_values(by=['id', 'frame_number'], inplace=True)
     
-    df['new_k_fold'] = None
-    df['selected_image'] = False
-    filtered_df = df.dropna(subset='img_name')
-    filtered_df = filtered_df.sort_values(by=['id', 'frame_number'])
-    
-    # Ensure the destination folder exists
-    if not os.path.exists(dest_folder_results):
-        os.makedirs(dest_folder_results)
-    
-    # Function to move selected images
-    def copy_images(row):
-        source_path = os.path.join(base_folder_images, row['img_name'].split('_')[1], row['img_name'])
-        dest_path = source_path.replace(base_folder_images, dest_folder_results)
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        shutil.copy(source_path, dest_path)
-    
-    # Iterate over each unique id
-    for id_value in filtered_df['id'].unique():
+    for id_value in data['id'].unique():
         local_threshold = threshold
         while True:
-            id_df = filtered_df[filtered_df['id'] == id_value]
+            id_df = data[data['id'] == id_value]
             filtered_id_df = id_df[(id_df['model_label_conf'] > local_threshold) & (id_df['model_label_img'] == 2)].copy()
             
             if len(filtered_id_df) >= k_fold or local_threshold <= 0:
                 break
             local_threshold -= 0.05
         
-        # If we have enough images, perform K-Fold and select one image per fold
         if len(filtered_id_df) >= k_fold:
+            from sklearn.model_selection import KFold
             kf = KFold(n_splits=k_fold)
             
             for fold_number, (_, test_index) in enumerate(kf.split(filtered_id_df), start=1):
                 fold_df = filtered_id_df.iloc[test_index]
                 selected_row = fold_df.sample(n=1)
-                selected_index = selected_row.index
+                selected_index = selected_row.index[0]
                 
-                # Update the DataFrame with fold and selection information
-                df.loc[selected_index, 'new_k_fold'] = fold_number
-                df.loc[selected_index, 'selected_image'] = True
+                # Update the database with fold and selection information
+                sql = """UPDATE bbox_img_selection SET k_fold_selection = ?, selected_image = ? WHERE id = ? and img_name = ?"""
+                cursor.execute(sql, (int(fold_number), True, int(selected_row.iloc[0]['id']),selected_row.iloc[0]['img_name']))
                 
-                # Move the selected image
-                selected_row.apply(copy_images, axis=1)
+                # # Copy the selected image
+                id_img = selected_row.iloc[0]['img_name'].split('_')[1]
+                source_path = os.path.join(base_folder_images, id_img ,selected_row.iloc[0]['img_name'])
+                dest_path = source_path.replace(base_folder_images, dest_folder_results)
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                shutil.copy(source_path, dest_path)
+    
+    conn.commit()
+    
+    if export_csv:
+        if csv_dir is None:
+            raise ValueError("csv_dir must be specified if export_csv is True")
+        # Export to CSV
+        csv_path = os.path.join(csv_dir, "cleaned_images_selection.csv")
+        data.to_csv(csv_path, index=False)
+        print(f"Cleaned data exported to CSV at: {csv_path}")
+    conn.close()
 
 
 if __name__ == '__main__':
@@ -175,23 +163,24 @@ if __name__ == '__main__':
 
     
     
-    with tqdm(total=6, desc="Overall Progress", unit="step") as pbar:
-
-        bbox_data = pd.read_sql(f'SELECT * FROM bbox_raw', sqlite3.connect(DB_FILE_PATH))
+    with tqdm(total=8, desc="Overall Progress", unit="step") as pbar:
+        
+        prepare_data_img_selection(db_path=DB_FILE_PATH, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
+        pbar.update(1)
 
         # 2.- Predict which images are good
-        bbox_img_selection = predict_img_selection(bbox_data, model_weights_path=MODEL_WEIGHT)
+        bbox_img_selection = predict_img_selection(db_file_path=DB_FILE_PATH, model_weights_path=MODEL_WEIGHT)
         pbar.update(1)
 
         # 3.- Apply image separation based on model results
-        clean_img_folder_top_k(bbox_img_selection, base_folder_images, dest_folder_results, k_fold, threshold)
+        clean_img_folder_top_k(db_file_path=DB_FILE_PATH, base_folder_images=base_folder_images, dest_folder_results=dest_folder_results, k_fold=4, threshold=0.9)
         pbar.update(1)
         
         # Assuming `get_features_from_model` iterates over images, you could modify it to use tqdm internally or update here after completion
-        features = get_features_from_model(folder_path=dest_folder_results, weights=SOLIDER_MODEL_PATH, model='solider', features_file=features_file)
+        # features = get_features_from_model(folder_path=dest_folder_results, weights=SOLIDER_MODEL_PATH, model='solider', features_file=features_file)
         pbar.update(1) 
-        
-        results, file_name = complete_re_ranking(features,
+        exit(0)
+        results, file_name, posible_pair_matches = complete_re_ranking(features,
                                         n_images=n_images,
                                         max_number_back_to_compare=max_number_back_to_compare,
                                         K1=K1,

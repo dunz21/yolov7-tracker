@@ -1,4 +1,4 @@
-
+import datetime
 import sqlite3
 import pandas as pd
 import cv2
@@ -8,13 +8,14 @@ from sklearn.model_selection import KFold
 
 
 # Sirve para preparar el dataset para entrenar el modelo con el img. selection del labeler
-def set_folds_db(db_path, table_name, k_folds, n_images):
+# Tb va a tener anotada la prediccion del modelo
+def prepare_data_img_selection(db_path='', origin_table='', k_folds=4, n_images=5, new_table_name='bbox_img_selection'):
     """
     Apply KFold logic to data in a SQLite table and save the results to a new table.
 
     Parameters:
     - db_path: Path to the SQLite database file.
-    - table_name: Name of the source table to read data from.
+    - origin_table: Name of the source table to read data from.
     - k_folds: Number of folds for KFold.
     - n_images: Number of images to select per fold.
     """
@@ -27,7 +28,7 @@ def set_folds_db(db_path, table_name, k_folds, n_images):
     conn.commit()
 
     # Read data from the specified table
-    df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+    df = pd.read_sql(f"SELECT * FROM {origin_table}", conn)
 
     # Apply the logic from set_folds function
     if 'img_name' not in df.columns:
@@ -35,6 +36,10 @@ def set_folds_db(db_path, table_name, k_folds, n_images):
 
     df['k_fold'] = np.nan
     df['label_img'] = np.nan
+    df['model_label_img'] = np.nan
+    df['model_label_conf'] = np.nan
+    df['k_fold_selection'] = np.nan
+    df['selected_image'] = np.nan
     df_filtered = df[df['img_name'] != ''].copy()
     df_filtered.sort_values(by=['id', 'frame_number'], inplace=True)
 
@@ -58,10 +63,10 @@ def set_folds_db(db_path, table_name, k_folds, n_images):
 
 # Example usage
 # db_path = "/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_bbox.db"
-# table_name = "bbox_raw"
+# origin_table = "bbox_raw"
 # k_folds = 4
 # n_images = 5
-# set_folds_db(db_path, table_name, k_folds, n_images)
+# prepare_data_img_selection(db_path, origin_table, k_folds, n_images)
 
 def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
     """
@@ -172,3 +177,17 @@ def distance_to_bbox_bottom_line(line=[], bbox=[]):
     # Calculate the shortest distance from the bottom center to the line
     distance = bottom_center.distance(line)
     return distance
+
+def seconds_to_time(seconds):
+    # Create a timedelta object
+    td = datetime.timedelta(seconds=seconds)
+    # Add the timedelta to a minimal datetime object
+    time = (datetime.datetime.min + td).time()
+    # Convert to a string format
+    return time.strftime("%H:%M:%S")
+
+def number_to_letters(num):
+    mapping = {i: chr(122 - i) for i in range(10)}
+    num_str = str(num)
+    letter_code = ''.join(mapping[int(digit)] for digit in num_str)
+    return letter_code

@@ -155,7 +155,9 @@ def detect(save_img=False,video_data=None):
                     
         if (bytetrack.removed_stracks.__len__() > 0):
             for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
-                if (PersonImage.get_instance(id)):    
+                # Por alguna razon asigna a remove track aun cuando esta en los tracked_stracks
+                remove_track_exists_in_tracker = any(val.track_id == id for val in bytetrack.tracked_stracks)
+                if (PersonImage.get_instance(id) and remove_track_exists_in_tracker == False):    
                     PersonImage.save(id=id,folder_name=f"{str(save_dir)}/{video_data['folder_img']}",csv_box_name=f"{str(save_dir)}/{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
                     PersonImage.delete_instance(id)
                     with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
@@ -333,7 +335,6 @@ class Options:
         self.device = '0'
         self.save_txt = False
         self.save_conf = False
-        self.nosave = False
         self.classes = [0]
         self.agnostic_nms = False
         self.augment = False
@@ -344,6 +345,7 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
+        self.nosave = True # GUARDAR VIDEO, True para NO GUARDAR
         self.view_img = False # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY
 
@@ -415,7 +417,8 @@ if __name__ == '__main__':
         else:
             # try:
                 DATA = get_video_data()
-                video_data = next((final for final in DATA if final['name'] == 'conce_test'), None)
+                
+                video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

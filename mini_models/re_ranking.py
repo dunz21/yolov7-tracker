@@ -7,6 +7,8 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 from collections import Counter
 from tqdm import tqdm
+import sqlite3
+from utils.tools import seconds_to_time, number_to_letters
 
 def re_ranking(probFea, galFea, k1, k2, lambda_value, local_distmat = None, only_local = False):
     # if feature vector is numpy, you should use 'torch.tensor' transform it to tensor
@@ -123,9 +125,9 @@ def load_data(features_csv):
 
     return ids, img_names, directions, feature_tensor
 ## 2. Process re-ranking
-def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1,matches=None):
+def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1,matches=None,autoeval=False):
     results_dict = {}  # Initialize as a dictionary
-    posible_pair_matches, ids_correct_ins,out_without_in = np.array([]), np.array([]),[]
+    posible_pair_matches, ids_correct_ins,out_without_in = [], np.array([]),[]
     id_in_list = np.unique(ids[directions == 'In'])
     id_out_list = np.unique(ids[directions == 'Out'])
 
@@ -137,6 +139,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
         query = feature_tensor[query_indices]
         q_pids = img_names[query_indices]
 
+        ## Esto me sirve cuando es alimentado por la BD de matches en el labeler
         if matches:
             ids_correct_ins = []
             all_id_except_match_out = [matches.get(key_out) for key_out in matches.keys() if key_out != id_out]
@@ -156,15 +159,28 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
         distmat = re_ranking(query, gallery, K1, K2, LAMBDA)
         matching_gallery_ids = eval_simplified_with_matches(distmat, q_pids, g_pids)
 
-        rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1,0]]
-        rank1_match = find_repeating_values(rank1_list)
-        if rank1_match:
-            np.append(posible_pair_matches, (id_out, rank1_match))
-            # np.append(ids_correct_ins, rank1_match)
-
+        if autoeval:
+            rank1_list = [int(m.split('_')[1]) for m in matching_gallery_ids[:,1,0]]
+            rank1_match = find_repeating_values(rank1_list)
+            ### ojo que dentro de la RANK1 pueden haber 3 malos pero 1 bueno, y ese bueno va a ser la distancia mas cercana
+            ### Otra forma de hacer esto es tener [img_id_1,img_id_1,img_id_1,img_id_2] y solo obtener la distancia pero de los que se parecen
+            ### Pero esta forma simple es mas rapida. Despues podria probar la otra y comparar. Por ahora lo importante es llegar a algo
+            near_distance = np.sort([float(value) for value in matching_gallery_ids[:,1,1]])[0]
+            if rank1_match and near_distance < 0.6:
+                posible_pair_matches.append([id_out,rank1_match])
+                ids_correct_ins = np.append(ids_correct_ins, rank1_match)
         results_dict[id_out] = matching_gallery_ids[:,:n_images + 1]
 
-    return results_dict, posible_pair_matches
+
+    if autoeval:
+        df = pd.DataFrame(posible_pair_matches, columns=['id_out','id_in'])
+        df.to_csv('/home/diego/Documents/yolov7-tracker/logs/posible_pair_matches.csv',index=False)
+        
+        conn = sqlite3.connect('/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/santos_dumont_features.db')
+        df.to_sql('auto_match', conn, if_exists='replace', index=False)
+        conn.close()
+
+    return results_dict,posible_pair_matches
 ## 3. Save results
 def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, save_csv_dir):
     # Preparing the data for DataFrame
@@ -189,22 +205,13 @@ def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, s
 
 def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, filter_known_matches=None, save_csv_dir=None):
     ids, img_names, directions, feature_tensor = load_data(features_csv)
-    results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA)
+    results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA, autoeval=True)
     re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
-    return re_ranking_results, file_name
+    return re_ranking_results, file_name, posible_pair_matches
 
 
 
 def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html):
-    def seconds_to_time(seconds):
-        td = datetime.timedelta(seconds=seconds)
-        time = (datetime.datetime.min + td).time()
-        return time.strftime("%H:%M:%S")
-    def number_to_letters(num):
-        mapping = {i: chr(122 - i) for i in range(10)}
-        num_str = str(num)
-        letter_code = ''.join(mapping[int(digit)] for digit in num_str)
-        return letter_code
     def _image_formatter(image_name, query_frame_number):
         folder_id = image_name.split('_')[1]
         img_path = os.path.join(base_folder, str(folder_id), f"{image_name.split('|')[0]}.png")
@@ -257,7 +264,7 @@ if __name__ == '__main__':
     # filter_known_matches = None
     save_csv_dir = '/home/diego/Documents/yolov7-tracker/logs'
 
-    results, file_name = complete_re_ranking(features_csv,
+    results, file_name, posible_pair_matches = complete_re_ranking(features_csv,
                                             n_images=n_images,
                                             max_number_back_to_compare=max_number_back_to_compare,
                                             K1=K1,
@@ -265,7 +272,8 @@ if __name__ == '__main__':
                                             LAMBDA=LAMBDA,
                                             filter_known_matches=None,
                                             save_csv_dir=save_csv_dir)
-
+    print(posible_pair_matches)
+    exit(0)
     # Complete
     RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
 

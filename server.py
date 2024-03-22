@@ -12,13 +12,11 @@ import base64
 from io import BytesIO
 import matplotlib.pyplot as plt
 import os
-from utils.solider import seconds_to_time
 import sqlite3
 from flask import g
 import torch
 from mini_models.re_ranking import process_re_ranking
-import datetime
-    
+from utils.tools import number_to_letters, seconds_to_time
     
 matplotlib.use('Agg')  # Use a non-GUI backend
 
@@ -26,8 +24,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.160.238.200'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
@@ -86,14 +84,19 @@ def data_images(id):
         if id is None:
             id = unique_ids[0]
         
-        cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score FROM bbox_img_selection WHERE id = ? AND img_name != '' AND k_fold IS NOT NULL", (id,))
+        cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score,frame_number,selected_image FROM bbox_img_selection WHERE id = ? AND img_name != '' AND (k_fold IS NOT NULL OR k_fold_selection IS NOT NULL)", (id,))
         images_data = [dict(row) for row in cursor.fetchall()]
 
         for image in images_data:
             image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
-            image['label_img'] = None if image['label_img'] is None else image['label_img']
+            image['time'] = seconds_to_time(int(image['frame_number'] // FRAME_RATE))
+            image['direction'] = image['img_name'].split('_')[3]
             
-        return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data})
+            
+        cursor.execute("SELECT count(*) AS count FROM bbox_img_selection WHERE id = ? AND img_name IS NOT NULL", (id,))
+        numberOfImages = cursor.fetchone()['count']
+            
+        return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data, 'numberOfImages': numberOfImages})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -357,17 +360,6 @@ def re_ranking():
             K2=3, 
             LAMBDA=0.1, 
             matches=reranking_data)
-        
-        
-        def seconds_to_time(seconds):
-            td = datetime.timedelta(seconds=seconds)
-            time = (datetime.datetime.min + td).time()
-            return time.strftime("%H:%M:%S")
-        def number_to_letters(num):
-            mapping = {i: chr(122 - i) for i in range(10)}
-            num_str = str(num)
-            letter_code = ''.join(mapping[int(digit)] for digit in num_str)
-            return letter_code
         
         def format_value(tuple,query):
             query_frame_number = int(query.split('_')[2])

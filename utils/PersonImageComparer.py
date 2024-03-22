@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
-from tools.solider import in_out_status, img_to_feature, custom_threshold_analysis,seconds_to_time
+from tools.solider import in_out_status, img_to_feature, custom_threshold_analysis
+from utils.tools import seconds_to_time
 from tools.PersonImage import PersonImage
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score

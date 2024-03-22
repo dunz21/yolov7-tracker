@@ -198,14 +198,6 @@ def custom_threshold_analysis(arr, threshold=75):
         "is_considerably_lower": is_considerably_lower
     }
 
-def seconds_to_time(seconds):
-    # Create a timedelta object
-    td = datetime.timedelta(seconds=seconds)
-    # Add the timedelta to a minimal datetime object
-    time = (datetime.datetime.min + td).time()
-    # Convert to a string format
-    return time.strftime("%H:%M:%S")
-
 def plot_mds_dbscan(features_array="", image_names=[], plot=True, title="", figsize=(12, 10), eps=0.5, min_samples_ratio=0.15, min_include=3, scaler=True):
     if scaler:
         scaler = StandardScaler().fit(features_array)
