@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_cors import CORS
 import json
 import pandas as pd
@@ -24,56 +24,113 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.160.238.200'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
 
+BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
 # Santos Dumont
 ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
 FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_santos_dumont" 
 DATABASE = f'{ROOT_FOLDER}/santos_dumont_bbox.db'
 
-# CONCER
-# ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_conce/'
-# FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_conce" 
-# DATABASE = f'{ROOT_FOLDER}/conce_bbox.db'
-
-VIDEO_PATH = '/home/diego/Documents/Footage/SANTOS LAN_ch6.mp4'  # Your video file path
-
-#### DATABASE #####
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
-
-def get_db_connection(db_name=DATABASE):
-    conn = sqlite3.connect(db_name)
+def get_db_connection():
+    print(g.path_to_db)
+    conn = sqlite3.connect(g.path_to_db)
     conn.row_factory = sqlite3.Row
     return conn
-### END DATABASE ###
+def get_base_folder_path():
+    path = g.path_to_images
+    return path
+
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
 def serve_image(filename):
-    return send_from_directory(FOLDER_PATH_IMGS, filename)
+    return send_from_directory(BASE_FOLDER, filename)
+
+# image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
+@app.before_request
+def before_request_func():
+    project_path = request.args.get('project_path')  # Attempt to get a query parameter
+    if project_path:
+        projects = get_projects_available(BASE_FOLDER)
+        project_data = projects.get(project_path, "Project not found")
+        g.path_to_images = f"{project_path}/{project_data[0]}"
+        g.path_to_db = f"{BASE_FOLDER}{project_path}/{project_data[1]}"
+
+# @app.route(f'{SERVER_FOLDER_BASE_PATH}<path:base_folder>/<path:filename>')
+# def serve_image(base_folder, filename):
+#     # Define a list of allowed base folders for security
+#     # allowed_base_folders = {
+#     #     'folder1': '/path/to/folder1',
+#     #     'folder2': '/path/to/folder2',
+#     #     # Add more mappings as necessary
+#     # }
+    
+#     # # Sanitize and validate the base_folder parameter
+#     # if base_folder not in allowed_base_folders:
+#     #     abort(404)  # Not found or not allowed
+    
+#     # # Get the absolute path to the allowed base folder
+#     # abs_base_folder = allowed_base_folders[base_folder]
+    
+#     # # Optional: Further sanitize the filename to prevent path traversal
+#     # filename = os.path.basename(filename)
+    
+#     return send_from_directory(f"{BASE_FOLDER}{base_folder}", filename)
+
+
 
 ### MODEL SELECTION LABELER
+
+def get_projects_available(base_path):
+    projects = {}
+
+    if os.path.exists(base_path) and os.path.isdir(base_path):
+        # Sort the items in the base directory in ascending order before iterating
+        for item in sorted(os.listdir(base_path)):
+            item_path = os.path.join(base_path, item)
+            if os.path.isdir(item_path):
+                # Also sort files and folders inside each project folder
+                files_and_folders = sorted(os.listdir(item_path))
+                selected_items = []
+                
+                # Look for the first folder
+                for sub_item in files_and_folders:
+                    if os.path.isdir(os.path.join(item_path, sub_item)):
+                        selected_items.append(sub_item)
+                        break
+                
+                # Look for the first .db file
+                for sub_item in files_and_folders:
+                    if sub_item.endswith('.db'):
+                        selected_items.append(sub_item)
+                        break
+
+                if selected_items:
+                    projects[item] = selected_items
+    
+    return projects
+
+@app.route('/api/select_project', methods=['GET'])
+def select_project():
+    projects = get_projects_available(BASE_FOLDER)
+    return jsonify(projects)
 
 @app.route('/api/data-images/', defaults={'id': None})
 @app.route('/api/data-images/<id>')
 def data_images(id): 
     try:
-        db = get_db()
-        db.row_factory = sqlite3.Row  # Access columns by name
+        # print(g.project_data)
+        # project_path = request.args.get('project_path')
+        # data = get_project_detail(project_path)
+        # print(f"{BASE_FOLDER}{project_path}/{data[1]}")
+        # db = get_db_connection(db_name=f"{BASE_FOLDER}{project_path}/{data[1]}")
+        # project_path = f"{project_path}/{data[0]}"
         
+        db = get_db_connection()
         cursor = db.cursor()
         cursor.execute("SELECT DISTINCT id FROM bbox_img_selection")
         unique_ids = [row['id'] for row in cursor.fetchall()]
@@ -82,11 +139,13 @@ def data_images(id):
         if id is None:
             id = unique_ids[0]
         
+        
+
         cursor.execute("SELECT img_name, k_fold, label_img, id, area, overlap, conf_score,frame_number,selected_image FROM bbox_img_selection WHERE id = ? AND img_name != '' AND (k_fold IS NOT NULL OR k_fold_selection IS NOT NULL)", (id,))
         images_data = [dict(row) for row in cursor.fetchall()]
-
+        base_path_img = get_base_folder_path()
         for image in images_data:
-            image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
+            image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{id}/{image['img_name']}"
             image['time'] = seconds_to_time(int(image['frame_number'] // FRAME_RATE))
             image['direction'] = image['img_name'].split('_')[3]
             
@@ -105,7 +164,7 @@ def update_label():
     new_label = req_data['new_label']
     
     try:
-        db = get_db()
+        db = get_db_connection()
         cursor = db.cursor()
         cursor.execute("UPDATE bbox_img_selection SET label_img = ? WHERE img_name = ?", (new_label, img_name))
         db.commit()
@@ -116,135 +175,6 @@ def update_label():
     except Exception as e:
         return jsonify({'error': 'Error updating the database', 'details': str(e)}), 500
     
-
-
-### IN OUT IMAGES and BAD IMAGES LABELER
-
-# @app.route('/api/in-out-images', methods=['GET'])
-# def in_out_images():
-#     db = get_db()
-#     db.row_factory = sqlite3.Row  # Access columns by name
-    
-#     id_param = request.args.get('id', default=None, type=int)
-#     time_stamp = '00:00:01'  # Timestamp for the frame
-    
-#     # Fetch unique IDs
-#     cursor = db.execute('SELECT DISTINCT id FROM bbox_data')
-#     unique_ids_list = [row['id'] for row in cursor.fetchall()]
-#     sorted_unique_ids_list = sorted(unique_ids_list, key=int)
-
-
-#     if id_param is None:
-#         return jsonify({'uniqueIds': sorted_unique_ids_list})
-    
-#     # Finding the rows for the specific ID
-#     cursor = db.execute('SELECT * FROM bbox_data WHERE id = ?', (id_param,))
-#     rows = cursor.fetchall()
-#     if not rows:
-#         return jsonify({'error': f'ID {id_param} not found in the dataset'}), 404
-    
-
-#     # Check if the 'label_direction' column exists and get its value if it does
-#     direction = None
-#     # Assume 'label_direction' column exists; adjust as necessary
-#     if rows[0]['label_direction'] is not None:
-#         direction = rows[0]['label_direction']
-
-    
-#     hours, minutes, seconds = map(int, time_stamp.split(':'))
-#     total_seconds = hours * 3600 + minutes * 60 + seconds
-#     cap = cv2.VideoCapture(VIDEO_PATH)
-#     if not cap.isOpened():
-#         return jsonify({'error': 'Cannot open the video file'}), 500
-#     cap.set(cv2.CAP_PROP_POS_MSEC, total_seconds * 1000)
-#     ret, frame = cap.read()
-#     if not ret:
-#         return jsonify({'error': f'Cannot read the frame at {time_stamp}'}), 500
-    
-#     # Get video frame dimensions
-#     video_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-#     video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
-#     # Colormap setup
-#     cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
-#     norm = plt.Normalize(0, len(rows)-1)
-#     images_data = []
-#     previous_centroid = None  # Initialize previous centroid
-
-#     for i,row in enumerate(rows):
-#         # Calculate centroid_bottom_x and centroid_bottom_y for each row
-#         centroid_bottom_x = (row['x1'] + row['x2']) // 2
-#         centroid_bottom_y = row['y2']
-#         centroid = (centroid_bottom_x, centroid_bottom_y)
-
-#         color = cmap(norm(i))
-#         color = tuple([int(x*255) for x in color[:3]][::-1])  # Convert from RGB to BGR
-#         # cv2.circle(frame, tuple(map(int, centroid)), 5, color, -1)
-#         if previous_centroid is not None:
-#             cv2.arrowedLine(frame, previous_centroid, centroid, color, 2, tipLength=0.5)
-        
-#         previous_centroid = centroid  # Update the previous centroid
-
-#         if row['img_name']:
-#             images_data.append(
-#                 {
-#                     'img_name': row['img_name'],
-#                     'img_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id_param}/{row['img_name']}",
-#                 }
-#             )
-
-    
-#     cap.release()
-    
-#     # Convert the frame to a format suitable for JSON response
-#     frame_with_figure_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-#     # Set figure size based on video resolution
-#     dpi = 100.0
-#     figsize = (video_width / dpi, video_height / dpi)  # Figure size in inches
-#     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-#     ax.imshow(frame_with_figure_rgb)
-#     ax.axis('off')
-#     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    
-#     # Convert figure to image
-#     buf = BytesIO()
-#     plt.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', pad_inches=0)
-#     plt.close(fig)
-#     buf.seek(0)
-#     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-
-#     time_video = seconds_to_time(int(rows[0]['frame_number'] // FRAME_RATE))
-    
-#     return jsonify({'image': img_base64, 'id': id_param, 'direction': direction,'images': images_data,'time_video': time_video})
-
-
-# @app.route('/api/in-out-images/<int:id>', methods=['POST'])
-# def update_direction(id):
-#     data = request.get_json()
-#     direction = data.get('direction')
-
-#     if direction is None:
-#         return jsonify({'error': 'Missing direction in request'}), 400
-
-#     db = get_db()
-#     cursor = db.cursor()
-
-#     # Check if the ID exists
-#     cursor.execute('SELECT * FROM bbox_data WHERE id = ?', (id,))
-#     if cursor.fetchone() is None:
-#         return jsonify({'error': 'ID not found'}), 404
-
-#     # Update the direction for the given ID
-#     cursor.execute('UPDATE bbox_data SET label_direction = ? WHERE id = ?', (direction, id))
-#     db.commit()
-
-#     if cursor.rowcount == 0:
-#         # No rows were updated, indicating the ID was not found
-#         return jsonify({'error': 'ID not found'}), 404
-
-#     return jsonify({'message': 'Direction updated successfully', 'id': id, 'direction': direction})
-
 @app.route('/api/ids')
 def ids():
     try:
@@ -366,9 +296,10 @@ def re_ranking():
             img_frame_number = int(img_name.split('_')[2])
             video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
             time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
+            base_path_img = get_base_folder_path()
             return {
                 'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
-                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{img_name.split('_')[1]}/{img_name}.png",
+                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
                 'time': time,
                 'video_time': video_time,
                 'distance': distance

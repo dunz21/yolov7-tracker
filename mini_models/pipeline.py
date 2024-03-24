@@ -10,13 +10,13 @@ if __name__ == '__main__':
     SOLIDER_MODEL_PATH = '/home/diego/Documents/detectron2/solider_model.pth'
     ROOT_FOLDER = "/home/diego/Documents/yolov7-tracker/runs/detect/"
     
-    
-    RUN_FOLDER = 'bytetrack_santos_dumont' #ACA SE CAMBIA
-    base_folder_images = 'imgs_santos_dumont'
-    dest_folder_results = 'imgs_santos_dumont_top4'
-    CSV_FILE = 'santos_dumont_bbox.db'
-    FEAT_FILE = 'santos_dumont_bbox.csv'
-    
+    #ACA SE CAMBIA
+    RUN_FOLDER = 'bytetrack_conce' 
+    base_folder_images = 'imgs_conce'
+    dest_folder_results = 'imgs_conce_top4'
+    CSV_FILE = 'conce_bbox.db'
+    FEAT_FILE = 'conce_bbox.csv'
+    #ACA SE CAMBIA
     
     ROOT_FOLDER = os.path.join(ROOT_FOLDER, RUN_FOLDER)
     base_folder_images = os.path.join(ROOT_FOLDER, base_folder_images)
