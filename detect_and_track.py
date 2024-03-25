@@ -26,6 +26,7 @@ import time
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
+from utils.bytetrack.byte_tracker_adaptive import BYTETracker as BYTETrackerAdaptive
 from utils.video_data import get_video_data
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
@@ -45,13 +46,14 @@ def detect(save_img=False,video_data=None):
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
     obj = SimpleNamespace()
-    obj.track_thresh = 0.5
+    obj.track_thresh = 0.6 ### Default 0.5
+    obj.match_thresh = 0.6 ### Default 0.8
     obj.track_buffer = 50
     obj.mot20 = False
-    obj.match_thresh = 0.8
-    obj.aspect_ratio_thresh = 1.6
+    obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    bytetrack = BYTETracker(obj, frame_rate=15)
+    # bytetrack = BYTETracker(obj, frame_rate=15)
+    bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
 
@@ -152,7 +154,7 @@ def detect(save_img=False,video_data=None):
         #             continue
         #         if tracker.history.__len__() == 10:
         #             PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
-                    
+        
         if (bytetrack.removed_stracks.__len__() > 0):
             for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
                 # Por alguna razon asigna a remove track aun cuando esta en los tracked_stracks
@@ -187,7 +189,7 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                online_targets = bytetrack.update(dets_to_sort.copy(), [int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))], img.shape[2:])
+                online_targets = bytetrack.update(dets_to_sort.copy())
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 for box in bbox_id:
                     x1, y1, x2, y2, id, score = box
@@ -345,9 +347,9 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.nosave = True # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = False # DEBUG IMAGE
-        self.wait_for_key = False # DEBUG KEY
+        self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
+        self.view_img = True # DEBUG IMAGE
+        self.wait_for_key = True # DEBUG KEY
 
 
 if __name__ == '__main__':
@@ -418,7 +420,7 @@ if __name__ == '__main__':
             # try:
                 DATA = get_video_data()
                 
-                video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
+                video_data = next((final for final in DATA if final['name'] == 'santos_dumont_debug'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

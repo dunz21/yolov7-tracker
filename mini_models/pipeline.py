@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 from utils.pipeline import getFinalScore,get_features_from_model
-from mini_models.re_ranking import complete_re_ranking, generate_re_ranking_html_report
+from mini_models.re_ranking import complete_re_ranking, generate_re_ranking_html_report,classification_match
 from utils.tools import convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k
 
 
@@ -72,5 +72,8 @@ if __name__ == '__main__':
         RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
         generate_re_ranking_html_report(results, base_folder_images, FRAME_RATE, RE_RANK_HTML)
         pbar.update(1)         
+        
+        final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+        print(final_classifier)
         
 

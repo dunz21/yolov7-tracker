@@ -24,8 +24,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
-# SERVER_IP = '181.160.238.200'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
