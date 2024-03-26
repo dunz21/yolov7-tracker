@@ -26,6 +26,7 @@ import time
 from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
+from utils.smile_track.mc_SMILEtrack import SMILEtrack
 from utils.bytetrack.byte_tracker_adaptive import BYTETracker as BYTETrackerAdaptive
 from utils.video_data import get_video_data
 from reid.BoundingBox import BoundingBox
@@ -46,12 +47,20 @@ def detect(save_img=False,video_data=None):
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
     obj = SimpleNamespace()
-    obj.track_thresh = 0.6 ### Default 0.5
-    obj.match_thresh = 0.6 ### Default 0.8
+    obj.track_thresh = 0.5 ### Default 0.5
+    obj.match_thresh = 0.8 ### Default 0.8
+    obj.track_high_thresh = 0.6 ### SMIEL TRACK ONLY Default 0.6
+    obj.track_low_thresh = 0.1 ### SMIEL TRACK ONLY Default 0.1
+    obj.new_track_thresh = 0.7 ### SMIEL TRACK ONLY Default 0.7
+    obj.proximity_thresh = 0.5 ### SMIEL TRACK ONLY Default 0.5
+    obj.appearance_thresh = 0.25 ### SMIEL TRACK ONLY Default 0.25
+    obj.with_reid = False ### SMIEL TRACK ONLY Default False
+    obj.cmc_method = 'sift' ### SMIEL TRACK ONLY Default orb|sift|ecc|sparseOptFlow|file|None
     obj.track_buffer = 50
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
+    tracker = SMILEtrack(obj, frame_rate=30.0)
     # bytetrack = BYTETracker(obj, frame_rate=15)
     bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
@@ -189,7 +198,9 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                online_targets = bytetrack.update(dets_to_sort.copy())
+                # online_targets = bytetrack.update(dets_to_sort.copy())
+                online_targets = tracker.update(dets_to_sort.copy(), im0)
+                
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 for box in bbox_id:
                     x1, y1, x2, y2, id, score = box
