@@ -17,16 +17,16 @@ def get_video_data():
             'folder_img' : "imgs_santos_dumont",
             'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
             'polygons_out' : np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
-            'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+            'polygon_area' : np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
         },
         {
             'name' : "santos_dumont_debug",
-            'source' : "/home/diego/Documents/Footage/reid_qa/dumont_debug_tracker_2_335.mp4",
+            'source' : "/home/diego/Documents/Footage/reid_qa/dumont_debug_tracker_11_851_852.mp4",
             'description' : "Video de Santos Dumont",
             'folder_img' : "imgs_santos_dumont_debug",
             'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
             'polygons_out' : np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
-            'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+            'polygon_area' : np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
         },
         {
             'name' : "santos_dumont_split",
@@ -35,7 +35,7 @@ def get_video_data():
             'folder_img' : "imgs_santos_split",
             'polygons_in' : np.array([[865, 532],[1117,570],[1115,635],[831,581]], np.int32),
             'polygons_out' : np.array([[918,498],[1112,522],[1114,570],[865,527]], np.int32),
-            'polygon_area' : np.array([[710,511],[712,650],[1119,757],[1206,562],[1179,378],[731,325]], np.int32),
+            'polygon_area' : np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
         },
         {
             'name' : "webcam",

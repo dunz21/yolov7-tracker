@@ -47,15 +47,15 @@ def detect(save_img=False,video_data=None):
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
     obj = SimpleNamespace()
-    obj.track_thresh = 0.5 ### Default 0.5
-    obj.match_thresh = 0.8 ### Default 0.8
-    obj.track_high_thresh = 0.6 ### SMIEL TRACK ONLY Default 0.6
-    obj.track_low_thresh = 0.1 ### SMIEL TRACK ONLY Default 0.1
-    obj.new_track_thresh = 0.7 ### SMIEL TRACK ONLY Default 0.7
-    obj.proximity_thresh = 0.5 ### SMIEL TRACK ONLY Default 0.5
-    obj.appearance_thresh = 0.25 ### SMIEL TRACK ONLY Default 0.25
-    obj.with_reid = False ### SMIEL TRACK ONLY Default False
-    obj.cmc_method = 'sift' ### SMIEL TRACK ONLY Default orb|sift|ecc|sparseOptFlow|file|None
+    obj.track_thresh = 0.6 ### BYTETRACK Default 0.5
+    obj.match_thresh = 0.8 ### BYTETRACK Default 0.8
+    obj.track_high_thresh = 0.6 ### SMILE TRACK ONLY Default 0.6
+    obj.track_low_thresh = 0.1 ### SMILE TRACK ONLY Default 0.1
+    obj.new_track_thresh = 0.7 ### SMILE TRACK ONLY Default 0.7
+    obj.proximity_thresh = 0.5 ### SMILE TRACK ONLY Default 0.5
+    obj.appearance_thresh = 0.25 ### SMILE TRACK ONLY Default 0.25
+    obj.with_reid = False ### SMILE TRACK ONLY Default False
+    obj.cmc_method = 'sift' ### SMILE TRACK ONLY Default orb|sift|ecc|sparseOptFlow|file|None
     obj.track_buffer = 50
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
@@ -145,7 +145,7 @@ def detect(save_img=False,video_data=None):
 
 
         original_image = im0s.copy()
-        # draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
+        draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
 
@@ -198,41 +198,45 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                # online_targets = bytetrack.update(dets_to_sort.copy())
-                online_targets = tracker.update(dets_to_sort.copy(), im0)
+                online_targets = bytetrack.update(dets_to_sort.copy())
+                # online_targets = tracker.update(dets_to_sort.copy(), im0)
                 
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
+                extra_info = {}
                 for box in bbox_id:
-                    x1, y1, x2, y2, id, score = box
-                    id = int(id)
-                    if (PersonImage.get_instance(id) == None):
-                        new_person = PersonImage(id=id,list_images=[],history_deque=[])
+                    x1, y1, x2, y2, id_tracker, score = box
+                    extra_info[id_tracker] = {'overlap': 0, 'distance' : 0, 'score' : 0}
+                    
+                    id_tracker = int(id_tracker)
+                    if (PersonImage.get_instance(id_tracker) == None):
+                        new_person = PersonImage(id=id_tracker,list_images=[],history_deque=[])
                     else:
-                        new_person = PersonImage.get_instance(id)
+                        new_person = PersonImage.get_instance(id_tracker)
                         
                     sub_frame = original_image[max(0,int(y1)):max(0,int(y2)), max(0,int(x1)):max(0,int(x2))]
-                    distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=box[:4])
-
-                    total_over_lap = 0
+                    
+                    extra_info[id_tracker]['distance'] = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=box[:4])
+                    extra_info[id_tracker]['score'] = score
                     for other_box in bbox_id:
-                        if box[4] != other_box[4]:
-                            total_over_lap += calculate_overlap(box[:4].astype(int), other_box[:4].astype(int))
+                        if id_tracker != other_box[4]:
+                            extra_info[id_tracker]['overlap'] += calculate_overlap(box[:4].astype(int), other_box[:4].astype(int))
+                    
                     
                     objBbox = BoundingBox(
                         img_frame=sub_frame,
                         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
                         bbox=[*box[:4].astype(int),score],
-                        overlap=total_over_lap,
-                        distance_to_center=distance_to_center)
+                        overlap=extra_info[id_tracker]['overlap'],
+                        distance_to_center=extra_info[id_tracker]['distance'])
                     
                     new_person.list_images.append(objBbox)
                     new_person.history_deque.append(box[:4])
                     if(new_person.history_deque.__len__() > 500):
                         with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
-                            log_file.write(f"DELETE: {id} History: {new_person.history_deque.__len__()}  \n")
-                        PersonImage.delete_instance(id)
+                            log_file.write(f"DELETE: {id_tracker} History: {new_person.history_deque.__len__()}  \n")
+                        PersonImage.delete_instance(id_tracker)
                 
-                draw_boxes(img=im0, bbox=bbox_id, extra_info=None,color=(0,0,255),position='Top')
+                draw_boxes(img=im0, bbox=bbox_id, extra_info=extra_info,color=(0,0,255),position='Top')
 
                 
                 
@@ -358,7 +362,7 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
+        self.nosave = True # GUARDAR VIDEO, True para NO GUARDAR
         self.view_img = True # DEBUG IMAGE
         self.wait_for_key = True # DEBUG KEY
 
