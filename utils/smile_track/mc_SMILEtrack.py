@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import deque
 
-from utils.bytetrack import matching
+from utils.smile_track import matching
 from utils.smile_track.gmc import GMC
-from utils.bytetrack.basetrack import BaseTrack, TrackState
-from utils.bytetrack.kalman_filter import KalmanFilter
+from utils.smile_track.basetrack import BaseTrack, TrackState
+from utils.smile_track.kalman_filter import KalmanFilter
 
 # from fast_reid.fast_reid_interfece import FastReIDInterface
 from .SLM import load_model

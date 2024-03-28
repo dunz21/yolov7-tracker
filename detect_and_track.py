@@ -60,7 +60,7 @@ def detect(save_img=False,video_data=None):
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    tracker = SMILEtrack(obj, frame_rate=30.0)
+    smileTrack = SMILEtrack(obj, frame_rate=30.0)
     # bytetrack = BYTETracker(obj, frame_rate=15)
     bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
@@ -114,7 +114,8 @@ def detect(save_img=False,video_data=None):
     height = 0
     time_for_each_100_frames = []
     results = []
-    
+    current_frame = 0  # Initialize current frame counter
+
     for path, img, im0s, vid_cap, frame in dataset:
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -183,7 +184,8 @@ def detect(save_img=False,video_data=None):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 det = det.cpu().detach().numpy()
                 det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
-
+                if len(det) == 0:
+                    continue
 
                
 
@@ -198,9 +200,9 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                online_targets = bytetrack.update(dets_to_sort.copy())
-                # online_targets = tracker.update(dets_to_sort.copy(), im0)
-                
+                # online_targets = bytetrack.update(dets_to_sort.copy())
+                online_targets = smileTrack.update(dets_to_sort.copy(), im0)
+                print(f"Online Targets: {len(online_targets)} Detecctions: {len(det)} Scores: {[d[4] for d in det]}")
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 extra_info = {}
                 for box in bbox_id:
@@ -313,13 +315,17 @@ def detect(save_img=False,video_data=None):
         # Stream results
         if view_img:
             cv2.imshow(str(p), im0)
-            if wait_for_key:
-                key = cv2.waitKey(0)
-                if key == 27: # If 'ESC' is pressed, break the loop
-                    raise StopIteration
-            if cv2.waitKey(1) == ord('q') or cv2.waitKey(1) == 27:  # q to quit
-                cv2.destroyAllWindows()
-                raise StopIteration
+            key = cv2.waitKey(0) & 0xFF  # Use cv2.waitKey(0) to wait for a key press
+            if key == 27:  # If 'ESC' is pressed, break the loop
+                break
+            elif key == ord('b'):  # If 'b' is pressed, move back one frame
+                current_frame = max(0, current_frame - 1)  # Ensure current_frame does not go below 0
+                vid_cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                continue
+            # Add your other key handling here...
+        
+        current_frame += 1  # Increment current frame counter after processing
+
 
         # Save results (image with detections)
         if save_img:
@@ -346,7 +352,7 @@ def detect(save_img=False,video_data=None):
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        self.img_size = 640
+        self.img_size = 1920
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
