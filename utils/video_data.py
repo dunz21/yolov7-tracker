@@ -21,7 +21,7 @@ def get_video_data():
         },
         {
             'name' : "santos_dumont_debug",
-            'source' : "/home/diego/Documents/Footage/reid_qa/dumont_debug_tracker_3_393.mp4",
+            'source' : "/home/diego/Documents/Footage/reid_qa/dumont_debug_tracker_2_335.mp4",
             'description' : "Video de Santos Dumont",
             'folder_img' : "imgs_santos_dumont_debug",
             'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),

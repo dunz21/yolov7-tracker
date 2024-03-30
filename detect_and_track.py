@@ -269,7 +269,7 @@ def detect(save_img=False,video_data=None):
 
 class Options:
     def __init__(self):
-        self.weights = 'yolov9-e-converted.pt'
+        self.weights = 'yolov7.pt'
         self.img_size = 1920
         self.conf_thres = 0.25
         self.iou_thres = 0.45
@@ -359,7 +359,7 @@ if __name__ == '__main__':
             # try:
                 DATA = get_video_data()
                 
-                video_data = next((final for final in DATA if final['name'] == 'conce'), None)
+                video_data = next((final for final in DATA if final['name'] == 'santos_dumont_debug'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
