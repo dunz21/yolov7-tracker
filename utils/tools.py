@@ -232,7 +232,7 @@ def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='To
         y1 = int(y1)
         x2 = int(x2)
         y2 = int(y2)
-        id = int(id)
+        # id = int(id)
         x1 += offset[0]
         x2 += offset[0]
         y1 += offset[1]
@@ -241,7 +241,7 @@ def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='To
 
         label = str(id) + ":" + "person"
         if extra_info is not None:
-            label += str(f"s:{extra_info[id]['score']:.2f}")
+            label += str(f"s:{score:.2f}")
             label += str(f"oc:{extra_info[id]['overlap']:.2f}")
             label += str(f"di:{extra_info[id]['distance']:.2f}")
 

@@ -4,7 +4,7 @@ import sys
 from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side_of_line,guess_final_direction
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
-import os
+from IPython import embed
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -48,7 +48,7 @@ class PersonImage:
         """
         instance = cls.get_instance(id)
         
-        if id == 3:
+        if id == 12:
             print(f"Cross green line")
     
         if instance is None or len(instance.history_deque) < 5 or len(instance.list_images) < 5:

@@ -25,16 +25,13 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.160.238.200'
+SERVER_IP = '192.168.1.87'
+# SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
 
 BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
-# Santos Dumont
-ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
-FOLDER_PATH_IMGS = f"{ROOT_FOLDER}/imgs_santos_dumont" 
-DATABASE = f'{ROOT_FOLDER}/santos_dumont_bbox.db'
 
 def get_db_connection():
     print(g.path_to_db)

@@ -47,22 +47,22 @@ def detect(save_img=False,video_data=None):
                         min_hits=sort_min_hits,
                         iou_threshold=sort_iou_thresh)
     obj = SimpleNamespace()
-    obj.track_thresh = 0.6 ### BYTETRACK Default 0.5
+    obj.track_thresh = 0.5 ### BYTETRACK Default 0.5
     obj.match_thresh = 0.8 ### BYTETRACK Default 0.8
-    obj.track_high_thresh = 0.6 ### SMILE TRACK ONLY Default 0.6
+    obj.track_high_thresh = 0.2 ### SMILE TRACK ONLY Default 0.6
     obj.track_low_thresh = 0.1 ### SMILE TRACK ONLY Default 0.1
-    obj.new_track_thresh = 0.7 ### SMILE TRACK ONLY Default 0.7
+    obj.new_track_thresh = 0.2 ### SMILE TRACK ONLY Default 0.7
     obj.proximity_thresh = 0.5 ### SMILE TRACK ONLY Default 0.5
     obj.appearance_thresh = 0.25 ### SMILE TRACK ONLY Default 0.25
     obj.with_reid = False ### SMILE TRACK ONLY Default False
-    obj.cmc_method = 'sift' ### SMILE TRACK ONLY Default orb|sift|ecc|sparseOptFlow|file|None
+    obj.cmc_method = 'sparseOptFlow' ### SMILE TRACK ONLY Default orb|sift|ecc|sparseOptFlow|file|None
     obj.track_buffer = 50
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    smileTrack = SMILEtrack(obj, frame_rate=30.0)
-    # bytetrack = BYTETracker(obj, frame_rate=15)
-    bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
+    # smileTrack = SMILEtrack(obj, frame_rate=30.0)
+    bytetrack = BYTETracker(obj, frame_rate=15)
+    # bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
 
@@ -144,27 +144,11 @@ def detect(save_img=False,video_data=None):
         t3 = time_synchronized()
 
 
-
         original_image = im0s.copy()
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
-        polygons_in_out = draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
+        draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
 
-        #Puedo tener trackers y ninguna deteccion. Ya que pueden ser del pasado
-        trackers = sort_tracker.getTrackers()
-
-
-
-        # if len(trackers) > 0:
-        #     for tracker in trackers:
-        #         if tracker.bbox_history.__len__() > 500: # en caso de que las personas se queden paradas no muera por ram
-        #             PersonImage.delete_instance(tracker.id + 1)
-        #         if tracker.history.__len__() == sort_max_age:
-        #             PersonImage.delete_instance(tracker.id + 1)
-        #             continue
-        #         if tracker.history.__len__() == 10:
-        #             PersonImage.save(id=tracker.id + 1,folder_name=video_data['folder_img'],csv_box_name=f"{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
-        
         if (bytetrack.removed_stracks.__len__() > 0):
             for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
                 # Por alguna razon asigna a remove track aun cuando esta en los tracked_stracks
@@ -184,12 +168,11 @@ def detect(save_img=False,video_data=None):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 det = det.cpu().detach().numpy()
                 det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
-                if len(det) == 0:
-                    continue
-
-               
-
-
+                # if len(det) == 0:
+                #     continue #Esto no permite que el Tracker se actualice, y matar los remove
+                # box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det]
+                # draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
+                
                 # ..................USEa TRACK FUNCTION....................
                 # pass an empty array to sort
                 dets_to_sort = np.empty((0, 6))
@@ -200,14 +183,13 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                # online_targets = bytetrack.update(dets_to_sort.copy())
-                online_targets = smileTrack.update(dets_to_sort.copy(), im0)
-                print(f"Online Targets: {len(online_targets)} Detecctions: {len(det)} Scores: {[d[4] for d in det]}")
+                online_targets = bytetrack.update(dets_to_sort.copy())
+                # online_targets = smileTrack.update(dets_to_sort.copy(), im0)
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 extra_info = {}
                 for box in bbox_id:
                     x1, y1, x2, y2, id_tracker, score = box
-                    extra_info[id_tracker] = {'overlap': 0, 'distance' : 0, 'score' : 0}
+                    extra_info[id_tracker] = {'overlap': 0, 'distance' : 0}
                     
                     id_tracker = int(id_tracker)
                     if (PersonImage.get_instance(id_tracker) == None):
@@ -218,7 +200,6 @@ def detect(save_img=False,video_data=None):
                     sub_frame = original_image[max(0,int(y1)):max(0,int(y2)), max(0,int(x1)):max(0,int(x2))]
                     
                     extra_info[id_tracker]['distance'] = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=box[:4])
-                    extra_info[id_tracker]['score'] = score
                     for other_box in bbox_id:
                         if id_tracker != other_box[4]:
                             extra_info[id_tracker]['overlap'] += calculate_overlap(box[:4].astype(int), other_box[:4].astype(int))
@@ -240,82 +221,18 @@ def detect(save_img=False,video_data=None):
                 
                 draw_boxes(img=im0, bbox=bbox_id, extra_info=extra_info,color=(0,0,255),position='Top')
 
-                
-                
-                
-                            
-                # Run SORT
-                # tracked_dets = sort_tracker.update(dets_to_sort)
-                # tracks = sort_tracker.getTrackers()
-
-                # # loop over tracks
-                # for track in tracks:
-                #     only_bboxes = [box[:4] for box in track.bbox_history]
-                #     new_person = PersonImage(id=track.id+1,list_images=[],history_deque=only_bboxes)
-                
-                # # loop over detections, in the future we can use this to not loop over tracks
-                # for track_det in tracked_dets:
-                #     id = int(track_det[8])
-                #     conf = track_det[9]
-                #     bbox = [*track_det[:4].astype(int),conf]
-                #     x1, y1, x2, y2 = bbox[:4]
-                #     sub_frame = original_image[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
-                #     distance_to_center = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
-
-
-                #     total_overlap_tracker = 0
-                #     for other_track_det in tracked_dets:
-                #         id_other_track = other_track_det[8]
-                #         if id != id_other_track:
-                #             total_overlap_tracker += calculate_overlap(bbox[:4], other_track_det[:4].astype(int))
-
-                #     new_person = PersonImage.get_instance(id)
-                #     box = BoundingBox(
-                #         img_frame=sub_frame,
-                #         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
-                #         bbox=bbox,
-                #         overlap=total_overlap_tracker,
-                #         distance_to_center=distance_to_center)
-                #     new_person.list_images.append(box)
-
-
-
-            else:
-                tracked_dets = sort_tracker.update()
-
-
-        # draw boxes for visualization
-        # if len(tracked_dets) > 0:
-        #     bbox_xyxy = tracked_dets[:, :4]
-        #     # bbox_xyxy = [track.bbox_history[-1][:4] for track in sort_tracker.getTrackers() if len(track.history) == 0 and len(track.bbox_history) > 2]
-        #     identities = tracked_dets[:, 8]
             
-
-            #TODO: DEJARLO OPCIONAL CON HIPERPARAMETROS
-            # extra_info = {}
-            # for actual_track in tracked_dets:
-            #     track_id = actual_track[8]
-            #     if track_id not in extra_info:
-            #         extra_info[track_id] = {'overlap': 0}
-            #     if 'distance' not in extra_info[track_id]:
-            #         extra_info[track_id]['distance'] = distance_to_bbox_bottom_line(line=video_data['polygons_in'][:2],bbox=bbox[:4])
-            #     for other_track in tracked_dets:
-            #         if actual_track[8] != other_track[8]:
-            #             extra_info[track_id]['overlap'] += calculate_overlap(actual_track[:4], other_track[:4])
-
-            # if (len(bbox_xyxy) == len(identities)):
-            #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info,color=(0,255,0))
-            # else:
-            #     bbox_xyxy = tracked_dets[:, :4]
-            #     draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=extra_info)
-            # draw_boxes(img=im0, bbox=bbox_xyxy, identities=identities,extra_info=None)
 
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
         # Stream results
         if view_img:
             cv2.imshow(str(p), im0)
-            key = cv2.waitKey(0) & 0xFF  # Use cv2.waitKey(0) to wait for a key press
+            if wait_for_key:
+                key = cv2.waitKey(0) & 0xFF  # Wait indefinitely for a key press if wait_for_key is True
+            else:
+                key = cv2.waitKey(1) & 0xFF  # Use a short wait time and proceed if wait_for_key is False
+            
             if key == 27:  # If 'ESC' is pressed, break the loop
                 break
             elif key == ord('b'):  # If 'b' is pressed, move back one frame
@@ -324,7 +241,8 @@ def detect(save_img=False,video_data=None):
                 continue
             # Add your other key handling here...
         
-        current_frame += 1  # Increment current frame counter after processing
+        if not wait_for_key or key != ord('b'):  # Increment current frame unless 'b' is pressed or not waiting for key
+            current_frame += 1
 
 
         # Save results (image with detections)
@@ -351,7 +269,7 @@ def detect(save_img=False,video_data=None):
 
 class Options:
     def __init__(self):
-        self.weights = 'yolov7.pt'
+        self.weights = 'yolov9-e-converted.pt'
         self.img_size = 1920
         self.conf_thres = 0.25
         self.iou_thres = 0.45
@@ -368,9 +286,9 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
-        self.nosave = True # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = True # DEBUG IMAGE
-        self.wait_for_key = True # DEBUG KEY
+        self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
+        self.view_img = False # DEBUG IMAGE
+        self.wait_for_key = False # DEBUG KEY
 
 
 if __name__ == '__main__':
@@ -441,7 +359,7 @@ if __name__ == '__main__':
             # try:
                 DATA = get_video_data()
                 
-                video_data = next((final for final in DATA if final['name'] == 'santos_dumont_debug'), None)
+                video_data = next((final for final in DATA if final['name'] == 'conce'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
