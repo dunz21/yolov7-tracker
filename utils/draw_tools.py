@@ -68,4 +68,31 @@ def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[
 def draw_polygon_interested_area(frame, polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
     polygon_pts = polygon_pts.reshape((-1, 1, 2))
     cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=1)
+    
+    
+def draw_configs(frame, configs):
+    # Starting coordinates for the rectangle
+    x1, y1 = 10, 10  # 10 pixels from the top and left edge for padding
+    # Default width for the rectangle, could be adjusted based on the length of the text
+    w = 250
+    # Calculate height based on number of configs: 25 pixels per line + 5 pixels padding at the top and bottom
+    h = len(configs) * 25 + 10
+
+    # The color of the rectangle: Black with full opacity
+    color = (0, 0, 0, 255)
+    # Draw the rectangle that will contain the stats
+    cv2.rectangle(frame, (x1, y1), (x1 + w, y1 + h), color, -1)
+
+    # Initial position to start drawing the text
+    text_y = y1 + 20  # Start 20 pixels down from the top of the rectangle
+
+    # Iterate through the dictionary and draw each stat
+    for key, value in configs.items():
+        label = f"{key}: {value}"
+        # Draw the text
+        cv2.putText(frame, label, (x1 + 5, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        # Move down to the next line
+        text_y += 25
+
+    return frame
 

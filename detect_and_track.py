@@ -23,7 +23,7 @@ from intersect_ import *
 # For SORT tracking
 from sort import *
 import time
-from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit
+from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
 from utils.smile_track.mc_SMILEtrack import SMILEtrack
@@ -36,7 +36,7 @@ from datetime import datetime
 from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite
 
 def detect(save_img=False,video_data=None):
-    weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
+    weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave
 
     # .... Initialize SORT ....
@@ -145,6 +145,21 @@ def detect(save_img=False,video_data=None):
 
 
         original_image = im0s.copy()
+        if show_config:
+            info = {
+                "track_thresh":obj.track_thresh,
+                "match_thresh":obj.match_thresh,
+                "track_buffer":obj.track_buffer,
+                "track_high_thresh":obj.track_high_thresh,
+                "track_low_thresh":obj.track_low_thresh,
+                "new_track_thresh":obj.new_track_thresh,
+                "proximity_thresh":obj.proximity_thresh,
+                "appearance_thresh":obj.appearance_thresh,
+                "cmc_method":obj.cmc_method,
+                "aspect_ratio_thresh":obj.aspect_ratio_thresh,
+                "min_box_area":obj.min_box_area
+                }
+            draw_configs(im0s,info)
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
@@ -275,7 +290,6 @@ class Options:
         self.iou_thres = 0.45
         self.device = '0'
         self.save_txt = False
-        self.save_conf = False
         self.classes = [0]
         self.agnostic_nms = False
         self.augment = False
@@ -286,6 +300,7 @@ class Options:
         self.save_bbox_dim = False
         self.save_with_object_id = False
         self.download = True
+        self.show_config = True # Show tracker config
         self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
         self.view_img = False # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY
@@ -359,7 +374,7 @@ if __name__ == '__main__':
             # try:
                 DATA = get_video_data()
                 
-                video_data = next((final for final in DATA if final['name'] == 'santos_dumont_debug'), None)
+                video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
                 detect(video_data=video_data)
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
                 # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")

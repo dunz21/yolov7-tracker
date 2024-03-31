@@ -47,8 +47,8 @@ def get_video_data():
             'polygon_area' : np.array([[493,407],[569,700],[937,561],[826,316]], np.int32),
         },
         {
-            'name' : "conce_test",
-            'source' : "/home/diego/Documents/Footage/conce_logic_in_out_4.mp4",
+            'name' : "conce_debug",
+            'source' : "/home/diego/Documents/Footage/reid_qa_conce/conce_debug_tracker_1_1000.mp4",
             'description' : "Video de Conce",
             'folder_img' : "imgs_conce_debug",
             'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),
