@@ -157,7 +157,8 @@ def detect(save_img=False,video_data=None):
                 "appearance_thresh":obj.appearance_thresh,
                 "cmc_method":obj.cmc_method,
                 "aspect_ratio_thresh":obj.aspect_ratio_thresh,
-                "min_box_area":obj.min_box_area
+                "min_box_area":obj.min_box_area,
+                "weights":weights.split("/")[-1],
                 }
             draw_configs(im0s,info)
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
@@ -185,8 +186,8 @@ def detect(save_img=False,video_data=None):
                 det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
                 # if len(det) == 0:
                 #     continue #Esto no permite que el Tracker se actualice, y matar los remove
-                # box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det]
-                # draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
+                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det]
+                draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
                 
                 # ..................USEa TRACK FUNCTION....................
                 # pass an empty array to sort
@@ -302,7 +303,7 @@ class Options:
         self.download = True
         self.show_config = True # Show tracker config
         self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = False # DEBUG IMAGE
+        self.view_img = True # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY
 
 
