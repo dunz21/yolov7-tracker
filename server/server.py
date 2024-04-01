@@ -23,7 +23,7 @@ SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
 
-BASE_FOLDER = '/data'
+BASE_FOLDER = '/data/'
 
 def get_db_connection():
     print(g.path_to_db)
