@@ -1,0 +1,11 @@
+Flask
+Flask-CORS
+matplotlib
+numpy
+torch
+pandas
+scipy==1.7.1
+tqdm
+opencv-python
+shapely
+scikit-learn

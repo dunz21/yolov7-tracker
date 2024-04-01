@@ -15,3 +15,5 @@ torch
 torchvision
 torchaudio
 lap
+tqdm
+requests

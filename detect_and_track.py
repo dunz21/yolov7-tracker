@@ -34,7 +34,7 @@ from shapely.geometry import LineString, Point
 from types import SimpleNamespace
 from datetime import datetime
 from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite
-
+from IPython import embed
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave
@@ -72,7 +72,7 @@ def detect(save_img=False,video_data=None):
     folder_name = f"{formatted_date}_{video_data['name']}"
     save_dir = Path(increment_path(Path(opt.project) / folder_name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
-
+    os.chmod(save_dir, 0o775)
     # Initialize
     set_logging()
     device = select_device(opt.device)
@@ -303,7 +303,7 @@ class Options:
         self.download = True
         self.show_config = True # Show tracker config
         self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = True # DEBUG IMAGE
+        self.view_img = False # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY
 
 
@@ -316,8 +316,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-download', dest='download', action='store_false',
                         help='not download model weights if already exist')
     # file/folder, 0 for webcam
-    parser.add_argument('--source', type=str,
-                        default='inference/images', help='source')
+    parser.add_argument('--source', type=str, default='', help='source')
     parser.add_argument('--img-size', type=int, default=640,
                         help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float,
@@ -358,10 +357,11 @@ if __name__ == '__main__':
                         help='save results with object id to *.txt')
 
     parser.set_defaults(download=True)
-# opt = parser.parse_args() OLD
+    argopt = parser.parse_args() #OLD
+    
     opt = Options()
     print(opt.__dict__)
-    # check_requirements(exclude=('pycocotools', 'thop'))
+    
     if opt.download and not os.path.exists(''.join(opt.weights)):
         print('Model weights not found. Attempting to download now...')
         download('./')
@@ -372,26 +372,12 @@ if __name__ == '__main__':
                 detect()
                 strip_optimizer(opt.weights)
         else:
-            # try:
-                DATA = get_video_data()
-                
-                video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
-                detect(video_data=video_data)
-                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
-                # export_images_in_out_to_html(f"{video_data['name']}_distance_kmeans.csv",f"{video_data['name']}_solider_in-out.csv",video_data['folder_img'],f"{video_data['name']}_all_images.html")
+            DATA = get_video_data()
+            video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
+            if argopt.source != '':
+                video_data['source'] = argopt.source
+            detect(video_data=video_data)
 
-            # except:
-            #     print("Error")
-            
-            # try:
-                # video_data = DATA[4]
-            #     detect(video_data=video_data)
-                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_cosine.csv",html_file=f"{video_data['name']}_cosine_match.html",distance_method="cosine")
-                # getFinalScore(folder_name=video_data['folder_img'],solider_file=f"{video_data['name']}_solider_in-out.csv",silhoutte_file=f"{video_data['name']}_distance_kmeans.csv",html_file=f"{video_data['name']}_kmeans_match.html",distance_method="kmeans")
-                # export_images_in_out_to_html(f"{video_data['name']}_distance_kmeans.csv",f"{video_data['name']}_solider_in-out.csv",video_data['folder_img'],f"{video_data['name']}_all_images.html")
-            # except:
-            #     print("Error")
             
             
                 

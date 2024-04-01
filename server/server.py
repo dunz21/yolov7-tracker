@@ -1,16 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_cors import CORS
-import json
-import pandas as pd
 import matplotlib
-import cv2
 import numpy as np
-import pandas as pd
-import matplotlib.colors as mcolors
 import os
-import base64
-from io import BytesIO
-import matplotlib.pyplot as plt
 import os
 import sqlite3
 from flask import g
@@ -24,14 +16,14 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '192.168.1.87'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '192.168.1.87'
 # SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
 
-BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
+BASE_FOLDER = '/data'
 
 def get_db_connection():
     print(g.path_to_db)
