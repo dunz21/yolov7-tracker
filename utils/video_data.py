@@ -48,7 +48,7 @@ def get_video_data():
         },
         {
             'name' : "conce_debug",
-            'source' : "/home/diego/Documents/Footage/reid_qa_conce/conce_debug_tracker_1_1000.mp4",
+            'source' : "dumont_debug_tracker_1_226.mp4",
             'description' : "Video de Conce",
             'folder_img' : "imgs_conce_debug",
             'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),

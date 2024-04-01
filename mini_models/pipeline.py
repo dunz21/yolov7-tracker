@@ -6,9 +6,9 @@ from utils.tools import convert_csv_to_sqlite,prepare_data_img_selection,predict
 
 
 if __name__ == '__main__':
-    MODEL_WEIGHT = '/home/diego/Documents/yolov7-tracker/mini_models/results/image_selection_model.pkl'
-    SOLIDER_MODEL_PATH = '/home/diego/Documents/detectron2/solider_model.pth'
-    ROOT_FOLDER = "/home/diego/Documents/yolov7-tracker/runs/detect/"
+    MODEL_WEIGHT = 'mini_models/results/image_selection_model.pkl'
+    SOLIDER_MODEL_PATH = 'solider_model.pth'
+    ROOT_FOLDER = "runs/detect/"
     
     #ACA SE CAMBIA
     RUN_FOLDER = 'bytetrack_conce' 
