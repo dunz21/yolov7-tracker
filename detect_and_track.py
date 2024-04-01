@@ -27,7 +27,7 @@ from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_inter
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
 from utils.smile_track.mc_SMILEtrack import SMILEtrack
-from utils.bytetrack.byte_tracker_adaptive import BYTETracker as BYTETrackerAdaptive
+from utils.bytetrack.byte_tracker_adaptive import BYTETrackerAdaptive
 from utils.video_data import get_video_data
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
@@ -60,9 +60,9 @@ def detect(save_img=False,video_data=None):
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    # smileTrack = SMILEtrack(obj, frame_rate=30.0)
-    bytetrack = BYTETracker(obj, frame_rate=15)
-    # bytetrack = BYTETrackerAdaptive(obj, frame_rate=15)
+    tracker_reid = SMILEtrack(obj, frame_rate=30.0)
+    # tracker_reid = BYTETracker(obj, frame_rate=15)
+    # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
 
@@ -158,6 +158,7 @@ def detect(save_img=False,video_data=None):
                 "cmc_method":obj.cmc_method,
                 "aspect_ratio_thresh":obj.aspect_ratio_thresh,
                 "min_box_area":obj.min_box_area,
+                "tracker" : tracker_reid.__class__.__name__,
                 "weights":weights.split("/")[-1],
                 }
             draw_configs(im0s,info)
@@ -165,10 +166,10 @@ def detect(save_img=False,video_data=None):
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
 
-        if (bytetrack.removed_stracks.__len__() > 0):
-            for id in np.unique(np.array([val.track_id for val in bytetrack.removed_stracks])):
+        if (tracker_reid.removed_stracks.__len__() > 0):
+            for id in np.unique(np.array([val.track_id for val in tracker_reid.removed_stracks])):
                 # Por alguna razon asigna a remove track aun cuando esta en los tracked_stracks
-                remove_track_exists_in_tracker = any(val.track_id == id for val in bytetrack.tracked_stracks)
+                remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                 if (PersonImage.get_instance(id) and remove_track_exists_in_tracker == False):    
                     PersonImage.save(id=id,folder_name=f"{str(save_dir)}/{video_data['folder_img']}",csv_box_name=f"{str(save_dir)}/{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
                     PersonImage.delete_instance(id)
@@ -199,8 +200,7 @@ def detect(save_img=False,video_data=None):
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                 #### BYTETRACK
-                online_targets = bytetrack.update(dets_to_sort.copy())
-                # online_targets = smileTrack.update(dets_to_sort.copy(), im0)
+                online_targets = tracker_reid.update(dets_to_sort.copy(), im0) if tracker_reid.__class__.__name__ == 'SMILEtrack' else tracker_reid.update(dets_to_sort.copy())
                 bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 extra_info = {}
                 for box in bbox_id:
