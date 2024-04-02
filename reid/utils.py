@@ -2,7 +2,6 @@ import os
 import cv2
 import csv
 import numpy as np
-import utils.PersonImage as PersonImage
 from shapely.geometry import LineString, Polygon, box
 
 def path_intersects_line(centroids, line):

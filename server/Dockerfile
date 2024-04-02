@@ -16,6 +16,7 @@ COPY server/ /app/
 # Copy the rest of the needed files from the root directory
 # This assumes you have a requirements.txt for your dependencies in the root
 # And that all other dependencies can be encapsulated
+COPY reid /app/reid
 COPY utils /app/utils
 COPY mini_models /app/mini_models
 
