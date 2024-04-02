@@ -93,7 +93,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def save_csv_bbox_alternative(personImage: PersonImage, filepath='',folder_name='', direction=''):
+def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction=''):
     EVERY_WHEN_TO_SAVE = 3
     # Check if the folder exists, create it if not
     # if not os.path.exists(BASE_FOLDER_NAME):
