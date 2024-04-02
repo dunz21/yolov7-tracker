@@ -13,6 +13,8 @@ import joblib  # For saving and loading the model
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import accuracy_score
+from reid.utils import point_side_of_line
+
 # Sirve para preparar el dataset para entrenar el modelo con el img. selection del labeler
 # Tb va a tener anotada la prediccion del modelo
 
@@ -297,14 +299,17 @@ def distance_to_bbox_bottom_line(line=[], bbox=[]):
     :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
     :return: The shortest distance between the line and the center of the bottom edge of the bbox.
     """
-    line = LineString(line)
+    line_obj = LineString(line)
     x1, y1, x2, y2 = bbox
 
     # Calculate the center of the bottom edge of the bbox
     bottom_center = Point((x1 + x2) / 2, y2)
 
     # Calculate the shortest distance from the bottom center to the line
-    distance = bottom_center.distance(line)
+    distance = bottom_center.distance(line_obj)
+    positive_negative = point_side_of_line([(x1 + x2) / 2,y2], line[0], line[1])
+    if positive_negative == 'Out':
+        distance = -distance
     return distance
 
 def seconds_to_time(seconds):

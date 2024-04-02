@@ -3,7 +3,7 @@ import cv2
 import csv
 import numpy as np
 import utils.PersonImage as PersonImage
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Polygon, box
 
 def path_intersects_line(centroids, line):
     path = LineString(centroids)
@@ -20,6 +20,22 @@ def point_side_of_line(point, line_start, line_end):
         return "Out"
     else:
         return "on the line"
+    
+def bbox_inside_any_polygon(polygons_points, bbox_tlbr):
+    # Convert bbox from tlbr format to a Shapely box
+    tl_x, tl_y, br_x, br_y = bbox_tlbr
+    bbox = box(tl_x, tl_y, br_x, br_y)
+    
+    # Iterate over each polygon in the list
+    for polygon_points in polygons_points:
+        # Convert the current polygon points into a Shapely Polygon
+        polygon = Polygon(polygon_points)
+        
+        # Check if the bbox is completely within the current polygon
+        if polygon.contains(bbox):
+            return True  # Return True if the bbox is inside any polygon
+    
+    return False  # Return False if the bbox is not inside any polygon
     
 def guess_final_direction(arr, initial_value):
     """

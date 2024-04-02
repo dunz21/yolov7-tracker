@@ -10,8 +10,8 @@ psutil
 seaborn
 IPython
 cython_bbox
-scikit-learn
-torch
+scikit-learn==1.2.2
+torch==2.1.1
 torchvision
 torchaudio
 lap

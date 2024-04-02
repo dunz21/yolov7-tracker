@@ -133,6 +133,8 @@ def alignReID(folder_path="", weight=''):
 
 def solider_result(folder_path="", weight=''):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    from IPython import embed
+    embed()
     loaded_model = torch.load(weight)
     loaded_model.eval().to(device)
 
@@ -144,22 +146,6 @@ def solider_result(folder_path="", weight=''):
     
     with torch.no_grad():
         features_list, _ = loaded_model(images_tensor)
-    
-    features_array = features_list.cpu().numpy()
-    return features_array, image_names
-
-def img_to_feature(images_path=[],solider_weight=''):
-    loaded_model = torch.load(solider_weight)
-    loaded_model.eval()  # Set the model to evaluation mode
-    # Extract image names from paths
-
-    image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images_path]
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    loaded_model.to(device)
-    # Extract features
-    total_batch = [torch.stack([preprocess_image(img,384,128)], dim=0) for img in images_path]
-    with torch.no_grad():
-        features_list, _ = loaded_model(torch.cat(total_batch,dim=0).to(device))
     
     features_array = features_list.cpu().numpy()
     return features_array, image_names

@@ -33,7 +33,9 @@ from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
 from types import SimpleNamespace
 from datetime import datetime
-from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite
+from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
+from utils.pipeline import get_features_from_model
+
 from IPython import embed
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
@@ -174,7 +176,7 @@ def detect(save_img=False,video_data=None):
                     PersonImage.save(id=id,folder_name=f"{str(save_dir)}/{video_data['folder_img']}",csv_box_name=f"{str(save_dir)}/{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
                     PersonImage.delete_instance(id)
                     with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
-                        log_file.write(f"SAVED: {id} \n")
+                        log_file.write(f"SAVED No deberia haber otro como este. 1 ID solo se guarda una vez: {id} \n")
             
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -278,6 +280,11 @@ def detect(save_img=False,video_data=None):
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
             vid_writer.write(im0)
     convert_csv_to_sqlite(csv_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.csv",db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",table_name='bbox_raw')
+    prepare_data_img_selection(db_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",origin_table="bbox_raw",k_folds=4,n_images=5,new_table_name="bbox_img_selection")
+    predict_img_selection(db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",model_weights_path='mini_models/results/image_selection_model.pkl')
+    clean_img_folder_top_k(db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",base_folder_images=f"{str(save_dir)}/{video_data['folder_img']}",dest_folder_results=f"{str(save_dir)}/{video_data['folder_img']}_top4",k_fold=4,threshold=0.9)
+    # get_features_from_model(folder_path=f"{str(save_dir)}/{video_data['folder_img']}_top4",weights='solider_model.pth',model='solider',features_file=f"{str(save_dir)}/{video_data['name']}_bbox.csv")
+    
     print(f'Done. ({time.time() - t0:.3f}s)')
     print([f"{t:.2f}" for t in time_for_each_100_frames])
     
@@ -303,8 +310,8 @@ class Options:
         self.download = True
         self.show_config = True # Show tracker config
         self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = False # DEBUG IMAGE
-        self.wait_for_key = False # DEBUG KEY
+        self.view_img = True # DEBUG IMAGE
+        self.wait_for_key = True # DEBUG KEY
 
 
 if __name__ == '__main__':

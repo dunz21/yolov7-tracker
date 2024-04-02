@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from tools.solider import in_out_status, img_to_feature, custom_threshold_analysis
+from tools.solider import in_out_status, custom_threshold_analysis
 from utils.tools import seconds_to_time
 from tools.PersonImage import PersonImage
 from sklearn.cluster import KMeans
@@ -27,32 +27,32 @@ class PersonImageComparer:
         'value': []
     }
 
-    @classmethod
-    def process_person_image(cls, person_image: PersonImage):
-        list_in_out = [p.split('_')[3] for p in person_image.list_images]
-        in_or_out = in_out_status(list_in_out,2)
-        if in_or_out != "InOut":
-            person_image.list_features, person_image.list_names = img_to_feature(person_image.list_images)
-            for image_name, features in zip(person_image.list_names, person_image.list_features):
-                id = image_name.split('_')[1]
-                direction = in_or_out
-                row_data = [image_name, id, direction]
-                row_data.extend(features)
-                cls.list_total_features.append(row_data)
+    # @classmethod
+    # def process_person_image(cls, person_image: PersonImage):
+    #     list_in_out = [p.split('_')[3] for p in person_image.list_images]
+    #     in_or_out = in_out_status(list_in_out,2)
+    #     if in_or_out != "InOut":
+    #         person_image.list_features, person_image.list_names = img_to_feature(person_image.list_images)
+    #         for image_name, features in zip(person_image.list_names, person_image.list_features):
+    #             id = image_name.split('_')[1]
+    #             direction = in_or_out
+    #             row_data = [image_name, id, direction]
+    #             row_data.extend(features)
+    #             cls.list_total_features.append(row_data)
             
             
 
-        if in_or_out == "In":
-            if not any(p.id == person_image.id for p in cls.list_in):
-                cls.list_in.append(person_image)
-                cls.add_image_to_banner(person_image.list_images[0], in_or_out)
-                logging.info('IN So will this')
-        elif in_or_out == "Out":
-            if not any(p.id == person_image.id for p in cls.list_out):
-                logging.info('OUT So will this')
-                cls.list_out.append(person_image)
-                cls.compare_and_process()
-                cls.add_image_to_banner(person_image.list_images[0], person_image.direction)
+    #     if in_or_out == "In":
+    #         if not any(p.id == person_image.id for p in cls.list_in):
+    #             cls.list_in.append(person_image)
+    #             cls.add_image_to_banner(person_image.list_images[0], in_or_out)
+    #             logging.info('IN So will this')
+    #     elif in_or_out == "Out":
+    #         if not any(p.id == person_image.id for p in cls.list_out):
+    #             logging.info('OUT So will this')
+    #             cls.list_out.append(person_image)
+    #             cls.compare_and_process()
+    #             cls.add_image_to_banner(person_image.list_images[0], person_image.direction)
             
     @classmethod
     def compare_and_process(cls):

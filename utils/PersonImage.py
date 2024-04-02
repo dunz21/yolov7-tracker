@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import sys
-from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side_of_line,guess_final_direction
+from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side_of_line,guess_final_direction,bbox_inside_any_polygon
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
 from IPython import embed
@@ -47,13 +47,10 @@ class PersonImage:
             Save the instance with the specified id to a file.
         """
         instance = cls.get_instance(id)
-        
-        if id == 12:
-            print(f"Cross green line")
     
-        if instance is None or len(instance.history_deque) < 5 or len(instance.list_images) < 5:
+        if instance is None or len(instance.history_deque) < 2 or len(instance.list_images) < 2:
             return
-        
+        #
         
         #### Si soy FALSO IN, y comparo con CENTER CENTROID y es OUT, entonces es OUT
         #### Si soy FALSO OUT, y comparo con CENTER CENTROID y es IN, entonces es IN
@@ -61,11 +58,15 @@ class PersonImage:
         centroids = [(cls.calculate_centroid_bottom_tlbr(bbox), cls.calculate_centroid(bbox)) for bbox in instance.history_deque]
         centroid_bottom, centroid_center = zip(*centroids) if centroids else ([], [])
         cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2])) or path_intersects_line(centroid_bottom, LineString(polygons_list[0][2:]))
-        
-        if id == 3:
-            print(f"Cross green line: {cross_green_line}")
             
         if instance is None or cross_green_line is False:
+            # No cruzo la linea verde, pero toque alguno de los polygonos
+            # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
+            for bbox in instance.history_deque:
+                if bbox_inside_any_polygon(polygons_list, bbox):
+                    save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="None")
+                    cls.delete_instance(id)
+                    return
             return
         
         initial_direction_bottom = point_side_of_line(np.mean(centroid_bottom[:2],axis=0), polygons_list[0][0], polygons_list[0][1])
@@ -81,11 +82,13 @@ class PersonImage:
         # Esto es cuando falso IN con el bottom centroid pero el del center me dice que es OUT
         if (initial_direction_bottom == 'In') & (initial_direction_center == 'Out'):
             initial_direction = 'Out'
-        
-    
-        
+
         
         if final_direction == initial_direction:
+            # Cruzo la linea verde pero tiene direccion indecisa.
+            # Guardar igualmente como direccion indecisa
+            save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="None")
+            cls.delete_instance(id)
             return
             # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
             # new_guess_final_direction = guess_final_direction(total_in_out, initial_direction)
