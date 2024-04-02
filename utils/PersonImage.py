@@ -87,7 +87,7 @@ class PersonImage:
         if final_direction == initial_direction:
             # Cruzo la linea verde pero tiene direccion indecisa.
             # Guardar igualmente como direccion indecisa
-            save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="None")
+            save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="Cross")
             cls.delete_instance(id)
             return
             # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
