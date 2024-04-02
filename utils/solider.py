@@ -4,16 +4,13 @@ from PIL import Image
 import glob
 import os
 import numpy as np
-import datetime
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import DBSCAN
 from sklearn.manifold import MDS
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
-from torch import nn
-from torch.nn import functional as F
-import torchvision
 from models.ResNet import ResNet50
+from solider.solider_model import solider_model
 
 
 def model_selection(name='', folder_path='', weights=''):
@@ -133,11 +130,7 @@ def alignReID(folder_path="", weight=''):
 
 def solider_result(folder_path="", weight=''):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    from IPython import embed
-    embed()
-    loaded_model = torch.load(weight)
-    loaded_model.eval().to(device)
-
+    loaded_model = solider_model(weight, device)
     images = extract_images_from_subfolders(folder_path)
     image_names = [os.path.splitext(os.path.basename(img_path))[0] for img_path in images]
 

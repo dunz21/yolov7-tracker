@@ -289,7 +289,7 @@ def detect(save_img=False,video_data=None):
     prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
     predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
-    # get_features_from_model(folder_path=f"{str(save_dir)}/{video_data['folder_img']}_top4",weights='solider_model.pth',model='solider',features_file=f"{str(save_dir)}/{video_data['name']}_bbox.csv")
+    get_features_from_model(folder_path=f"{str(save_dir)}/{video_data['folder_img']}_top4",weights='model_weights.pth',model='solider',features_file=f"{str(save_dir)}/{video_data['name']}_bbox.csv")
     with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
         formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
         log_file.write(f"Time for each 100 frames: {formatted_times} \n")
