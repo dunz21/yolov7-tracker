@@ -5,6 +5,7 @@ weights/
 traced_model.pt
 yolov7objtracking2
 *.pt
+*.pth
 images_subframe*
 imgs*
 *.html
