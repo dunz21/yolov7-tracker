@@ -2,9 +2,9 @@ MODEL:
   PRETRAIN_HW_RATIO: 2
   PRETRAIN_CHOICE: "imagenet"
   # PRETRAIN_PATH: '/home/diego/Documents/Weights/Solider/weights_solider_pcdiego/swin_base/transformer_80.pth'
-  PRETRAIN_PATH: '/home/diego/Documents/Weights/Solider/swin_base_patch4_window7_224_22k.pth'
+  # PRETRAIN_PATH: '/home/diego/Documents/Weights/Solider/swin_base_patch4_window7_224_22k.pth'
   # PRETRAIN_PATH: '/home/diego/Documents/Weights/Solider/swin_base_patch4_window7_224_22kto1k.pth'
-  # PRETRAIN_PATH: ''
+  PRETRAIN_PATH: ''
   METRIC_LOSS_TYPE: "triplet"
   IF_LABELSMOOTH: "off"
   IF_WITH_CENTER: "no"
