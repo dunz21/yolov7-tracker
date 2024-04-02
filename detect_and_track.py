@@ -112,10 +112,8 @@ def detect(save_img=False,video_data=None):
 
     t0 = time.time()
 
-    width = 0
-    height = 0
+    t100 = time.time()
     time_for_each_100_frames = []
-    results = []
     current_frame = 0  # Initialize current frame counter
 
     for path, img, im0s, vid_cap, frame in dataset:
@@ -168,15 +166,18 @@ def detect(save_img=False,video_data=None):
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
 
-        if (tracker_reid.removed_stracks.__len__() > 0):
-            for id in np.unique(np.array([val.track_id for val in tracker_reid.removed_stracks])):
-                # Por alguna razon asigna a remove track aun cuando esta en los tracked_stracks
+        save_dir_str = str(save_dir)
+        folder_name = f"{save_dir_str}/{video_data['folder_img']}"
+        csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
+        if tracker_reid.removed_stracks:
+            unique_ids = set(val.track_id for val in tracker_reid.removed_stracks[-20:])
+            for id in unique_ids:
                 remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
-                if (PersonImage.get_instance(id) and remove_track_exists_in_tracker == False):    
-                    PersonImage.save(id=id,folder_name=f"{str(save_dir)}/{video_data['folder_img']}",csv_box_name=f"{str(save_dir)}/{video_data['name']}_bbox",polygons_list=[video_data['polygons_in'],video_data['polygons_out']])
+                if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
+                    PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
                     PersonImage.delete_instance(id)
-                    with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
-                        log_file.write(f"SAVED No deberia haber otro como este. 1 ID solo se guarda una vez: {id} \n")
+                    with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
+                        log_file.write(f"SAVED No deberia haber otro como este ID solo se guarda una vez: {id} \n")
             
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -240,7 +241,6 @@ def detect(save_img=False,video_data=None):
                 draw_boxes(img=im0, bbox=bbox_id, extra_info=extra_info,color=(0,0,255),position='Top')
 
             
-
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
 
         # Stream results
@@ -279,14 +279,21 @@ def detect(save_img=False,video_data=None):
                 vid_writer = cv2.VideoWriter(
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
             vid_writer.write(im0)
-    convert_csv_to_sqlite(csv_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.csv",db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",table_name='bbox_raw')
-    prepare_data_img_selection(db_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",origin_table="bbox_raw",k_folds=4,n_images=5,new_table_name="bbox_img_selection")
-    predict_img_selection(db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",model_weights_path='mini_models/results/image_selection_model.pkl')
-    clean_img_folder_top_k(db_file_path=f"{str(save_dir)}/{video_data['name']}_bbox.db",base_folder_images=f"{str(save_dir)}/{video_data['folder_img']}",dest_folder_results=f"{str(save_dir)}/{video_data['folder_img']}_top4",k_fold=4,threshold=0.9)
+            
+        if frame % 100 == 0:
+            time_for_each_100_frames.append(time.time() - t100)
+            t100 = time.time()
+            
+    db_base_path = f"{csv_box_name}.db"
+    convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
+    prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
+    predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
+    clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
     # get_features_from_model(folder_path=f"{str(save_dir)}/{video_data['folder_img']}_top4",weights='solider_model.pth',model='solider',features_file=f"{str(save_dir)}/{video_data['name']}_bbox.csv")
-    
+    with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
+        formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
+        log_file.write(f"Time for each 100 frames: {formatted_times} \n")
     print(f'Done. ({time.time() - t0:.3f}s)')
-    print([f"{t:.2f}" for t in time_for_each_100_frames])
     
 
 
@@ -310,8 +317,8 @@ class Options:
         self.download = True
         self.show_config = True # Show tracker config
         self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
-        self.view_img = True # DEBUG IMAGE
-        self.wait_for_key = True # DEBUG KEY
+        self.view_img = False # DEBUG IMAGE
+        self.wait_for_key = False # DEBUG KEY
 
 
 if __name__ == '__main__':
