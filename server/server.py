@@ -9,6 +9,7 @@ from flask import g
 import torch
 from mini_models.re_ranking import process_re_ranking
 from utils.tools import number_to_letters, seconds_to_time
+import pandas as pd
     
 matplotlib.use('Agg')  # Use a non-GUI backend
 
@@ -23,7 +24,7 @@ SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
 FRAME_RATE = 15
 
-BASE_FOLDER = '/data/'
+BASE_FOLDER = '/home/diego/Documents/yolo7/runs/detect/'
 
 def get_db_connection():
     print(g.path_to_db)
@@ -185,9 +186,36 @@ def ids():
         return jsonify({'list_in': ids_in_sorted, 'list_out': ids_out_sorted})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/get_list_ids_out', methods=['GET'])
+def get_list_ids_out():
+    filter_param = request.args.get('filter', default=None, type=str)
+    
+    db = get_db_connection()
+    cursor = db.cursor()
+    if filter_param == 'matches':
+        # Get only the IDs of features that have a corresponding row in reranking_matches
+        cursor.execute('''
+            SELECT DISTINCT f.id FROM features f
+            JOIN reranking_matches rm ON f.id = rm.id_out
+        ''')
+    elif filter_param == 'notMatches':
+        # Get only the IDs of features that do not have a corresponding row in reranking_matches
+        cursor.execute('''
+            SELECT distinct f.id FROM features f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out
+            ) and f.direction='Out'
+        ''')
+    else:
+        cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')        
+
+    rows = cursor.fetchall()
+    ids_out = [row['id'] for row in rows]
+    return jsonify(ids_out=ids_out), 200
 
 @app.route('/api/re_ranking', methods=['POST'])
-def re_ranking():
+def trigger_re_ranking():
     data = request.json
     ids_out = data.get('ids_out', [])
     all_param = data.get('all', True)  # Get the 'all' parameter, defaulting to True
@@ -312,35 +340,127 @@ def re_ranking():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@app.route('/api/get_list_ids_out', methods=['GET'])
-def get_list_ids_out():
-    filter_param = request.args.get('filter', default=None, type=str)
-    
-    db = get_db_connection()
-    cursor = db.cursor()
-    if filter_param == 'matches':
-        # Get only the IDs of features that have a corresponding row in reranking_matches
-        cursor.execute('''
-            SELECT DISTINCT f.id FROM features f
-            JOIN reranking_matches rm ON f.id = rm.id_out
-        ''')
-    elif filter_param == 'notMatches':
-        # Get only the IDs of features that do not have a corresponding row in reranking_matches
-        cursor.execute('''
-            SELECT distinct f.id FROM features f
-            WHERE NOT EXISTS (
-                SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out
-            ) and f.direction='Out'
-        ''')
-    else:
-        cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')        
+@app.route('/api/re_ranking/simple', methods=['POST'])
+def trigger_re_ranking_simple():
+    # data = request.json
+    # ids_out = data.get('ids_out', [])
+    # filter_param = data.get('filter', 'all') 
 
-    rows = cursor.fetchall()
-    ids_out = [row['id'] for row in rows]
-    return jsonify(ids_out=ids_out), 200
+    # if not ids_out:
+    #     return jsonify({'error': 'No ids_out provided'}), 400
+
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        
+        ### TOTAL VALUES ###
+        query = f"""SELECT id,img_name FROM bbox_raw where img_name is not null"""
+        cursor.execute(query)
+        total_values = cursor.fetchall()
+        df = pd.DataFrame(total_values, columns=['id', 'img_name'])  # Add other column names as needed
+        df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
+        df_unique = df.drop_duplicates(subset=['id'], keep='first')
+        direction_counts = df_unique['direction'].value_counts().to_dict()
+        ### TOTAL VALUES ###
+        
+        
+        # if filter_param == 'matches':
+        #     cursor.execute('''
+        #         SELECT DISTINCT f.id FROM features f
+        #         JOIN auto_match rm ON f.id = rm.id_out
+        #     ''')
+        #     rows = cursor.fetchall()
+        #     ids_out = [row['id'] for row in rows]
+        # elif filter_param == 'not_matches':
+        #     cursor.execute('''
+        #         SELECT f.id FROM features f
+        #         WHERE NOT EXISTS (
+        #             SELECT 1 FROM auto_match rm WHERE f.id = rm.id_out
+        #         )
+        #     ''')
+        #     rows = cursor.fetchall()
+        #     ids_out = [row['id'] for row in rows]
+        
+        
+        
+        # placeholders = ', '.join(['?'] * len(ids_out))
+        # ids_out_twice = ids_out + ids_out
+
+        query = f"""SELECT * FROM features limit 3000 """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+       
+
+        # Assuming all rows have the same number of columns and the first three are id, img_name, and direction.
+        ids = np.array([row['id'] for row in rows])
+        img_names = np.array([row['img_name'] for row in rows])
+        directions = np.array([row['direction'] for row in rows])
+
+        # Convert feature columns to numpy array, then to tensor
+        features = np.array([list(row)[3:] for row in rows], dtype=np.float32)
+        feature_tensor = torch.tensor(features, dtype=torch.float32)
+        feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
+
+        
+        results_list, posible_pair_matches = process_re_ranking(
+            ids, 
+            img_names, 
+            directions,
+            feature_tensor, 
+            n_images=8, 
+            max_number_back_to_compare=60, 
+            K1=8, 
+            K2=3, 
+            LAMBDA=0.1, 
+            autoeval=True)
+        
+        def format_value(tuple,query):
+            query_frame_number = int(query.split('_')[2])
+            img_name, distance = tuple
+            distance = np.round(float(distance),decimals=2) if isinstance(distance,str) and img_name != query else ''
+            img_frame_number = int(img_name.split('_')[2])
+            video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
+            time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
+            base_path_img = get_base_folder_path()
+            return {
+                'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
+                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
+                'time': time,
+                'video_time': video_time,
+                'distance': distance
+            }
+        
+        def format_row(arr):
+            new_list = []
+            for row in arr:
+                query = row[0][0]
+                new_list.append([format_value(value,query) for value in row])
+            return new_list
+
+        list_out = {}
+        for id_out in results_list:
+            list_out[str(id_out)] = format_row(results_list[id_out])
+            
+    
+        # Initialize an empty dictionary for the results
+        predict_matches = {}
+        for out_in_tuple in posible_pair_matches:
+            predict_matches[out_in_tuple[0]] = {
+                'id_in': out_in_tuple[1],
+            }
+        
+        return jsonify({
+            'results': list_out,
+            'stats': direction_counts,
+            'posible_pair_matches': predict_matches
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reranking/match', methods=['POST'])
-def reranking_match():
+def insert_reranking_match():
     # Extract data from the request
     data = request.json
     id_in = data.get('id_in')
@@ -480,12 +600,17 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) AS total_matches FROM reranking_matches")
     total_matches_row = cursor.fetchone()
     total_matches = total_matches_row['total_matches'] if total_matches_row else 0
+    
+    cursor.execute("SELECT COUNT(*) AS total_matches FROM auto_match")
+    total_auto_matches_row = cursor.fetchone()
+    total_auto_matches = total_auto_matches_row['total_matches'] if total_auto_matches_row else 0
 
     # Structuring the response
     response = {
         'in': in_count,
         'out': out_count,
         'total_matches': total_matches,
+        'total_auto': total_auto_matches,
         'missing_matches': missing_matches,
     }
 

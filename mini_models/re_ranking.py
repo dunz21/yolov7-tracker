@@ -167,7 +167,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
             ### Pero esta forma simple es mas rapida. Despues podria probar la otra y comparar. Por ahora lo importante es llegar a algo
             near_distance = np.sort([float(value) for value in matching_gallery_ids[:,1,1]])[0]
             if rank1_match and near_distance < 0.6:
-                posible_pair_matches.append([id_out,rank1_match])
+                posible_pair_matches.append([int(id_out),int(rank1_match)])
                 ids_correct_ins = np.append(ids_correct_ins, rank1_match)
         results_dict[id_out] = matching_gallery_ids[:,:n_images + 1]
 
@@ -235,8 +235,9 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
     
     return results
         
-def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, filter_known_matches=None, save_csv_dir=None):
+def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, save_csv_dir=None):
     ids, img_names, directions, feature_tensor = load_data(features_csv)
+    from IPython import embed; embed()
     results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA, autoeval=True)
     re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
     return re_ranking_results, file_name, posible_pair_matches
@@ -279,8 +280,8 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
         file.write(html_df)
         
 if __name__ == '__main__':
-    ROOT_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/'
-    BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/bytetrack_santos_dumont/imgs_santos_dumont_top4'
+    ROOT_FOLDER = '/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/'
+    BASE_FOLDER = '/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/imgs_conce_debug_top4'
     FRAME_RATE = 15
     n_images = 8
     max_number_back_to_compare = 57
@@ -291,7 +292,7 @@ if __name__ == '__main__':
     # filter_known_matches = None
     save_csv_dir = '/home/diego/Documents/yolov7-tracker/logs'
 
-    conn = sqlite3.connect(f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+    conn = sqlite3.connect('/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.db')
     cursor = conn.cursor()    
     features_csv = pd.read_sql('SELECT * FROM features', conn)
     
@@ -302,13 +303,12 @@ if __name__ == '__main__':
                                             K1=K1,
                                             K2=K2,
                                             LAMBDA=LAMBDA,
-                                            filter_known_matches=None,
-                                            save_csv_dir=save_csv_dir)
-    print(posible_pair_matches)
-    # Complete
-    # RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
+                                            )
+    # print(posible_pair_matches)
+    # # Complete
+    # # RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
 
-    # generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
-    final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
-    print(final_classifier)
+    # # generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
+    # final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+    # print(final_classifier)
     
