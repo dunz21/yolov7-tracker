@@ -35,6 +35,7 @@ from types import SimpleNamespace
 from datetime import datetime
 from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
 from utils.pipeline import get_features_from_model
+from mini_models.re_ranking import complete_re_ranking,classification_match
 
 from IPython import embed
 def detect(save_img=False,video_data=None):
@@ -62,8 +63,8 @@ def detect(save_img=False,video_data=None):
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    tracker_reid = SMILEtrack(obj, frame_rate=30.0)
-    # tracker_reid = BYTETracker(obj, frame_rate=15)
+    # tracker_reid = SMILEtrack(obj, frame_rate=30.0)
+    tracker_reid = BYTETracker(obj, frame_rate=15)
     # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
@@ -225,7 +226,7 @@ def detect(save_img=False,video_data=None):
                     
                     
                     objBbox = BoundingBox(
-                        img_frame=sub_frame,
+                        img_frame=sub_frame if frame % 3 == 0 else None, #for ram saving
                         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
                         bbox=[*box[:4].astype(int),score],
                         overlap=extra_info[id_tracker]['overlap'],
@@ -280,19 +281,23 @@ def detect(save_img=False,video_data=None):
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
             vid_writer.write(im0)
             
-        if frame % 100 == 0:
-            time_for_each_100_frames.append(time.time() - t100)
-            t100 = time.time()
+        # if frame % 100 == 0:
+        #     time_for_each_100_frames.append(time.time() - t100)
+        #     t100 = time.time()
             
     db_base_path = f"{csv_box_name}.db"
     convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
     prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
     predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
-    get_features_from_model(folder_path=f"{str(save_dir)}/{video_data['folder_img']}_top4",weights='model_weights.pth',model='solider',features_file=f"{str(save_dir)}/{video_data['name']}_bbox.csv")
-    with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
-        formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
-        log_file.write(f"Time for each 100 frames: {formatted_times} \n")
+    features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
+    _, _, posible_pair_matches = complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0)
+    classification_match(posible_pair_matches=posible_pair_matches,db_path=db_base_path)
+
+    
+    # with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
+    #     formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
+    #     log_file.write(f"Time for each 100 frames: {formatted_times} \n")
     print(f'Done. ({time.time() - t0:.3f}s)')
     
 
@@ -387,7 +392,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
+            video_data = next((final for final in DATA if final['name'] == 'conce'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)

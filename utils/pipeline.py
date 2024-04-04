@@ -77,14 +77,11 @@ def _save_solider_csv_by_chunks(features_array, images_names, filename):
     # Ensure the filename ends with '.csv'
     if not filename.endswith('.csv'):
         filename += '.csv'
-
     # Check if the file exists to determine if we need to write headers
     file_exists = os.path.isfile(filename)
-
     # Open the file in append mode
     with open(filename, 'a', newline='') as file:
         writer = csv.writer(file)
-
         # Write headers if the file is new
         if not file_exists:
             writer.writerow(['img_name', 'id', 'direction'] + [f'Feature_{i+1}' for i in range(len(features_array[0]))])
@@ -158,45 +155,45 @@ def folder_analysis(folders):
     return total_folders,total_in,total_out,total_in_out,result
 
 # 2.- Generate Feature Solider and save to csv
-def save_folders_to_solider_csv(list_folders_in_out, name_csv, weights='', model='', save_to_db=None):
+def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='',  optional_save_csv=None, db_path=None):
     full_path = []
     for folder in list_folders_in_out:
         entries = os.listdir(folder)
         if len(entries) == 0:
-            print(f"Folder {folder} is empty")
             continue
         full_path.append(folder)
     chunks = _chunk_array(full_path, 20)
 
-    all_data = []
-
+    # all_data = []
+    temp_csv = 'features_temp.csv'
     for chunk in chunks:
-        features_array, image_names = model_selection(name=model, folder_path=chunk, weights=weights)
+        features_array, image_names = model_selection(name=model_name, folder_path=chunk, weights=weights)
         
-        # Process each image and its features
-        for image_name, features in zip(image_names, features_array):
-            id = image_name.split('_')[1]
-            direction = image_name.split('_')[3].replace('.jpg','') # Assuming image names end with '.jpg'
-            feature_list = [str(f) for f in features]  # Convert features to a list of strings
-            row_data = [image_name, id, direction] + feature_list
-            all_data.append(row_data)
+        # # Process each image and its features
+        # for image_name, features in zip(image_names, features_array):
+        #     id = image_name.split('_')[1]
+        #     direction = image_name.split('_')[3].replace('.jpg','') # Assuming image names end with '.jpg'
+        #     feature_list = [str(f) for f in features]  # Convert features to a list of strings
+        #     row_data = [image_name, id, direction] + feature_list
+        #     all_data.append(row_data)
 
         # Optionally, you can also write to CSV in chunks
-        _save_solider_csv_by_chunks(features_array, image_names, name_csv)
+        _save_solider_csv_by_chunks(features_array, image_names, temp_csv)
 
     # Define the DataFrame columns
-    columns = ['img_name', 'id', 'direction'] + [f'feature_{i+1}' for i in range(len(features_array[0]))]
-
+    # columns = ['img_name', 'id', 'direction'] + [f'feature_{i+1}' for i in range(len(features_array[0]))]
     # Create a DataFrame from the collected data
-    df = pd.DataFrame(all_data, columns=columns)
-    df = _parseDataSolider(df)
+    # df = pd.DataFrame(all_data, columns=columns)
+    # df = _parseDataSolider(df)
 
-    # If save_to_db is provided, save DataFrame to SQLite database
-    if save_to_db:
-        conn = sqlite3.connect(name_csv.replace('.csv','.db'))
+    df = pd.read_csv(temp_csv)
+    if db_path is not None:    
+        conn = sqlite3.connect(db_path)
         df.to_sql('features', conn, if_exists='replace', index=False)
         conn.close()
-
+    if optional_save_csv:
+        df.to_csv(optional_save_csv, index=False)
+    os.remove(temp_csv)
     return df
 
 # 2.- Get Feature Solider
@@ -444,12 +441,12 @@ def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folde
         file.write(combined_html)
 
 
-def get_features_from_model(model, folder_path='',features_file='features.csv', weights=''):
+def get_features_from_model(model_name='', folder_path='',optional_save_csv='features.csv', weights='', db_path=''):
     list_folders = get_folders(folder_path)
     _,_,_,_,result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
     list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
-    features = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model,save_to_db=True)
+    features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
     return features
 
 # FINAL PIPLELINE

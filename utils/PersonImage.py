@@ -57,8 +57,8 @@ class PersonImage:
         
         centroids = [(cls.calculate_centroid_bottom_tlbr(bbox), cls.calculate_centroid(bbox)) for bbox in instance.history_deque]
         centroid_bottom, centroid_center = zip(*centroids) if centroids else ([], [])
-        cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2])) or path_intersects_line(centroid_bottom, LineString(polygons_list[0][2:]))
-            
+        cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2]))
+        
         if instance is None or cross_green_line is False:
             # No cruzo la linea verde, pero toque alguno de los polygonos
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks

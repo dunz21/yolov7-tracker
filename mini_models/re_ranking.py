@@ -201,7 +201,8 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
     if len(posible_pair_matches) > 0:
         # Convert the input matches to a DataFrame and save to CSV
         df = pd.DataFrame(posible_pair_matches, columns=['id_out', 'id_in'])
-        df.to_csv(filename_csv, index=False)
+        if filename_csv != '':
+            df.to_csv(filename_csv, index=False)
         
         # Connect to the database and replace 'auto_match' table with the DataFrame
         conn = sqlite3.connect(db_path)
@@ -209,7 +210,15 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
         
         # Approach 1: Count total rows in 'auto_match'
         results['total_rows'] = len(df)
-
+        (conn.cursor()).execute('''
+            CREATE TABLE IF NOT EXISTS reranking_matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_in INTEGER NOT NULL,
+                id_out INTEGER NOT NULL UNIQUE,
+                count_matches INTEGER NOT NULL,
+                obs TEXT NOT NULL
+            )
+        ''')
         # Approach 2: Using CTE to find total matched
         query_cte = """
         WITH Matched AS (
