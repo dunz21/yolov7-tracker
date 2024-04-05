@@ -215,8 +215,8 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 id_in INTEGER NOT NULL,
                 id_out INTEGER NOT NULL UNIQUE,
-                count_matches INTEGER NOT NULL,
-                obs TEXT NOT NULL
+                count_matches INTEGER,
+                obs TEXT
             )
         ''')
         # Approach 2: Using CTE to find total matched

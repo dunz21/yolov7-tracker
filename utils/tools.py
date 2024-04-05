@@ -111,7 +111,6 @@ def prepare_data_img_selection(db_path='', origin_table='', k_folds=4, n_images=
 ## 2.- Predict Image Selection, previo a seleccionar el topK
 def predict_img_selection(db_file_path='', model_weights_path='', export_csv=False, csv_dir=None):
     conn = sqlite3.connect(db_file_path)
-    cursor = conn.cursor()
     
     # Load data from the database
     data = pd.read_sql('SELECT * FROM bbox_img_selection', conn)
@@ -127,20 +126,17 @@ def predict_img_selection(db_file_path='', model_weights_path='', export_csv=Fal
     predictions = model.predict(data[features])
     predicted_confidences = model.predict_proba(data[features]).max(axis=1)
     
-    # Update the database
-    # TODO: FIX ACA ESTA haciendo update a muchos IDS
-    for i, row in data.iterrows():
-        sql = """UPDATE bbox_img_selection SET model_label_img = ?, model_label_conf = ? WHERE id = ? and img_name = ?"""
-        cursor.execute(sql, (int(predictions[i]), round(predicted_confidences[i], 2), row['id'], row['img_name']))
+    # Update DataFrame directly
+    data['model_label_img'] = predictions.astype(int)
+    data['model_label_conf'] = predicted_confidences.round(2)
     
-    conn.commit()
+    # Write updated DataFrame back to the database
+    data.to_sql('bbox_img_selection', conn, if_exists='replace', index=False)
     
     if export_csv:
         if csv_dir is None:
             raise ValueError("csv_dir must be specified if export_csv is True")
         # Export to CSV
-        data['model_label_img'] = predictions
-        data['model_label_conf'] = predicted_confidences.round(2)
         csv_path = os.path.join(csv_dir, "img_selection_predicted.csv")
         data.to_csv(csv_path, index=False)
         print(f"Predictions exported to CSV at: {csv_path}")
@@ -187,6 +183,7 @@ def clean_img_folder_top_k(db_file_path='', base_folder_images='', dest_folder_r
                 shutil.copy(source_path, dest_path)
     
     conn.commit()
+    conn.close()
 
 ### En construccion
 # def train_and_save_model(training_data_path, model_save_path):

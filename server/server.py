@@ -17,8 +17,8 @@ app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
-# SERVER_IP = '192.168.1.87'
+# SERVER_IP = '127.0.0.1'
+SERVER_IP = '192.168.1.87'
 # SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3001
@@ -49,31 +49,6 @@ def before_request_func():
         project_data = projects.get(project_path, "Project not found")
         g.path_to_images = f"{project_path}/{project_data[0]}"
         g.path_to_db = f"{BASE_FOLDER}{project_path}/{project_data[1]}"
-
-# @app.route(f'{SERVER_FOLDER_BASE_PATH}<path:base_folder>/<path:filename>')
-# def serve_image(base_folder, filename):
-#     # Define a list of allowed base folders for security
-#     # allowed_base_folders = {
-#     #     'folder1': '/path/to/folder1',
-#     #     'folder2': '/path/to/folder2',
-#     #     # Add more mappings as necessary
-#     # }
-    
-#     # # Sanitize and validate the base_folder parameter
-#     # if base_folder not in allowed_base_folders:
-#     #     abort(404)  # Not found or not allowed
-    
-#     # # Get the absolute path to the allowed base folder
-#     # abs_base_folder = allowed_base_folders[base_folder]
-    
-#     # # Optional: Further sanitize the filename to prevent path traversal
-#     # filename = os.path.basename(filename)
-    
-#     return send_from_directory(f"{BASE_FOLDER}{base_folder}", filename)
-
-
-
-### MODEL SELECTION LABELER
 
 def get_projects_available(base_path):
     projects = {}
@@ -266,8 +241,8 @@ def trigger_re_ranking():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_in INTEGER NOT NULL,
             id_out INTEGER NOT NULL UNIQUE,
-            count_matches INTEGER NOT NULL,
-            obs TEXT NOT NULL
+            count_matches INTEGER,
+            obs TEXT
         )
         ''')
         
@@ -341,56 +316,16 @@ def trigger_re_ranking():
         return jsonify({'error': str(e)}), 500
     
 @app.route('/api/re_ranking/simple', methods=['POST'])
-def trigger_re_ranking_simple():
-    # data = request.json
-    # ids_out = data.get('ids_out', [])
-    # filter_param = data.get('filter', 'all') 
+def trigger_re_ranking_db():
 
-    # if not ids_out:
-    #     return jsonify({'error': 'No ids_out provided'}), 400
 
     try:
         db = get_db_connection()
         cursor = db.cursor()
-        
-        ### TOTAL VALUES ###
-        query = f"""SELECT id,img_name FROM bbox_raw where img_name is not null"""
-        cursor.execute(query)
-        total_values = cursor.fetchall()
-        df = pd.DataFrame(total_values, columns=['id', 'img_name'])  # Add other column names as needed
-        df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
-        df_unique = df.drop_duplicates(subset=['id'], keep='first')
-        direction_counts = df_unique['direction'].value_counts().to_dict()
-        ### TOTAL VALUES ###
-        
-        
-        # if filter_param == 'matches':
-        #     cursor.execute('''
-        #         SELECT DISTINCT f.id FROM features f
-        #         JOIN auto_match rm ON f.id = rm.id_out
-        #     ''')
-        #     rows = cursor.fetchall()
-        #     ids_out = [row['id'] for row in rows]
-        # elif filter_param == 'not_matches':
-        #     cursor.execute('''
-        #         SELECT f.id FROM features f
-        #         WHERE NOT EXISTS (
-        #             SELECT 1 FROM auto_match rm WHERE f.id = rm.id_out
-        #         )
-        #     ''')
-        #     rows = cursor.fetchall()
-        #     ids_out = [row['id'] for row in rows]
-        
-        
-        
-        # placeholders = ', '.join(['?'] * len(ids_out))
-        # ids_out_twice = ids_out + ids_out
 
-        query = f"""SELECT * FROM features limit 3000 """
+        query = f"""SELECT * FROM features """
         cursor.execute(query)
         rows = cursor.fetchall()
-
-       
 
         # Assuming all rows have the same number of columns and the first three are id, img_name, and direction.
         ids = np.array([row['id'] for row in rows])
@@ -401,7 +336,6 @@ def trigger_re_ranking_simple():
         features = np.array([list(row)[3:] for row in rows], dtype=np.float32)
         feature_tensor = torch.tensor(features, dtype=torch.float32)
         feature_tensor = feature_tensor / feature_tensor.norm(dim=1, keepdim=True)
-
         
         results_list, posible_pair_matches = process_re_ranking(
             ids, 
@@ -437,27 +371,227 @@ def trigger_re_ranking_simple():
                 query = row[0][0]
                 new_list.append([format_value(value,query) for value in row])
             return new_list
-
         list_out = {}
         for id_out in results_list:
             list_out[str(id_out)] = format_row(results_list[id_out])
             
     
+        cursor.execute('''DROP TABLE IF EXISTS reranking''')
+        cursor.execute('''DROP TABLE IF EXISTS reranking_matches''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reranking_matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_in INTEGER NOT NULL,
+                id_out INTEGER NOT NULL UNIQUE,
+                count_matches INTEGER,
+                obs TEXT,
+                ground_truth BOOLEAN DEFAULT 1
+            )
+            ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reranking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_out TEXT,
+                img_out TEXT,
+                id_in TEXT,
+                img_in TEXT,
+                time_diff TEXT,
+                video_time TEXT,
+                distance TEXT,
+                rank INTEGER
+            )
+        ''')
+        
+        for id_out, top_k_list in list_out.items():
+            for row_gallery in top_k_list:
+                rank = 1  # Initialize rank for each id_out group
+                
+                cursor.execute('''
+                        INSERT INTO reranking (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (id_out, row_gallery[0]['image_path'], None, None, None, row_gallery[0]['video_time'], None, None))
+                
+                for item in row_gallery[1:]:
+                    img_out = row_gallery[0]['image_path']
+                    id_in = item['id'].split('_')[0]
+                    img_in = item['image_path']
+                    time_diff = item['time']
+                    video_time = item['video_time']
+                    distance = str(item['distance'])  # Ensure distance is a string for consistency
+
+                    cursor.execute('''
+                        INSERT INTO reranking (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank))
+
+                    rank += 1  # Increment rank for each row
+
+        db.commit()
+        
+        
         # Initialize an empty dictionary for the results
         predict_matches = {}
         for out_in_tuple in posible_pair_matches:
-            predict_matches[out_in_tuple[0]] = {
-                'id_in': out_in_tuple[1],
+            id_out = out_in_tuple[0]
+            id_in = out_in_tuple[1]
+            predict_matches[id_out] = {
+                'id_in': id_in
             }
-        
-        return jsonify({
-            'results': list_out,
-            'stats': direction_counts,
-            'posible_pair_matches': predict_matches
-        })
+            
+            # Attempt to insert or update
+            try:
+                cursor.execute('''
+                INSERT INTO reranking_matches (id_in, id_out)
+                VALUES (?, ?)
+                ON CONFLICT(id_out) DO UPDATE SET
+                    id_in = excluded.id_in,
+                    count_matches = excluded.count_matches,
+                    obs = excluded.obs
+                ''', (id_in, id_out))
+                db.commit()
+            except sqlite3.IntegrityError as e:
+                return jsonify({'error': str(e)}), 500
+            
+        db.close() 
+        return jsonify({'results': 'OK'})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/re_ranking/get', methods=['POST'])
+def get_re_ranking_db():
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        
+        query = f'''SELECT * FROM reranking_matches'''
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        # Initialize an empty dictionary for the results
+        matches = {}
+        for row in rows:
+            # Convert row to dictionary (assuming row factory is set)
+            row_dict = dict(row)
+            id_out = row_dict['id_out']
+            # Construct the desired dictionary structure for each id_out
+            matches[id_out] = {
+                'count_matches': row_dict['count_matches'],
+                'id_in': row_dict['id_in'],
+                'obs': row_dict['obs'],
+                'ground_truth': row_dict['ground_truth'],
+            }
+        
+
+        # Fetch basic image data
+        cursor.execute("SELECT id, img_name FROM bbox_raw WHERE img_name IS NOT NULL")
+        total_values = cursor.fetchall()
+        if not total_values:
+            return jsonify({'error': 'No images found'}), 404
+
+        df = pd.DataFrame(total_values, columns=['id', 'img_name'])
+        df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
+        df_unique = df.drop_duplicates(subset=['id'], keep='first')
+        direction_counts = df_unique['direction'].value_counts().to_dict()
+
+        # Fetching re-ranking results from 'reranking' table
+        cursor.execute("SELECT * FROM reranking ORDER BY id asc")
+        reranking_data = cursor.fetchall()
+        reranking_columns = [desc[0] for desc in cursor.description]
+        reranking_df = pd.DataFrame(reranking_data, columns=reranking_columns)
+
+        # Organize reranking data into the specified format
+        reranking_results = {}
+        current_id_out = None
+        current_batch = []
+
+        for index, row in reranking_df.iterrows():
+            # Start a new batch when rank is NULL
+            if pd.isna(row['rank']):
+                if current_id_out is not None and current_id_out == row['id_out']:
+                    reranking_results[current_id_out].append(current_batch)
+                    current_batch = []
+                elif current_id_out != row['id_out']:
+                    if current_id_out is not None:
+                        reranking_results[current_id_out].append(current_batch)
+                    current_id_out = row['id_out']
+                    reranking_results[current_id_out] = []
+                    current_batch = []
+
+            current_batch.append({
+                'id_bd': row['id'],
+                'id': row['id_in'] if pd.notna(row['id_in']) else row['id_out'],
+                'image_path': row['img_in'] if pd.notna(row['img_in']) else row['img_out'],
+                'time': row['time_diff'],
+                'video_time': row['video_time'],
+                'distance': row['distance']
+            })
+
+        # Append the last batch for the last id_out
+        if current_id_out and current_batch:
+            reranking_results[current_id_out].append(current_batch)
+
+        db.close()  # Always close connection
+
+        return jsonify({
+            'posible_pair_matches': matches,
+            'stats': direction_counts,
+            'reranking_results': reranking_results
+        })
+
+    except Exception as e:
+        if db:
+            db.close()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/reranking/ground_truth', methods=['POST'])
+def update_ground_truth_re_ranking():
+    # Extract data from the request
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No input data provided'}), 400
+
+    id_out = data.get('id_out')
+    checked = data.get('checked')
+
+    # Validate presence of all required inputs
+    if id_out is None or checked is None:
+        return jsonify({'error': 'Missing data: id_out and/or checked must be provided'}), 400
+
+    # Ensure 'id_out' is an integer
+    try:
+        id_out = int(id_out)
+    except ValueError:
+        return jsonify({'error': 'Invalid data type for id_out'}), 400
+
+    # Ensure 'checked' is a boolean
+    if not isinstance(checked, bool):
+        return jsonify({'error': 'Invalid data type for checked: Must be true or false'}), 400
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+        # Update the ground_truth value based on id_out
+        cursor.execute("UPDATE reranking_matches SET ground_truth = ? WHERE id_out = ?", (checked, id_out))
+        db.commit()
+        
+        # Fetch and return the updated record
+        cursor.execute("SELECT * FROM reranking_matches WHERE id_out = ?", (id_out,))
+        re_ranking_value = cursor.fetchone()
+
+        if re_ranking_value is None:
+            return jsonify({'error': 'No record found with the provided id_out'}), 404
+
+        return jsonify(dict(re_ranking_value))
+    except sqlite3.IntegrityError as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+    
 
 @app.route('/api/reranking/match', methods=['POST'])
 def insert_reranking_match():
@@ -490,8 +624,8 @@ def insert_reranking_match():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_in INTEGER NOT NULL,
         id_out INTEGER NOT NULL UNIQUE,
-        count_matches INTEGER NOT NULL,
-        obs TEXT NOT NULL
+        count_matches INTEGER,
+        obs TEXT
     )
     ''')
 
@@ -542,9 +676,9 @@ def get_reranking_matches():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_in INTEGER NOT NULL,
         id_out INTEGER NOT NULL UNIQUE,
-        count_matches INTEGER NOT NULL,
-        obs TEXT NOT NULL
-    )
+        count_matches INTEGER,
+        obs TEXT
+    )s
     ''')
 
     # Prepare placeholders for the query

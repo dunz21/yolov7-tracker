@@ -162,7 +162,7 @@ def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='
         if len(entries) == 0:
             continue
         full_path.append(folder)
-    chunks = _chunk_array(full_path, 20)
+    chunks = _chunk_array(full_path, 10)
 
     # all_data = []
     temp_csv = 'features_temp.csv'

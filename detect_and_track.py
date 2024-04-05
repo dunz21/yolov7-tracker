@@ -36,7 +36,7 @@ from datetime import datetime
 from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
 from utils.pipeline import get_features_from_model
 from mini_models.re_ranking import complete_re_ranking,classification_match
-
+from reid.switch_id import switch_id_corrector_pipeline
 from IPython import embed
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
@@ -286,7 +286,9 @@ def detect(save_img=False,video_data=None):
         #     t100 = time.time()
             
     db_base_path = f"{csv_box_name}.db"
+    ### Limpieza switch ID 
     convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
+    switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=folder_name,weights='model_weights.pth',model_name='solider')
     prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
     predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
