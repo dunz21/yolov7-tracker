@@ -242,7 +242,8 @@ def trigger_re_ranking():
             id_in INTEGER NOT NULL,
             id_out INTEGER NOT NULL UNIQUE,
             count_matches INTEGER,
-            obs TEXT
+            obs TEXT,
+            ground_truth BOOLEAN DEFAULT 1
         )
         ''')
         
@@ -625,7 +626,8 @@ def insert_reranking_match():
         id_in INTEGER NOT NULL,
         id_out INTEGER NOT NULL UNIQUE,
         count_matches INTEGER,
-        obs TEXT
+        obs TEXT,
+        ground_truth BOOLEAN DEFAULT 1
     )
     ''')
 
@@ -677,8 +679,9 @@ def get_reranking_matches():
         id_in INTEGER NOT NULL,
         id_out INTEGER NOT NULL UNIQUE,
         count_matches INTEGER,
-        obs TEXT
-    )s
+        obs TEXT,
+        ground_truth BOOLEAN DEFAULT 1
+    )
     ''')
 
     # Prepare placeholders for the query

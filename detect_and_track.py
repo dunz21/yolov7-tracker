@@ -64,8 +64,8 @@ def detect(save_img=False,video_data=None):
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
     # tracker_reid = SMILEtrack(obj, frame_rate=30.0)
-    tracker_reid = BYTETracker(obj, frame_rate=15)
-    # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
+    # tracker_reid = BYTETracker(obj, frame_rate=15)
+    tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     # .........................
     PersonImage.clear_instances()
 
@@ -394,7 +394,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'conce'), None)
+            video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)

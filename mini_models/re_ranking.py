@@ -216,7 +216,8 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
                 id_in INTEGER NOT NULL,
                 id_out INTEGER NOT NULL UNIQUE,
                 count_matches INTEGER,
-                obs TEXT
+                obs TEXT,
+                ground_truth BOOLEAN DEFAULT 1
             )
         ''')
         # Approach 2: Using CTE to find total matched
@@ -237,7 +238,6 @@ def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
         
 def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, save_csv_dir=None):
     ids, img_names, directions, feature_tensor = load_data(features_csv)
-    from IPython import embed; embed()
     results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA, autoeval=True)
     re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
     return re_ranking_results, file_name, posible_pair_matches
