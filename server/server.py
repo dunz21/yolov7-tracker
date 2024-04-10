@@ -10,7 +10,7 @@ import torch
 from mini_models.re_ranking import process_re_ranking
 from utils.tools import number_to_letters, seconds_to_time
 import pandas as pd
-    
+import datetime    
 matplotlib.use('Agg')  # Use a non-GUI backend
 
 app = Flask(__name__)
@@ -18,10 +18,10 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # SERVER_IP = '127.0.0.1'
-SERVER_IP = '192.168.1.87'
+SERVER_IP = '181.160.228.136'
 # SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
-PORT = 3001
+PORT = 3002
 FRAME_RATE = 15
 
 BASE_FOLDER = '/home/diego/Documents/yolo7/runs/detect/'
@@ -40,7 +40,7 @@ def get_base_folder_path():
 def serve_image(filename):
     return send_from_directory(BASE_FOLDER, filename)
 
-# image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
+# image['img_path'] = f"{SERVER_FOLDER_BASE_PATH}{id}/{image['img_name']}"
 @app.before_request
 def before_request_func():
     project_path = request.args.get('project_path')  # Attempt to get a query parameter
@@ -110,7 +110,7 @@ def data_images(id):
         images_data = [dict(row) for row in cursor.fetchall()]
         base_path_img = get_base_folder_path()
         for image in images_data:
-            image['img_path'] = f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{id}/{image['img_name']}"
+            image['img_path'] = f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{id}/{image['img_name']}"
             image['time'] = seconds_to_time(int(image['frame_number'] // FRAME_RATE))
             image['direction'] = image['img_name'].split('_')[3]
             
@@ -292,7 +292,7 @@ def trigger_re_ranking():
             base_path_img = get_base_folder_path()
             return {
                 'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
-                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
+                'image_path': f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
                 'time': time,
                 'video_time': video_time,
                 'distance': distance
@@ -360,7 +360,7 @@ def trigger_re_ranking_db():
             base_path_img = get_base_folder_path()
             return {
                 'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
-                'image_path': f"http://{SERVER_IP}:{PORT}{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
+                'image_path': f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{img_name.split('_')[1]}/{img_name}.png",
                 'time': time,
                 'video_time': video_time,
                 'distance': distance
@@ -753,6 +753,54 @@ def get_stats():
 
     return jsonify(response)
 
+##### Next Mivo #####
+@app.route('/api/process_data', methods=['GET'])
+def process_data():
+    direction_param = request.args.get('direction', 'In')  # Get direction parameter, default 'In'
+    
+    # Connect to the SQLite database
+    db = get_db_connection()
+    # Load the 'bbox_raw' table into a DataFrame
+    df = pd.read_sql_query("SELECT * FROM bbox_raw WHERE img_name IS NOT NULL", db)
+    
+    # Ensure img_name has a value
+    df = df.dropna(subset=['img_name'])
+    
+    # Drop duplicates based on 'id' to keep only one row per id
+    df = df.drop_duplicates(subset=['id'])
+    
+    # Add 'direction' column by splitting 'img_name' and extracting the fourth element
+    df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
+    
+    # Filter dataframe for rows where direction is either 'In' or 'Out'
+    df = df[df['direction'].isin(['In', 'Out'])]
+    
+    # Add 'time' column calculated from 'frame_number' divided by 15, rounded to hours
+    df['time'] = df['frame_number'].apply(lambda x: seconds_to_time((x / 15) + (60 * 60 * 8)))
+    
+    # Filter by direction based on input parameter
+    df = df[df['direction'] == direction_param]
+    
+    # Convert 'time' to datetime to facilitate grouping by hour
+    df['hour'] = pd.to_datetime(df['time']).dt.hour
+    
+    # Get the full hour range from min to max
+    hours_range = range(df['hour'].min(), df['hour'].max() + 1)
+    
+    # Group data by hour and count the occurrences
+    grouped_data = df.groupby('hour').size().reindex(hours_range, fill_value=0).reset_index(name='count')
+    grouped_data['time'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00")
+    grouped_data = grouped_data[['count', 'time']]
+    
+    # Close the database connection
+    db.close()
+    
+    # Return grouped data as JSON
+    return jsonify(grouped_data.to_dict(orient='records'))
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT, debug=True)
+
+
 

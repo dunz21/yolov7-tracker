@@ -3,19 +3,20 @@ from tqdm import tqdm
 from utils.pipeline import getFinalScore,get_features_from_model
 from mini_models.re_ranking import complete_re_ranking, generate_re_ranking_html_report,classification_match
 from utils.tools import convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k
+from reid.switch_id import switch_id_corrector_pipeline
 
 
 if __name__ == '__main__':
     MODEL_WEIGHT = 'mini_models/results/image_selection_model.pkl'
-    SOLIDER_MODEL_PATH = '/home/diego/Documents/tracklab/yolov7-tracker/model_weights.pth'
+    SOLIDER_MODEL_PATH = '/home/diego/Documents/yolov7-tracker/model_weights.pth'
     ROOT_FOLDER = "runs/detect/"
     
     #ACA SE CAMBIA
-    RUN_FOLDER = '2024_04_03_conce_debug_switch_id' 
-    base_folder_images = 'imgs_conce_debug'
-    dest_folder_results = 'imgs_conce_debug_top4'
-    CSV_FILE = 'conce_debug_bbox.db'
-    FEAT_FILE = 'conce_debug_bbox.csv'
+    RUN_FOLDER = '2024_04_06_santos_dumont' 
+    base_folder_images = 'imgs_santos_dumont'
+    dest_folder_results = 'imgs_santos_dumont_top4'
+    CSV_FILE = 'santos_dumont_bbox.db'
+    FEAT_FILE = 'santos_dumont_bbox'
     #ACA SE CAMBIA
     
     ROOT_FOLDER = os.path.join(ROOT_FOLDER, RUN_FOLDER)
@@ -41,19 +42,24 @@ if __name__ == '__main__':
 
     
     
-    with tqdm(total=8, desc="Overall Progress", unit="step") as pbar:
+    print(features_file)
+    with tqdm(total=9, desc="Overall Progress", unit="step") as pbar:
+        convert_csv_to_sqlite(csv_file_path=f"{features_file}.csv", db_file_path=DB_FILE_PATH, table_name='bbox_raw')
+        
+        # switch_id_corrector_pipeline(db_path=DB_FILE_PATH, base_folder_path=base_folder_images,weights='model_weights.pth',model_name='solider')
+        pbar.update(1)
         
         # 1.- Prepare data for image selection
-        # prepare_data_img_selection(db_path=DB_FILE_PATH, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
-        # pbar.update(1)
+        prepare_data_img_selection(db_path=DB_FILE_PATH, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
+        pbar.update(1)
 
-        # # 2.- Predict which images are good
-        # bbox_img_selection = predict_img_selection(db_file_path=DB_FILE_PATH, model_weights_path=MODEL_WEIGHT)
-        # pbar.update(1)
+        # 2.- Predict which images are good
+        bbox_img_selection = predict_img_selection(db_file_path=DB_FILE_PATH, model_weights_path=MODEL_WEIGHT)
+        pbar.update(1)
 
-        # # 3.- Apply image separation based on model results
-        # clean_img_folder_top_k(db_file_path=DB_FILE_PATH, base_folder_images=base_folder_images, dest_folder_results=dest_folder_results, k_fold=4, threshold=0.9)
-        # pbar.update(1)
+        # 3.- Apply image separation based on model results
+        clean_img_folder_top_k(db_file_path=DB_FILE_PATH, base_folder_images=base_folder_images, dest_folder_results=dest_folder_results, k_fold=4, threshold=0.9)
+        pbar.update(1)
         
         # 4.- Get features from the model
         features = get_features_from_model(folder_path=dest_folder_results, weights=SOLIDER_MODEL_PATH, model_name='solider', db_path=DB_FILE_PATH)
