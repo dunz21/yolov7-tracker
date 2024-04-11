@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory, abort
+import json
 from flask_cors import CORS
 import matplotlib
 import numpy as np
@@ -11,19 +12,21 @@ from mini_models.re_ranking import process_re_ranking
 from utils.tools import number_to_letters, seconds_to_time
 import pandas as pd
 import datetime    
+import pymysql
+
 matplotlib.use('Agg')  # Use a non-GUI backend
 
 app = Flask(__name__)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
-SERVER_IP = '181.160.228.136'
+SERVER_IP = '127.0.0.1'
+# SERVER_IP = '181.160.228.136'
 # SERVER_IP = '181.160.238.200'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3002
 FRAME_RATE = 15
-
+HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo'
 BASE_FOLDER = '/home/diego/Documents/yolo7/runs/detect/'
 
 def get_db_connection():
@@ -738,22 +741,27 @@ def get_stats():
     total_matches_row = cursor.fetchone()
     total_matches = total_matches_row['total_matches'] if total_matches_row else 0
     
-    cursor.execute("SELECT COUNT(*) AS total_matches FROM auto_match")
-    total_auto_matches_row = cursor.fetchone()
-    total_auto_matches = total_auto_matches_row['total_matches'] if total_auto_matches_row else 0
 
     # Structuring the response
     response = {
         'in': in_count,
         'out': out_count,
         'total_matches': total_matches,
-        'total_auto': total_auto_matches,
+        'total_auto': 0,
         'missing_matches': missing_matches,
     }
 
     return jsonify(response)
 
 ##### Next Mivo #####
+
+
+def modify_count(data, min_count=20, max_count=70):
+    import random
+    for item in data:
+        item['count'] = random.randint(min_count, max_count)
+    return data
+
 @app.route('/api/process_data', methods=['GET'])
 def process_data():
     direction_param = request.args.get('direction', 'In')  # Get direction parameter, default 'In'
@@ -794,9 +802,116 @@ def process_data():
     
     # Close the database connection
     db.close()
+    connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
     
-    # Return grouped data as JSON
-    return jsonify(grouped_data.to_dict(orient='records'))
+    data = grouped_data.to_dict(orient='records')
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-01",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-02",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-03",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-04",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-05",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-06",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-07",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-08",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-09",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-10",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-11",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-12",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 1, "2024-04-13",connection)
+    
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-01",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-02",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-03",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-04",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-05",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-06",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-07",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-08",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-09",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-10",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-11",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-12",connection)
+    # data = modify_count(data,20,80)
+    # save_visits(data, 2, "2024-04-13",connection)
+    # data = modify_count(data,20,80)
+    # connection.close()
+
+    return jsonify(data)
+
+def save_visits(data, store_id, date, connection):
+    try:
+        with connection.cursor() as cursor:
+            # SQL statement to insert data
+            sql = "INSERT INTO visits (`count`, `time`, `store_id`, `date`) VALUES (%s, %s, %s, %s)"
+            # Prepare data for insertion
+            for item in data:
+                cursor.execute(sql, (item['count'], item['time'], store_id, date))
+        connection.commit()
+    finally:
+        print(date)
+
+@app.route('/api/visits', methods=['GET'])
+def get_visits():
+    store = request.args.get('store')
+    date = request.args.get('date')
+    
+    if not store or not date:
+        return jsonify({"error": "Missing 'store' or 'date' parameter"}), 400 
+
+    connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
+    try:
+        with connection.cursor(pymysql.cursors.DictCursor) as cursor:
+            sql = "SELECT id, count, date, time, store_id FROM visits WHERE store_id = %s AND date = %s"
+            cursor.execute(sql, (store, date))
+            stores = cursor.fetchall()
+            for store in stores:  # Ensure that timedelta objects are processed
+                if isinstance(store['time'], datetime.timedelta):
+                    store['time'] = str(store['time'])
+            return jsonify(stores)
+    except pymysql.Error as e:
+        return jsonify({"error": f"Database error: {e}"}), 500
+    finally:
+        connection.close()
+        
+@app.route('/api/stores', methods=['GET'])
+def get_store_data():
+    
+    
+    connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
+    try:
+        with connection.cursor(pymysql.cursors.DictCursor) as cursor:  # Key change here
+            sql = "SELECT id, name, full_name, clients_id FROM stores"
+            cursor.execute(sql)
+            stores = cursor.fetchall()
+            return jsonify(stores) 
+    finally:
+        connection.close()
+    
 
 
 if __name__ == '__main__':

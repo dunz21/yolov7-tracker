@@ -79,7 +79,7 @@ if __name__ == '__main__':
         generate_re_ranking_html_report(results, base_folder_images, FRAME_RATE, RE_RANK_HTML)
         pbar.update(1)         
         
-        final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
+        final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/reranking_matches.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
         print(final_classifier)
         
 

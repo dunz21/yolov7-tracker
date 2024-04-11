@@ -18,3 +18,4 @@ lap
 tqdm
 requests
 yacs
+boto3
