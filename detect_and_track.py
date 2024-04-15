@@ -46,9 +46,7 @@ def detect(save_img=False,video_data=None):
     sort_max_age = 50
     sort_min_hits = 2
     sort_iou_thresh = 0.2
-    sort_tracker = Sort(max_age=sort_max_age,
-                        min_hits=sort_min_hits,
-                        iou_threshold=sort_iou_thresh)
+    
     obj = SimpleNamespace()
     obj.track_thresh = 0.5 ### BYTETRACK Default 0.5
     obj.match_thresh = 0.8 ### BYTETRACK Default 0.8
@@ -64,8 +62,9 @@ def detect(save_img=False,video_data=None):
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
     # tracker_reid = SMILEtrack(obj, frame_rate=30.0)
-    # tracker_reid = BYTETracker(obj, frame_rate=15)
-    tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
+    tracker_reid = BYTETracker(obj, frame_rate=15)
+    # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
+    # tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
     # .........................
     PersonImage.clear_instances()
 
@@ -118,6 +117,9 @@ def detect(save_img=False,video_data=None):
     current_frame = 0  # Initialize current frame counter
 
     for path, img, im0s, vid_cap, frame in dataset:
+        save_dir_str = str(save_dir)
+        folder_name = f"{save_dir_str}/{video_data['folder_img']}"
+        csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         #     total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -166,19 +168,23 @@ def detect(save_img=False,video_data=None):
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
-
-        save_dir_str = str(save_dir)
-        folder_name = f"{save_dir_str}/{video_data['folder_img']}"
-        csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
-        if tracker_reid.removed_stracks:
-            unique_ids = set(val.track_id for val in tracker_reid.removed_stracks[-20:])
-            for id in unique_ids:
-                remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
-                if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                    PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
-                    PersonImage.delete_instance(id)
-                    with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
-                        log_file.write(f"SAVED No deberia haber otro como este ID solo se guarda una vez: {id} \n")
+        
+        if tracker_reid.__class__.__name__ == 'Sort':
+            trackers = tracker_reid.getTrackers()
+            if len(trackers) > 0:
+                for tracker in trackers:
+                    if tracker.history.__len__() == sort_max_age:
+                        id = tracker.id + 1
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
+                        PersonImage.delete_instance(id)
+        else :
+            if tracker_reid.removed_stracks:
+                unique_ids = set(val.track_id for val in tracker_reid.removed_stracks[-20:])
+                for id in unique_ids:
+                    remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
+                    if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
+                        PersonImage.delete_instance(id)
             
         # Process detections
         for i, det in enumerate(pred):  # detections per image
@@ -203,9 +209,10 @@ def detect(save_img=False,video_data=None):
                 for x1, y1, x2, y2, conf, detclass in det:
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
+                    
                 #### BYTETRACK
                 online_targets = tracker_reid.update(dets_to_sort.copy(), im0) if tracker_reid.__class__.__name__ == 'SMILEtrack' else tracker_reid.update(dets_to_sort.copy())
-                bbox_id = [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
+                bbox_id = [np.hstack([track[0:4],track[-2],track[-1]]) for track in online_targets] if tracker_reid.__class__.__name__ == 'Sort' else [np.hstack([track.tlbr,track.track_id,track.score]) for track in online_targets]
                 extra_info = {}
                 for box in bbox_id:
                     x1, y1, x2, y2, id_tracker, score = box
@@ -301,6 +308,8 @@ def detect(save_img=False,video_data=None):
     #     formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
     #     log_file.write(f"Time for each 100 frames: {formatted_times} \n")
     print(f'Done. ({time.time() - t0:.3f}s)')
+    with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
+        log_file.write(f"{time.time() - t0:.3f} \n")
     
 
 
