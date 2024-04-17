@@ -27,7 +27,7 @@ SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3002
 FRAME_RATE = 15
 HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo'
-BASE_FOLDER = '/home/diego/Documents/yolo7/runs/detect/'
+BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
 
 def get_db_connection():
     print(g.path_to_db)

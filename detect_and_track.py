@@ -35,8 +35,9 @@ from types import SimpleNamespace
 from datetime import datetime
 from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
 from utils.pipeline import get_features_from_model
-from mini_models.re_ranking import complete_re_ranking,classification_match
+from mini_models.re_ranking import complete_re_ranking
 from reid.switch_id import switch_id_corrector_pipeline
+from utils.compress_video import compress_and_replace_video
 from IPython import embed
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
@@ -61,7 +62,7 @@ def detect(save_img=False,video_data=None):
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
-    # tracker_reid = SMILEtrack(obj, frame_rate=30.0)
+    # tracker_reid = SMILEtrack(obj, frame_rate=15)
     tracker_reid = BYTETracker(obj, frame_rate=15)
     # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     # tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
@@ -300,8 +301,7 @@ def detect(save_img=False,video_data=None):
     predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
     features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
-    _, _, posible_pair_matches = complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0)
-    classification_match(posible_pair_matches=posible_pair_matches,db_path=db_base_path)
+    complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db_base_path)
 
     
     # with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
@@ -311,12 +311,15 @@ def detect(save_img=False,video_data=None):
     with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
         log_file.write(f"{time.time() - t0:.3f} \n")
     
+    if save_img:
+        vid_writer.release()
+        compress_and_replace_video(save_path)
 
 
 class Options:
     def __init__(self):
         self.weights = 'yolov7.pt'
-        self.img_size = 1920
+        self.img_size = 640
         self.conf_thres = 0.25
         self.iou_thres = 0.45
         self.device = '0'
@@ -407,6 +410,12 @@ if __name__ == '__main__':
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)
+            
+            # DATA = get_video_data()
+            # video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
+            # if argopt.source != '':
+            #     video_data['source'] = argopt.source
+            # detect(video_data=video_data)
 
             
             

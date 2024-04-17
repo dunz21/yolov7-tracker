@@ -113,8 +113,11 @@ def get_folders(parent_folder, limit=None):
     entries = os.listdir(parent_folder)
 
     
-    # Filter out the subfolders and get their full paths
-    subfolder_paths = [os.path.join(parent_folder, entry) for entry in entries if os.path.isdir(os.path.join(parent_folder, entry))]
+    # Filter out the subfolders and get their full paths. And filter only the folders that are numbers
+    subfolder_paths = [
+        os.path.join(parent_folder, entry) for entry in entries 
+        if os.path.isdir(os.path.join(parent_folder, entry)) and entry.isdigit()
+    ]
     
     # Sort the subfolders by their names converted to integers
     subfolder_paths.sort(key=lambda x: int(os.path.basename(x)))

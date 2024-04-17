@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_distances
 from utils.pipeline import get_folders, save_folders_to_solider_csv
 from utils.tools import convert_csv_to_sqlite
-
+from IPython import embed
 
 ### 1.- Obtener los posibles switchs IDs
 def get_possible_switch_id(db_path):
@@ -75,7 +75,7 @@ def get_switch_ids(ids, solider_df, silhouette_threshold=0.35, davies_bouldin_th
             continue
         
         # Apply KMeans
-        kmeans = KMeans(n_clusters=2, random_state=42)
+        kmeans = KMeans(n_clusters=2, random_state=42, n_init=10, max_iter=300)
         labels = kmeans.fit_predict(X_id)
         
         # Calculate the centroid distance
@@ -112,7 +112,7 @@ def get_switch_ids(ids, solider_df, silhouette_threshold=0.35, davies_bouldin_th
 ### 3.- Obtener la separacion de las imagenes
 def get_img_separation(switchs, db_path):
     ### Tengo un cluster de dos elementos. Pero desde ahi me quiero ir a la carpeta de la imagen y hacer una separacion en 2.
-    ### Quiero hacer un corte
+    ### Quiero hacer un corte justo donde cambia la imagen y desde abajo tomo para un ID y luego para el otro.
     list_ids = switchs.keys()
     conn = sqlite3.connect(db_path)
     query = "SELECT id, x1, y1, x2, y2, centroid_x, centroid_y, area, frame_number, overlap, distance_to_center, conf_score, img_name FROM bbox_raw where id in ({}) and img_name is not null order by id,frame_number".format(','.join([str(i) for i in list_ids]))
@@ -165,6 +165,11 @@ def process_and_copy_images(data, base_folder_path, db_path):
     try:
         for id, clusters in data.items():
             original_id_folder = os.path.join(base_folder_path, str(id))
+            switch_id_folder = os.path.join(base_folder_path, 'switch_id')
+            if not os.path.exists(switch_id_folder):
+                os.makedirs(switch_id_folder)
+            new_id_list = []
+
             for cluster_label, info in clusters.items():
                 direction = info['direction']
                 new_id = int(id)
@@ -173,16 +178,17 @@ def process_and_copy_images(data, base_folder_path, db_path):
                     new_id_folder = os.path.join(base_folder_path, str(new_id))
                     if not os.path.exists(new_id_folder):
                         os.makedirs(new_id_folder)
+                        new_id_list.append(new_id)
                         break
                 try:
                     # Extract last frame number more robustly
                     last_frame = int(info['img_names'][-1].split('_')[2].split('.')[0])
-                    
+
                     # Database transaction for updating IDs
                     cursor.execute("BEGIN")
                     cursor.execute("UPDATE bbox_raw SET id = ? WHERE id = ? AND frame_number <= ?", (new_id, id, last_frame))
                     cursor.execute("COMMIT")
-                    
+
                     # Update image names and copy files
                     for img_name in info['img_names']:
                         original_img_path = os.path.join(original_id_folder, img_name)
@@ -195,13 +201,15 @@ def process_and_copy_images(data, base_folder_path, db_path):
                 except Exception as e:
                     cursor.execute("ROLLBACK")
                     print(f"Error during processing: {e}")
-                    
-            # Ensure deletion is within a transaction
-            cursor.execute("BEGIN")
-            cursor.execute("DELETE FROM bbox_raw WHERE id = ?", (id,))
-            cursor.execute("COMMIT")
-            
-            shutil.rmtree(original_id_folder)
+
+            # Move the original ID folder instead of deleting
+            moved_folder_path = os.path.join(switch_id_folder, str(id))
+            os.rename(original_id_folder, moved_folder_path)
+
+            # Create or append to the result.txt file
+            with open(os.path.join(switch_id_folder, 'result.txt'), 'a') as file:
+                file.write(f"original_id: {id} new_id: {new_id_list}\n")
+
     except Exception as e:
         print(f"Unhandled error: {e}")
     finally:
@@ -215,6 +223,8 @@ def switch_id_corrector_pipeline(db_path='', base_folder_path='',weights='',mode
     centroid_distance_threshold=0.8
     # Step 1: Get the possible switch IDs
     possible_switch_ids = get_possible_switch_id(db_path)
+    if len(possible_switch_ids) == 0:
+        return None
     
     list_folders = get_folders(base_folder_path)
     list_folders = [path for path in list_folders if int(path.split('/')[-1]) in possible_switch_ids]
@@ -228,9 +238,6 @@ def switch_id_corrector_pipeline(db_path='', base_folder_path='',weights='',mode
     
     # Step 4: Process and copy the images to the corresponding folders
     process_and_copy_images(img_separation, base_folder_path, db_path)
-    
-    return img_separation
-
 
 
 if __name__ == '__main__':
@@ -238,7 +245,6 @@ if __name__ == '__main__':
     db_path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.db'
     csv_path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.csv'
     convert_csv_to_sqlite(csv_file_path=csv_path, db_file_path=db_path, table_name='bbox_raw')
-
     ### 1.- Get the possible switch IDs
     ids = get_possible_switch_id(db_path)
 
@@ -251,7 +257,7 @@ if __name__ == '__main__':
 
     ### 2.- Get the switch IDs
     switchs_dict = get_switch_ids(ids, solider_df, plot=False)
-    #cluster_info = {0: [], 1: []}
+    #cluster_info = {330 : {0: [], 1: []}, 682 : {0: [], 1: []}, 1848 : {0: [], 1: []}
 
     ### 3.- Get the separation of the images
     clusters_dict = get_img_separation(switchs_dict, db_path)
@@ -265,7 +271,10 @@ if __name__ == '__main__':
     # 				"direction": determine_directionality(cluster_B_df)
     # 			}
     # 		}
+    
     ### 4.- Process and copy the images
     process_and_copy_images(clusters_dict, folder_path,db_path)
+
+
 
     #dict_keys([330, 682, 1848])

@@ -173,73 +173,120 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
 
     return results_dict,posible_pair_matches
 ## 3. Save results
-def save_results(results_dict, K1, K2, LAMBDA, n_images, filter_known_matches, save_csv_dir):
-    # Preparing the data for DataFrame
-    data_for_df = []
-    for query_id, matches in results_dict.items():
-        for row in matches:
-            # Suma el nombre de la imagen con el valor de la distancia
-            new_join_row = row[:,0] +'|'+ np.append(['-'],np.around(row[1:,1].astype(float), decimals=2))
-            data_for_df.append(new_join_row)
-
-    # Defining column names dynamically based on n_images
-    column_names = ['query'] + [f'rank{i}' for i in range(1, n_images + 1)]
-    # Creating DataFrame
-    re_ranking_results = pd.DataFrame(data_for_df, columns=column_names)
-
-    file_name = f're_ranking_k1_{K1}_k2_{K2}_lambda_{LAMBDA}_num_img_{n_images}_{"filtered" if filter_known_matches else "all"}'
-    if save_csv_dir:
-        CSV_FILE_PATH = os.path.join(save_csv_dir, f'{file_name}.csv')
-        re_ranking_results.to_csv(CSV_FILE_PATH, index=False)
-
-    return re_ranking_results, file_name
-
-def classification_match(posible_pair_matches='', filename_csv='',db_path=''):
-    # Initialize the results
-    results = {'total_rows': 0, 'total_matched': 0}
-    
-    # if len(posible_pair_matches) > 0:
-    #     # Convert the input matches to a DataFrame and save to CSV
-    #     df = pd.DataFrame(posible_pair_matches, columns=['id_out', 'id_in'])
-    #     if filename_csv != '':
-    #         df.to_csv(filename_csv, index=False)
+def save_re_ranking(results_list='', posible_pair_matches='',db_path='',FRAME_RATE=15):
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
         
-    #     conn = sqlite3.connect(db_path)
-    #     df.to_sql('auto_match', conn, if_exists='replace', index=False)
+        def format_value(tuple,query):
+            query_frame_number = int(query.split('_')[2])
+            img_name, distance = tuple
+            distance = np.round(float(distance),decimals=2) if isinstance(distance,str) and img_name != query else ''
+            img_frame_number = int(img_name.split('_')[2])
+            video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
+            time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
+            return {
+                'id': f"{img_name.split('_')[1]}_{number_to_letters(img_name.split('_')[2])}",
+                'image_path': f"{img_name.split('_')[1]}/{img_name}.png",
+                'time': time,
+                'video_time': video_time,
+                'distance': distance
+            }
         
-    #     results['total_rows'] = len(df)
-    #     (conn.cursor()).execute('''
-    #         CREATE TABLE IF NOT EXISTS reranking_matches (
-    #             id INTEGER PRIMARY KEY AUTOINCREMENT,
-    #             id_in INTEGER NOT NULL,
-    #             id_out INTEGER NOT NULL UNIQUE,
-    #             count_matches INTEGER,
-    #             obs TEXT,
-    #             ground_truth BOOLEAN DEFAULT 1
-    #         )
-    #     ''')
-        #### RE DO!!!
-        # # Approach 2: Using CTE to find total matched
-        # query_cte = """
-        # WITH Matched AS (
-        #     SELECT am.*
-        #     FROM auto_match am
-        #     INNER JOIN reranking_matches rm ON am.id_out = rm.id_out AND am.id_in = rm.id_in
-        # )
-        # SELECT COUNT(*) as total_matched FROM Matched;
-        # """
-        # results['total_matched'] = pd.read_sql_query(query_cte, conn).iloc[0]['total_matched']
+        def format_row(arr):
+            new_list = []
+            for row in arr:
+                query = row[0][0]
+                new_list.append([format_value(value,query) for value in row])
+            return new_list
         
-        # # Close the database connection
-        # conn.close()
-    
-    return results
+        list_out = {}
+        for id_out in results_list:
+            list_out[str(id_out)] = format_row(results_list[id_out])
+            
+        cursor.execute('''DROP TABLE IF EXISTS reranking''')
+        cursor.execute('''DROP TABLE IF EXISTS reranking_matches''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reranking_matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_in INTEGER NOT NULL,
+                id_out INTEGER NOT NULL UNIQUE,
+                count_matches INTEGER,
+                obs TEXT,
+                ground_truth BOOLEAN DEFAULT 1
+            )
+            ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reranking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_out TEXT,
+                img_out TEXT,
+                id_in TEXT,
+                img_in TEXT,
+                time_diff TEXT,
+                video_time TEXT,
+                distance TEXT,
+                rank INTEGER
+            )
+        ''')
         
-def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, save_csv_dir=None):
+        for id_out, top_k_list in list_out.items():
+            for row_gallery in top_k_list:
+                rank = 1  # Initialize rank for each id_out group
+                cursor.execute('''
+                        INSERT INTO reranking (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (id_out, row_gallery[0]['image_path'], None, None, None, row_gallery[0]['video_time'], None, None))
+                for item in row_gallery[1:]:
+                    img_out = row_gallery[0]['image_path']
+                    id_in = item['id'].split('_')[0]
+                    img_in = item['image_path']
+                    time_diff = item['time']
+                    video_time = item['video_time']
+                    distance = str(item['distance'])  # Ensure distance is a string for consistency
+                    cursor.execute('''
+                        INSERT INTO reranking (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (id_out, img_out, id_in, img_in, time_diff, video_time, distance, rank))
+
+                    rank += 1  # Increment rank for each row
+
+        conn.commit()
+        # Initialize an empty dictionary for the results
+        predict_matches = {}
+        for out_in_tuple in posible_pair_matches:
+            id_out = out_in_tuple[0]
+            id_in = out_in_tuple[1]
+            predict_matches[id_out] = {
+                'id_in': id_in
+            }
+            
+            # Attempt to insert or update
+            try:
+                cursor.execute('''
+                INSERT INTO reranking_matches (id_in, id_out)
+                VALUES (?, ?)
+                ON CONFLICT(id_out) DO UPDATE SET
+                    id_in = excluded.id_in,
+                    count_matches = excluded.count_matches,
+                    obs = excluded.obs
+                ''', (id_in, id_out))
+                conn.commit()
+            except sqlite3.IntegrityError as e:
+                print('Error:', e)
+            
+        conn.close() 
+        print('Re-ranking results saved successfully!')
+
+    except Exception as e:
+        print('Error:', e)
+
+        
+def complete_re_ranking(features_csv, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1, db_path=''):
     ids, img_names, directions, feature_tensor = load_data(features_csv)
     results_list, posible_pair_matches = process_re_ranking(ids, img_names, directions, feature_tensor, n_images, max_number_back_to_compare, K1, K2, LAMBDA, autoeval=True)
-    re_ranking_results, file_name = save_results(results_list, K1, K2, LAMBDA, n_images, None, save_csv_dir)
-    return re_ranking_results, file_name, posible_pair_matches
+    save_re_ranking(results_list, posible_pair_matches, db_path=db_path, FRAME_RATE=15)
 
 def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re_rank_html):
     def _image_formatter(image_name, query_frame_number):
@@ -303,11 +350,5 @@ if __name__ == '__main__':
                                             K2=K2,
                                             LAMBDA=LAMBDA,
                                             )
-    # print(posible_pair_matches)
-    # # Complete
-    # # RE_RANK_HTML = os.path.join(save_csv_dir, f'{file_name}.html')
 
-    # # generate_re_ranking_html_report(results, BASE_FOLDER, FRAME_RATE, RE_RANK_HTML)
-    # final_classifier = classification_match(posible_pair_matches=posible_pair_matches,filename_csv=f"{ROOT_FOLDER}/auto_match.csv",db_path=f"{ROOT_FOLDER}/santos_dumont_bbox.db")
-    # print(final_classifier)
     

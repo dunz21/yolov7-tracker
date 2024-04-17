@@ -39,7 +39,7 @@ def bbox_inside_any_polygon(polygons_points, bbox_tlbr):
         polygon = Polygon(polygon_points)
         
         # Check if the bbox is completely within the current polygon
-        if polygon.contains(bbox):
+        if polygon.intersects(bbox):
             return True  # Return True if the bbox is inside any polygon
     
     return False  # Return False if the bbox is not inside any polygon
