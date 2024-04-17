@@ -106,6 +106,50 @@ def _parseDataSolider(dataframe_solider):
         dataframe_solider.loc[dataframe_solider['id'] == id, 'direction'] = new_direction
     return dataframe_solider
 
+def get_files(folder_path, complete_path=True):
+    # Initialize containers for file types
+    db_files = []
+    img_folders = []
+    videos = []
+    csv_files = []
+
+    # List all items in the directory
+    for item in os.listdir(folder_path):
+        full_path = os.path.join(folder_path, item)
+        if os.path.isdir(full_path):
+            # Exclude directories ending with _topK
+            if item.startswith("imgs_") and not "_top" in item:
+                img_folders.append(item)
+        elif os.path.isfile(full_path):
+            if item.endswith('.mp4'):
+                videos.append(item)
+            elif item.endswith('.db'):
+                db_files.append(item)
+            elif item.endswith('.csv'):
+                csv_files.append(item)
+
+    # Check for conditions: only one DB, one video, and one CSV
+    if len(db_files) != 1:
+        raise ValueError("There should be exactly one DB file in the directory.")
+    if len(videos) != 1:
+        raise ValueError("There should be exactly one video file in the directory.")
+    if len(csv_files) != 1:
+        raise ValueError("There should be exactly one CSV file in the directory.")
+    if complete_path:
+        return {
+            "db": os.path.join(folder_path, db_files[0]),
+            "imgs": os.path.join(folder_path, img_folders[0]),
+            "video": os.path.join(folder_path, videos[0]),
+            "csv": os.path.join(folder_path, csv_files[0])
+        }
+    else:
+        return {
+            "db": db_files[0],
+            "imgs": img_folders[0],
+            "video": videos[0],
+            "csv": csv_files[0]
+        }
+
 # 0.- Get Folders
 def get_folders(parent_folder, limit=None):
     # List all entries in the parent folder

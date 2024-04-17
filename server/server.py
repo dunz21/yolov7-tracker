@@ -511,6 +511,7 @@ def get_re_ranking_db():
         current_id_out = None
         current_batch = []
 
+        base_path_img = get_base_folder_path()
         for index, row in reranking_df.iterrows():
             # Start a new batch when rank is NULL
             if pd.isna(row['rank']):
@@ -523,11 +524,11 @@ def get_re_ranking_db():
                     current_id_out = row['id_out']
                     reranking_results[current_id_out] = []
                     current_batch = []
-
+            img = f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{row['img_in']}" if pd.notna(row['img_in']) else f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{row['img_out']}"
             current_batch.append({
                 'id_bd': row['id'],
                 'id': row['id_in'] if pd.notna(row['id_in']) else row['id_out'],
-                'image_path': row['img_in'] if pd.notna(row['img_in']) else row['img_out'],
+                'image_path': img,
                 'time': row['time_diff'],
                 'video_time': row['video_time'],
                 'distance': row['distance']

@@ -406,16 +406,16 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
+            video_data = next((final for final in DATA if final['name'] == 'conce'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)
             
-            # DATA = get_video_data()
-            # video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
-            # if argopt.source != '':
-            #     video_data['source'] = argopt.source
-            # detect(video_data=video_data)
+            DATA = get_video_data()
+            video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
+            if argopt.source != '':
+                video_data['source'] = argopt.source
+            detect(video_data=video_data)
 
             
             

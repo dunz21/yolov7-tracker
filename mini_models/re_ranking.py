@@ -9,6 +9,7 @@ from collections import Counter
 from tqdm import tqdm
 import sqlite3
 from utils.tools import seconds_to_time, number_to_letters
+from utils.pipeline import get_files
 
 def re_ranking(probFea, galFea, k1, k2, lambda_value, local_distmat = None, only_local = False):
     # if feature vector is numpy, you should use 'torch.tensor' transform it to tensor
@@ -182,7 +183,7 @@ def save_re_ranking(results_list='', posible_pair_matches='',db_path='',FRAME_RA
         def format_value(tuple,query):
             query_frame_number = int(query.split('_')[2])
             img_name, distance = tuple
-            distance = np.round(float(distance),decimals=2) if isinstance(distance,str) and img_name != query else ''
+            distance = np.round(float(distance),decimals=2) if img_name != query else ''
             img_frame_number = int(img_name.split('_')[2])
             video_time = seconds_to_time((int(img_name.split('_')[2])// FRAME_RATE))
             time = seconds_to_time(max(0,(query_frame_number - img_frame_number)) // FRAME_RATE)
@@ -326,8 +327,10 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
         file.write(html_df)
         
 if __name__ == '__main__':
-    ROOT_FOLDER = '/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/'
-    BASE_FOLDER = '/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/imgs_conce_debug_top4'
+    
+    files = get_files('/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_17_santos_dumont')
+    db = files['db']
+    
     FRAME_RATE = 15
     n_images = 8
     max_number_back_to_compare = 57
@@ -336,19 +339,11 @@ if __name__ == '__main__':
     LAMBDA = 0
     # filter_known_matches = '/home/diego/Desktop/MatchSimple.csv'  
     # filter_known_matches = None
-    save_csv_dir = '/home/diego/Documents/yolov7-tracker/logs'
 
-    conn = sqlite3.connect('/home/diego/Documents/tracklab/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.db')
+    conn = sqlite3.connect(db)
     cursor = conn.cursor()    
     features_csv = pd.read_sql('SELECT * FROM features', conn)
     
     
-    results, file_name, posible_pair_matches = complete_re_ranking(features_csv,
-                                            n_images=n_images,
-                                            max_number_back_to_compare=max_number_back_to_compare,
-                                            K1=K1,
-                                            K2=K2,
-                                            LAMBDA=LAMBDA,
-                                            )
-
+    complete_re_ranking(features_csv,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db)
     
