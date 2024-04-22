@@ -1,13 +1,12 @@
 import subprocess
 import os
 
-def compress_and_replace_video(video_path, scale='1280:720', encoder='h264_nvenc', preset='slow', cq=28):
+def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='slow', cq=40):
     """
     Compresses a video using FFmpeg, replaces the original video with the compressed version.
 
     Parameters:
         video_path (str): Path to the video file to be compressed and replaced.
-        scale (str): The target resolution for scaling the video. Default is '1280:720'.
         encoder (str): The video encoder to use. Default is 'h264_nvenc' for NVIDIA GPU acceleration.
         preset (str): Preset for the video encoder. Affects the balance between processing speed and compression efficiency.
         cq (int): Constant quality setting for the encoder. Lower values mean better quality.
@@ -20,7 +19,6 @@ def compress_and_replace_video(video_path, scale='1280:720', encoder='h264_nvenc
     ffmpeg_command = [
         "ffmpeg",
         "-i", video_path,
-        "-vf", f"scale={scale}",
         "-c:v", encoder,
         "-preset", preset,
         "-cq:v", str(cq),

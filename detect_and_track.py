@@ -46,7 +46,7 @@ def detect(save_img=False,video_data=None):
     # .... Initialize SORT ....
     sort_max_age = 50
     sort_min_hits = 2
-    sort_iou_thresh = 0.2
+    sort_iou_thresh = 0.3
     
     obj = SimpleNamespace()
     obj.track_thresh = 0.5 ### BYTETRACK Default 0.5
@@ -62,9 +62,13 @@ def detect(save_img=False,video_data=None):
     obj.mot20 = False
     obj.aspect_ratio_thresh = 1.6   
     obj.min_box_area = 10
+    ### SORT TRACKER###
+    obj.sort_iou_thresh = sort_iou_thresh
+    
+    
     # tracker_reid = SMILEtrack(obj, frame_rate=15)
-    tracker_reid = BYTETracker(obj, frame_rate=15)
-    # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
+    # tracker_reid = BYTETracker(obj, frame_rate=15)
+    tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     # tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
     # .........................
     PersonImage.clear_instances()
@@ -151,6 +155,7 @@ def detect(save_img=False,video_data=None):
         original_image = im0s.copy()
         if show_config:
             info = {
+                "sort_iou_thresh":obj.sort_iou_thresh,
                 "track_thresh":obj.track_thresh,
                 "match_thresh":obj.match_thresh,
                 "track_buffer":obj.track_buffer,
@@ -407,12 +412,6 @@ if __name__ == '__main__':
         else:
             DATA = get_video_data()
             video_data = next((final for final in DATA if final['name'] == 'conce'), None)
-            if argopt.source != '':
-                video_data['source'] = argopt.source
-            detect(video_data=video_data)
-            
-            DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'santos_dumont'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)

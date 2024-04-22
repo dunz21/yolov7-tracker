@@ -13,6 +13,10 @@ from utils.tools import number_to_letters, seconds_to_time
 import pandas as pd
 import datetime    
 import pymysql
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import base64
 
 matplotlib.use('Agg')  # Use a non-GUI backend
 
@@ -91,12 +95,6 @@ def select_project():
 @app.route('/api/data-images/<id>')
 def data_images(id): 
     try:
-        # print(g.project_data)
-        # project_path = request.args.get('project_path')
-        # data = get_project_detail(project_path)
-        # print(f"{BASE_FOLDER}{project_path}/{data[1]}")
-        # db = get_db_connection(db_name=f"{BASE_FOLDER}{project_path}/{data[1]}")
-        # project_path = f"{project_path}/{data[0]}"
         
         db = get_db_connection()
         cursor = db.cursor()
@@ -116,12 +114,47 @@ def data_images(id):
             image['img_path'] = f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{id}/{image['img_name']}"
             image['time'] = seconds_to_time(int(image['frame_number'] // FRAME_RATE))
             image['direction'] = image['img_name'].split('_')[3]
-            
+        
+        
+        
+        video = "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4"
+        df = pd.read_csv('/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_17_conce_bytetrack/conce_bbox.csv')
+        ID_TO_TRACK = int(id)
+        # time_stamp = '00:30:09'  # The time stamp where you want to capture the image
+        time_stamp = images_data[0]['time']
+        hours, minutes, seconds = map(int, time_stamp.split(':')) 
+        total_seconds = hours * 3600 + minutes * 60 + seconds
+        cap = cv2.VideoCapture(video)
+        if not cap.isOpened():
+            raise IOError("Cannot open the video file")
+        cap.set(cv2.CAP_PROP_POS_MSEC, total_seconds * 1000)
+        ret, frame = cap.read()
+        if not ret:
+            raise IOError(f"Cannot read the frame at {time_stamp}")
+        cmap = mcolors.LinearSegmentedColormap.from_list("", ["blue", "red"])
+        rows = df.loc[df['id'] == ID_TO_TRACK]
+        centroids = [(x, y) for x, y in zip(rows['centroid_x'], rows['centroid_y'])]
+        centroid_middle = [((x1 + x2) // 2,y2) for x1, y1,x2,y2 in zip(rows['x1'], rows['y1'], rows['x2'], rows['y2'])]
+        norm = plt.Normalize(0, len(centroid_middle)-1)
+        previous_centroid = None  # Initialize previous centroid
+        for i, centroid in enumerate(centroid_middle):
+            color = cmap(norm(i))
+            color = tuple([int(x*255) for x in color[0:3]][::-1])
+            if previous_centroid is not None:
+                cv2.arrowedLine(frame, previous_centroid, centroid, color, 2, tipLength=0.5)
+            previous_centroid = centroid  # Update the previous centroid
+
+        cap.release()
+        _, buffer = cv2.imencode('.jpg', frame)
+        img_str = base64.b64encode(buffer).decode('utf-8')
+        
+        
+        
             
         cursor.execute("SELECT count(*) AS count FROM bbox_img_selection WHERE id = ? AND img_name IS NOT NULL", (id,))
         numberOfImages = cursor.fetchone()['count']
             
-        return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data, 'numberOfImages': numberOfImages})
+        return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data, 'numberOfImages': numberOfImages, 'img_direction': img_str})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
