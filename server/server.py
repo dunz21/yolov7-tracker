@@ -225,24 +225,47 @@ def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purp
     plt.close(fig)  # Close the figure to free memory
     return f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/chart.png"
     
-@app.route('/api/analysis-data-images/', defaults={'id': None})
-@app.route('/api/analysis-data-images/<id>')
-def analysis_data_images(id): 
+@app.route('/api/analysis-data-images', methods=['POST'])
+def analysis_data_images():
     try:
         db = get_db_connection()
         cursor = db.cursor()
         
-        bbox = pd.read_sql('SELECT * FROM bbox_raw', db)
-        bbox['direction'] = bbox.apply(lambda row: ('undefined' if row['img_name'].split('_')[3] == 'None' else  row['img_name'].split('_')[3]) if row['img_name'] is not None else None, axis=1)
-        bbox['time_sec'] = bbox.apply(lambda row: int(row['frame_number']) // FRAME_RATE, axis=1)
-        bbox['time_video'] = pd.to_datetime(bbox['time_sec'], unit='s').dt.time
+        data = request.get_json()
+        generate_report = data['generate']
+        filterCounts = data['filterCounts']
         
-        overlap_results = get_overlap_undefined(bbox, 0,['undefined'])
+        if generate_report:
+            bbox = pd.read_sql('SELECT * FROM bbox_raw', db)
+            bbox['direction'] = bbox.apply(lambda row: ('undefined' if row['img_name'].split('_')[3] == 'None' else  row['img_name'].split('_')[3]) if row['img_name'] is not None else None, axis=1)
+            bbox['time_sec'] = bbox.apply(lambda row: int(row['frame_number']) // FRAME_RATE, axis=1)
+            bbox['time_video'] = pd.to_datetime(bbox['time_sec'], unit='s').dt.time
+            
+            overlap_results = get_overlap_undefined(bbox, 0,['undefined'])
+            overlap_results.to_sql('overlap_results', db, if_exists='replace', index=False)
+            return jsonify({'success': True})
         
+        total_counts = pd.read_sql('SELECT * FROM overlap_results', db)
+        total_counts_dict = total_counts['count'].value_counts().to_dict()
+        # Start with the base query
+        query = 'SELECT * FROM overlap_results'
+        # Check if filterCounts has items, and if so, modify the query to include a WHERE clause
+        if len(filterCounts) > 0:
+            counts_placeholder = ', '.join('?' for _ in filterCounts)  # Create a placeholder for each count
+            query += f' WHERE count IN ({counts_placeholder})'
+
+        # Now, execute the query. If filterCounts has items, pass them as parameters to the query.
+        if len(filterCounts) > 0:
+            overlap_results = pd.read_sql(query, db, params=filterCounts)
+        else:
+            overlap_results = pd.read_sql(query, db)
+            
         sorted_unique_ids_list = sorted([int(id) for id in overlap_results['id'].unique()], key=int)
 
-
-        if id is None:
+        # Get the id from the data
+        id = data.get('currentId')
+        # If id is None or not in the sorted_unique_ids_list, set it to the first item of sorted_unique_ids_list
+        if id is None or id not in sorted_unique_ids_list:
             id = sorted_unique_ids_list[0]
         
         
@@ -254,8 +277,7 @@ def analysis_data_images(id):
         placeholders = ', '.join(['?'] * len(ids_overlap))
 
         query = """
-            SELECT img_name, k_fold, label_img, id, area, overlap, conf_score, frame_number, selected_image 
-            FROM bbox_img_selection 
+            SELECT img_name, k_fold, label_img, id, area, overlap, conf_score, frame_number, selected_image FROM bbox_img_selection 
             WHERE id IN ({}) AND img_name != '' AND (k_fold IS NOT NULL OR k_fold_selection IS NOT NULL)
             """.format(placeholders)
 
@@ -278,20 +300,20 @@ def analysis_data_images(id):
 
         for overlap in overlap_results_only_id_dict:
             # Convert datetime.time to strings
-            if 'start_time' in overlap:
-                overlap['start_time'] = overlap['start_time'].strftime('%H:%M:%S')
-            if 'end_time' in overlap:
-                overlap['end_time'] = overlap['end_time'].strftime('%H:%M:%S')
-            if 'id_overlap_start_time' in overlap:
-                overlap['id_overlap_start_time'] = overlap['id_overlap_start_time'].strftime('%H:%M:%S')
-            if 'id_overlap_end_time' in overlap:
-                overlap['id_overlap_end_time'] = overlap['id_overlap_end_time'].strftime('%H:%M:%S')
+            # if 'start_time' in overlap:
+            #     overlap['start_time'] = overlap['start_time'].strftime('%H:%M:%S')
+            # if 'end_time' in overlap:
+            #     overlap['end_time'] = overlap['end_time'].strftime('%H:%M:%S')
+            # if 'id_overlap_start_time' in overlap:
+            #     overlap['id_overlap_start_time'] = overlap['id_overlap_start_time'].strftime('%H:%M:%S')
+            # if 'id_overlap_end_time' in overlap:
+            #     overlap['id_overlap_end_time'] = overlap['id_overlap_end_time'].strftime('%H:%M:%S')
                 
             overlap['bboxes'] = bbox2[bbox2['id'] == overlap['id_overlap']].to_dict(orient='records')
             overlap['images'] = [image for image in images_data if image['id'] == overlap['id_overlap']]
             overlap['images_source'] = [image for image in images_data if image['id'] == overlap['id']]
 
-        return jsonify({'uniqueIds': sorted_unique_ids_list, 'overlapResults' : overlap_results_only_id_dict, 'plotPath': plot_path})
+        return jsonify({'uniqueIds': sorted_unique_ids_list, 'overlapResults' : overlap_results_only_id_dict, 'plotPath': plot_path,'counts' : total_counts_dict })
     except Exception as e:
         # Capture the traceback
         tb = traceback.format_exc()  # This contains the entire traceback information
