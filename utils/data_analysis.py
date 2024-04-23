@@ -8,7 +8,8 @@ from collections import Counter
 from tqdm import tqdm
 import sqlite3
 from utils.pipeline import get_files
-from utils.tools import seconds_to_time
+from utils.time import seconds_to_time
+from utils.types import Direction
 
 def get_direction_info(df):
     temp_df = df.copy()
@@ -22,7 +23,7 @@ def get_overlap_undefined(df, offset_overlap, direction_type):
 
     df_copy = df.dropna(subset=['img_name']).copy()
     # Filter rows where direction is In or Out and group by ID to find the min and max time_sec
-    grouped = df_copy[df_copy['direction'].isin(['In', 'Out'])].groupby('id').agg(
+    grouped = df_copy[df_copy['direction'].isin([Direction.In.value, Direction.Out.value])].groupby('id').agg(
         start=('time_sec', 'min'),
         direction=('direction', 'first'),
         end=('time_sec', 'max')

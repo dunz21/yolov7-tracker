@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory, abort
 import json
+import traceback
 from flask_cors import CORS
 import matplotlib
 import numpy as np
@@ -9,7 +10,8 @@ import sqlite3
 from flask import g
 import torch
 from mini_models.re_ranking import process_re_ranking
-from utils.tools import number_to_letters, seconds_to_time
+from utils.tools import number_to_letters
+from utils.time import seconds_to_time
 import pandas as pd
 import datetime    
 import pymysql
@@ -17,10 +19,20 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import base64
-
+from utils.data_analysis import get_overlap_undefined,get_direction_info
+from flask_caching import Cache
+from utils.types import Direction
+# Configure cache
+cache_config = {
+    "DEBUG": True,           # some Flask specific configs
+    "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
+    "CACHE_DEFAULT_TIMEOUT": 300
+}
 matplotlib.use('Agg')  # Use a non-GUI backend
 
 app = Flask(__name__)
+app.config.from_mapping(cache_config)
+cache = Cache(app)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -157,6 +169,145 @@ def data_images(id):
         return jsonify({'uniqueIds': sorted_unique_ids_list, 'images': images_data, 'numberOfImages': numberOfImages, 'img_direction': img_str})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'brown']):
+    # Create the figure and axis objects
+    fig, ax = plt.subplots(figsize=(10, 6))  # You can adjust the size as needed
+
+    # Filter the dataframe for the primary ID and sort it
+    df_primary_id = df[df['id'] == primary_id].sort_values(by='frame_number')
+
+    # Scatter plot for the primary ID with different colors for positive and negative distances
+    positive_distance = df_primary_id['distance_to_center'] > 0
+    ax.scatter(df_primary_id[positive_distance]['frame_number'], df_primary_id[positive_distance]['distance_to_center'],
+               c='blue', s=10, alpha=0.6, label=f'ID {primary_id} In')
+    ax.scatter(df_primary_id[~positive_distance]['frame_number'], df_primary_id[~positive_distance]['distance_to_center'],
+               c='red', s=10, alpha=0.6, label=f'ID {primary_id} Out')
+
+    # Calculate the time frame start and end
+    timeframe_start = df_primary_id['frame_number'].min()
+    timeframe_end = df_primary_id['frame_number'].max()
+
+    # Identify other intersecting IDs within this timeframe
+    intersecting_ids = df[(df['frame_number'] >= timeframe_start) & 
+                          (df['frame_number'] <= timeframe_end) & 
+                          (df['id'] != primary_id)]['id'].unique()
+
+    # Plot data for each intersecting ID within the timeframe
+    for idx, other_id in enumerate(intersecting_ids):
+        df_other_id = df[(df['id'] == other_id) & 
+                         (df['frame_number'] >= timeframe_start) & 
+                         (df['frame_number'] <= timeframe_end)]
+        color = intersecting_id_colors[idx % len(intersecting_id_colors)]
+        ax.scatter(df_other_id['frame_number'], df_other_id['distance_to_center'], 
+                   c=color, s=20, edgecolor='k', label=f'ID {other_id}')
+    
+    # Plot formatting
+    ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
+    ax.set_xlim(timeframe_start - 10, timeframe_end + 10)  # A little space around the edges
+    ax.set_ylim(df_primary_id['distance_to_center'].min() - 10, df_primary_id['distance_to_center'].max() + 10)
+
+    # Construct the title to include the ID and its timeframe
+    duration = timeframe_end - timeframe_start
+    title_text = f'ID {primary_id}: #{duration} '
+    ax.set_title(title_text, color='red')
+
+    ax.set_xlabel('Frame Number')
+    ax.set_ylabel('Distance to Center')
+    ax.legend(loc='upper left', fontsize='small')
+    
+    
+    # Save the figure
+    base_path_img = get_base_folder_path()
+    plot_path = f"{BASE_FOLDER}{base_path_img}/chart.png"
+    
+    plt.savefig(plot_path)
+    plt.close(fig)  # Close the figure to free memory
+    return f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/chart.png"
+    
+@app.route('/api/analysis-data-images/', defaults={'id': None})
+@app.route('/api/analysis-data-images/<id>')
+def analysis_data_images(id): 
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        
+        bbox = pd.read_sql('SELECT * FROM bbox_raw', db)
+        bbox['direction'] = bbox.apply(lambda row: ('undefined' if row['img_name'].split('_')[3] == 'None' else  row['img_name'].split('_')[3]) if row['img_name'] is not None else None, axis=1)
+        bbox['time_sec'] = bbox.apply(lambda row: int(row['frame_number']) // FRAME_RATE, axis=1)
+        bbox['time_video'] = pd.to_datetime(bbox['time_sec'], unit='s').dt.time
+        
+        overlap_results = get_overlap_undefined(bbox, 0,['undefined'])
+        
+        sorted_unique_ids_list = sorted([int(id) for id in overlap_results['id'].unique()], key=int)
+
+
+        if id is None:
+            id = sorted_unique_ids_list[0]
+        
+        
+        overlap_results_only_id = overlap_results[overlap_results['id'] == int(id)]
+        
+        ids_overlap = list(overlap_results_only_id['id_overlap'])
+        ids_overlap.append(int(id))  # Append the integer version of id
+
+        placeholders = ', '.join(['?'] * len(ids_overlap))
+
+        query = """
+            SELECT img_name, k_fold, label_img, id, area, overlap, conf_score, frame_number, selected_image 
+            FROM bbox_img_selection 
+            WHERE id IN ({}) AND img_name != '' AND (k_fold IS NOT NULL OR k_fold_selection IS NOT NULL)
+            """.format(placeholders)
+
+        # Execute the query with the ids_overlap tuple as parameter
+        cursor.execute(query, ids_overlap)
+        images_data = [dict(row) for row in cursor.fetchall()]
+        base_path_img = get_base_folder_path()
+        for image in images_data:
+            image['direction'] = image['img_name'].split('_')[3]
+            image['img_path'] = f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/{image['id']}/{image['img_name']}"
+            image['time'] = seconds_to_time(int(image['frame_number'] // FRAME_RATE))
+
+        
+        overlap_results_only_id_dict = overlap_results_only_id.to_dict(orient='records')
+        
+        query = 'SELECT id, distance_to_center, frame_number FROM bbox_raw WHERE id IN ({})'.format(', '.join(['?']*len(ids_overlap)))
+        bbox2 = pd.read_sql(query, db, params=ids_overlap)
+
+        plot_path = create_plot(bbox2,int(id))
+
+        for overlap in overlap_results_only_id_dict:
+            # Convert datetime.time to strings
+            if 'start_time' in overlap:
+                overlap['start_time'] = overlap['start_time'].strftime('%H:%M:%S')
+            if 'end_time' in overlap:
+                overlap['end_time'] = overlap['end_time'].strftime('%H:%M:%S')
+            if 'id_overlap_start_time' in overlap:
+                overlap['id_overlap_start_time'] = overlap['id_overlap_start_time'].strftime('%H:%M:%S')
+            if 'id_overlap_end_time' in overlap:
+                overlap['id_overlap_end_time'] = overlap['id_overlap_end_time'].strftime('%H:%M:%S')
+                
+            overlap['bboxes'] = bbox2[bbox2['id'] == overlap['id_overlap']].to_dict(orient='records')
+            overlap['images'] = [image for image in images_data if image['id'] == overlap['id_overlap']]
+            overlap['images_source'] = [image for image in images_data if image['id'] == overlap['id']]
+
+        return jsonify({'uniqueIds': sorted_unique_ids_list, 'overlapResults' : overlap_results_only_id_dict, 'plotPath': plot_path})
+    except Exception as e:
+        # Capture the traceback
+        tb = traceback.format_exc()  # This contains the entire traceback information
+        error_message = str(e)  # Convert the exception message to a string
+        error_type = type(e).__name__  # Get the type of the exception
+        
+        # Log the detailed traceback
+        print(tb)
+        
+        # WARNING: Only include the traceback in the response for debugging.
+        # Remove it in production to avoid security risks.
+        return jsonify({
+            'error': error_message,
+            'error_type': error_type,
+            'traceback': tb
+        }), 500
 
 @app.route('/api/update-label-img', methods=['POST'])
 def update_label():
@@ -185,12 +336,12 @@ def ids():
         cursor = db.cursor()
 
         # Fetch unique IDs for 'in' direction
-        cursor.execute("SELECT DISTINCT id FROM features WHERE direction = 'In'")
+        cursor.execute(f"SELECT DISTINCT id FROM features WHERE direction = '{Direction.In.value}'")
         ids_in = [row['id'] for row in cursor.fetchall()]
         ids_in_sorted = sorted(ids_in, key=int)
 
         # Fetch unique IDs for 'out' direction
-        cursor.execute("SELECT DISTINCT id FROM features WHERE direction = 'Out'")
+        cursor.execute(f"SELECT DISTINCT id FROM features WHERE direction = '{Direction.Out.value}'")
         ids_out = [row['id'] for row in cursor.fetchall()]
         ids_out_sorted = sorted(ids_out, key=int)
 
@@ -212,14 +363,14 @@ def get_list_ids_out():
         ''')
     elif filter_param == 'notMatches':
         # Get only the IDs of features that do not have a corresponding row in reranking_matches
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT distinct f.id FROM features f
             WHERE NOT EXISTS (
                 SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out
-            ) and f.direction='Out'
+            ) and f.direction='{Direction.Out.value}'
         ''')
     else:
-        cursor.execute('SELECT DISTINCT id FROM features WHERE direction = "Out"')        
+        cursor.execute(f'SELECT DISTINCT id FROM features WHERE direction = "{Direction.Out.value}"')        
 
     rows = cursor.fetchall()
     ids_out = [row['id'] for row in rows]
@@ -265,9 +416,9 @@ def trigger_re_ranking():
         ids_out_twice = ids_out + ids_out
 
         query = f"""
-        SELECT * FROM features WHERE (id IN ({placeholders}) AND direction = 'Out')
+        SELECT * FROM features WHERE (id IN ({placeholders}) AND direction = '{Direction.Out.value}')
             OR
-            (direction = 'In' AND id < (SELECT MAX(id) FROM features WHERE id IN ({placeholders}) AND direction = 'Out'))
+            (direction = '{Direction.In.value}' AND id < (SELECT MAX(id) FROM features WHERE id IN ({placeholders}) AND direction = '{Direction.Out.value}'))
         """
         cursor.execute(query, ids_out_twice)
         rows = cursor.fetchall()
@@ -754,7 +905,7 @@ def get_stats():
     cursor.execute("SELECT direction, COUNT(DISTINCT id) AS total FROM features GROUP BY direction")
     direction_counts = cursor.fetchall()
     
-    cursor.execute("SELECT count(DISTINCT f.id) as total FROM features f WHERE NOT EXISTS (SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out) and f.direction='Out'")
+    cursor.execute(f"SELECT count(DISTINCT f.id) as total FROM features f WHERE NOT EXISTS (SELECT 1 FROM reranking_matches rm WHERE f.id = rm.id_out) and f.direction='{Direction.Out.value}'")
     missing_matches_row = cursor.fetchone()
     missing_matches = missing_matches_row['total'] if missing_matches_row else 0
     
@@ -765,9 +916,9 @@ def get_stats():
 
     # Iterate through the results and assign the counts
     for row in direction_counts:
-        if row['direction'] == 'Out':
+        if row['direction'] == Direction.Out.value:
             out_count = row['total']
-        elif row['direction'] == 'In':
+        elif row['direction'] == Direction.In.value:
             in_count = row['total']
 
     # Query for total number of rows in the reranking_matches table
@@ -798,7 +949,7 @@ def modify_count(data, min_count=20, max_count=70):
 
 @app.route('/api/process_data', methods=['GET'])
 def process_data():
-    direction_param = request.args.get('direction', 'In')  # Get direction parameter, default 'In'
+    direction_param = request.args.get('direction', Direction.In.value)  # Get direction parameter, default 'In'
     
     # Connect to the SQLite database
     db = get_db_connection()
@@ -815,7 +966,7 @@ def process_data():
     df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
     
     # Filter dataframe for rows where direction is either 'In' or 'Out'
-    df = df[df['direction'].isin(['In', 'Out'])]
+    df = df[df['direction'].isin([Direction.In.value, Direction.Out.value])]
     
     # Add 'time' column calculated from 'frame_number' divided by 15, rounded to hours
     df['time'] = df['frame_number'].apply(lambda x: seconds_to_time((x / 15) + (60 * 60 * 8)))

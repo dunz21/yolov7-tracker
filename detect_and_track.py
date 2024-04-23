@@ -125,6 +125,7 @@ def detect(save_img=False,video_data=None):
         save_dir_str = str(save_dir)
         folder_name = f"{save_dir_str}/{video_data['folder_img']}"
         csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
+        FPS = vid_cap.get(cv2.CAP_PROP_FPS)
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         #     total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -181,7 +182,7 @@ def detect(save_img=False,video_data=None):
                 for tracker in trackers:
                     if tracker.history.__len__() == sort_max_age:
                         id = tracker.id + 1
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']],FPS=FPS)
                         PersonImage.delete_instance(id)
         else :
             if tracker_reid.removed_stracks:
@@ -189,7 +190,7 @@ def detect(save_img=False,video_data=None):
                 for id in unique_ids:
                     remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                     if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']])
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data['polygons_in'], video_data['polygons_out']],FPS=FPS)
                         PersonImage.delete_instance(id)
             
         # Process detections
@@ -411,7 +412,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'conce'), None)
+            video_data = next((final for final in DATA if final['name'] == 'conce_debug'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)

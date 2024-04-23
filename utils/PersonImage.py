@@ -5,6 +5,7 @@ from reid.utils import save_csv_bbox_alternative,path_intersects_line,point_side
 from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
 from IPython import embed
+from utils.types import Direction
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -42,7 +43,7 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[]):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=30):
         """
             Save the instance with the specified id to a file.
         """
@@ -64,7 +65,7 @@ class PersonImage:
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
                 if bbox_inside_any_polygon(polygons_list, bbox):
-                    save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="None")
+                    save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS)
                     cls.delete_instance(id)
                     return
             return
@@ -80,14 +81,14 @@ class PersonImage:
         # final_direction_center = point_side_of_line(np.mean(centroid_bottom[-2:], axis=0), polygons_list[0][0], polygons_list[0][1])
         
         # Esto es cuando falso IN con el bottom centroid pero el del center me dice que es OUT
-        if (initial_direction_bottom == 'In') & (initial_direction_center == 'Out'):
-            initial_direction = 'Out'
+        if (initial_direction_bottom == Direction.In.value) & (initial_direction_center == Direction.Out.value):
+            initial_direction = Direction.Out.value
 
         
         if final_direction == initial_direction:
             # Cruzo la linea verde pero tiene direccion indecisa.
             # Guardar igualmente como direccion indecisa
-            save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="Cross")
+            save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction="Cross",FPS=FPS)
             cls.delete_instance(id)
             return
             # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
@@ -99,14 +100,14 @@ class PersonImage:
             # with open(f'{folder_name}/{csv_box_name}.txt', 'a') as log_file:
             #     log_file.write(f"ID: {id} - Total: {total_in_out} - New guess: {new_guess_final_direction}\n")
         
-        if final_direction == "Out" and initial_direction == "In":
-            direction = "Out"
-        elif final_direction == "In" and initial_direction == "Out":
-            direction = "In"
+        if final_direction == Direction.Out.value and initial_direction == Direction.In.value:
+            direction = Direction.Out.value
+        elif final_direction == Direction.In.value and initial_direction == Direction.Out.value:
+            direction = Direction.In.value
         else:
-            direction = "None"
+            direction = Direction.Undefined.value
 
-        save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction=direction)
+        save_csv_bbox_alternative(personImage=instance, filepath=f"{csv_box_name}.csv",folder_name=folder_name, direction=direction,FPS=FPS)
         cls.delete_instance(id)
     
     @classmethod
@@ -197,9 +198,9 @@ class PersonImage:
         for i in range(len(polygon_indices) - 1):
             if polygon_indices[i] != polygon_indices[i + 1]:
                 if polygon_indices[i] == 1:
-                    return 'Out'
+                    return Direction.Out.value
                 else:
-                    return 'In'
+                    return Direction.In.value
         return None
     
     def detect_pattern_change(cls,index_list):

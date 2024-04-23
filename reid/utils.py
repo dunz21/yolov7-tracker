@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_distances
+from utils.types import Direction
+from utils.time import seconds_to_time
 
 def path_intersects_line(centroids, line):
     path = LineString(centroids)
@@ -21,12 +23,9 @@ def point_side_of_line(point, line_start, line_end):
     line_vec = [line_end[0] - line_start[0], line_end[1] - line_start[1]]
     point_vec = [point[0] - line_start[0], point[1] - line_start[1]]
     cross_product = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
-    if cross_product > 0:
-        return "In"
-    elif cross_product < 0:
-        return "Out"
-    else:
-        return "on the line"
+    if cross_product >= 0:
+        return Direction.In.value
+    return Direction.Out.value
     
 def bbox_inside_any_polygon(polygons_points, bbox_tlbr):
     # Convert bbox from tlbr format to a Shapely box
@@ -78,10 +77,10 @@ def guess_final_direction(arr, initial_value):
     if len(filtered_arr) > 0:
         percentage = (count_initial / len(filtered_arr)) * 100
         if percentage < 20:
-            if initial_value == "In":
-                return "Out"
+            if initial_value == Direction.In.value:
+                return Direction.Out.value
             else:
-                return "In"
+                return Direction.In.value
     return initial_value
     
 
@@ -101,7 +100,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction=''):
+def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction='',FPS=30):
     file_exists = os.path.isfile(filepath)
 
     # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
@@ -110,7 +109,7 @@ def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction
 
         # Write header if the file is being created for the first time
         if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number', 'overlap', 'distance_to_center', 'conf_score','img_name'])
+            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number','time_sec','time_video', 'overlap', 'distance_to_center','direction', 'conf_score','img_name'])
 
         for index, img in enumerate(sorted(personImage.list_images, key=lambda x: x.frame_number)):
             image_name = ''
@@ -123,6 +122,8 @@ def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction
             overlap_rounded = round(img.overlap, 2)
             distance_to_center_rounded = round(img.distance_to_center, 2)
             conf_score_rounded = round(conf_score, 2)
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number, overlap_rounded, distance_to_center_rounded, conf_score_rounded, image_name])
+            time_sec = img.frame_number // FPS
+            time_video = seconds_to_time(time_sec)
+            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number,time_sec,time_video, overlap_rounded, distance_to_center_rounded,direction, conf_score_rounded, image_name])
 
             

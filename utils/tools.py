@@ -309,14 +309,6 @@ def distance_to_bbox_bottom_line(line=[], bbox=[]):
         distance = -distance
     return distance
 
-def seconds_to_time(seconds):
-    # Create a timedelta object
-    td = datetime.timedelta(seconds=seconds)
-    # Add the timedelta to a minimal datetime object
-    time = (datetime.datetime.min + td).time()
-    # Convert to a string format
-    return time.strftime("%H:%M:%S")
-
 def number_to_letters(num):
     mapping = {i: chr(122 - i) for i in range(10)}
     num_str = str(num)

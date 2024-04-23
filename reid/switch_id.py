@@ -11,7 +11,7 @@ from sklearn.metrics.pairwise import cosine_distances
 from utils.pipeline import get_folders, save_folders_to_solider_csv
 from utils.tools import convert_csv_to_sqlite
 from IPython import embed
-
+from utils.types import Direction
 ### 1.- Obtener los posibles switchs IDs
 def get_possible_switch_id(db_path):
     conn = sqlite3.connect(db_path)
@@ -143,7 +143,7 @@ def get_img_separation(switchs, db_path):
             if cluster_df.empty:
                 return None
             distances = cluster_df['distance_to_center'].values
-            return "Out" if distances[-1] < distances[0] else "In"
+            return Direction.Out.value if distances[-1] < distances[0] else Direction.In.value
         
         # Populate results for each cluster
         results_dict[id] = {
@@ -174,7 +174,7 @@ def process_and_copy_images(data, base_folder_path, db_path):
                 direction = info['direction']
                 new_id = int(id)
                 while True:
-                    new_id = new_id - 1 if direction == "In" else new_id + 1
+                    new_id = new_id - 1 if direction == Direction.In.value else new_id + 1
                     new_id_folder = os.path.join(base_folder_path, str(new_id))
                     if not os.path.exists(new_id_folder):
                         os.makedirs(new_id_folder)

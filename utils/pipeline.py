@@ -19,14 +19,14 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import base64
 from utils.solider import in_out_status,model_selection,custom_threshold_analysis
-from utils.tools import seconds_to_time
+from utils.time import seconds_to_time
 from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import cosine as cosine_distance
 import time
 from scipy.spatial.distance import cdist
 import torch.nn.functional as F
 import sqlite3
-
+from utils.types import Direction
 # NO ES IMPORTANTE
 def evaluate_clustering(features, image_names, num_clusters=2):
     """
@@ -173,8 +173,8 @@ def get_folders(parent_folder, limit=None):
  # 1.- Analisis pureza 
 def folder_analysis(folders):
     result = {
-    'In': [],
-    'Out': [],
+    Direction.In.value: [],
+    Direction.Out.value: [],
     'InOut': []
     }
     count = 0
@@ -185,18 +185,18 @@ def folder_analysis(folders):
             print(f"Folder {folder} is empty")
         images_status = [img.split('_')[3] for img in list_images]
         image_statuses = in_out_status(images_status,1)
-        if 'In' == image_statuses:
-            result['In'].append(folder.split('/')[-1])
-        elif 'Out' == image_statuses:
-            result['Out'].append(folder.split('/')[-1])
+        if Direction.In.value == image_statuses:
+            result[Direction.In.value].append(folder.split('/')[-1])
+        elif Direction.Out.value == image_statuses:
+            result[Direction.Out.value].append(folder.split('/')[-1])
         else:
             result['InOut'].append(folder.split('/')[-1])
         
         count += 1
 
     total_folders = count
-    total_in = len(result['In'])
-    total_out = len(result['Out'])
+    total_in = len(result[Direction.In.value])
+    total_out = len(result[Direction.Out.value])
     total_in_out = len(result['InOut'])
 
     return total_folders,total_in,total_out,total_in_out,result
@@ -256,7 +256,7 @@ def get_feature_img_csv(start_row=0, end_row=900, csv_file='features.csv'):
 # 3.- Distances with silhoutte score
 def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, distance='euclidean'):
     # Separate 'In' and 'Out' data
-    df_in = features[features['direction'] == 'In']
+    df_in = features[features['direction'] == Direction.In.value]
     df_in = df_in.drop_duplicates(subset=['id'])
     df_in = df_in.iloc[:, 3:]
 
@@ -283,8 +283,8 @@ def generate_in_out_distance_plot_csv(features, plot=False, csv_file_path=None, 
         raise ValueError("Unsupported distance metric. Use 'euclidean' or 'cosine'.")
 
     # Convert distance matrix to DataFrame for easier handling
-    unique_ids_in = features[features['direction'] == 'In']['id'].unique()
-    unique_ids_out = features[features['direction'] == 'Out']['id'].unique()
+    unique_ids_in = features[features['direction'] == Direction.In.value]['id'].unique()
+    unique_ids_out = features[features['direction'] == Direction.Out.value]['id'].unique()
     # distance_matrix = pd.DataFrame(dist_matrix, index=unique_ids_in, columns=unique_ids_out)
 
     # Create a matrix of zeros with the same shape as `dist_matrix`
@@ -492,7 +492,7 @@ def get_features_from_model(model_name='', folder_path='',optional_save_csv='fea
     list_folders = get_folders(folder_path)
     _,_,_,_,result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
-    list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
+    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]]
     features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
     return features
 
@@ -506,7 +506,7 @@ def getFinalScore(folder_name,weights='',model='',features_file='features.csv',d
     if os.path.exists(features_file):
         solider_df = get_feature_img_csv(csv_file=features_file,start_row=0,end_row=4000)
     else:
-        list_folders_in_out = [os.path.join(base_path, folder) for folder in result['In']] + [os.path.join(base_path, folder) for folder in result['Out']]
+        list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]]
         solider_df = save_folders_to_solider_csv(list_folders_in_out,features_file,weights,model=model,save_to_db=True)
         
 
@@ -520,7 +520,7 @@ def getFinalScore(folder_name,weights='',model='',features_file='features.csv',d
         print('No Match Found')
         return
 
-    scoreOut = f"{len(pair_result['col'])}/{len(result['Out'])} ({len(pair_result['col']) / len(result['Out'])*100:.2f}%)"
+    scoreOut = f"{len(pair_result['col'])}/{len(result[Direction.Out.value])} ({len(pair_result['col']) / len(result[Direction.Out.value])*100:.2f}%)"
     
 
     list_image_in = [os.path.join(base_path,str(row),os.listdir(os.path.join(base_path,str(row)))[0]) for row in pair_result['row']]

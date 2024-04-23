@@ -8,7 +8,7 @@
       "name": "Python: Module server.server",
       "type": "python",
       "request": "launch",
-      "module": "reid.switch_id", // Use "module" instead of "program"
+      "module": "server.server", // Use "module" instead of "program"
       "console": "integratedTerminal",
       "justMyCode": true,
       "cwd": "/home/diego/Documents/yolov7-tracker" // Correct path here

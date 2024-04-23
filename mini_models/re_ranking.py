@@ -8,8 +8,10 @@ from scipy.spatial.distance import cdist
 from collections import Counter
 from tqdm import tqdm
 import sqlite3
-from utils.tools import seconds_to_time, number_to_letters
+from utils.time import seconds_to_time
+from utils.tools import number_to_letters
 from utils.pipeline import get_files
+from utils.types import Direction
 
 def re_ranking(probFea, galFea, k1, k2, lambda_value, local_distmat = None, only_local = False):
     # if feature vector is numpy, you should use 'torch.tensor' transform it to tensor
@@ -129,14 +131,14 @@ def load_data(features_csv):
 def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, max_number_back_to_compare=60, K1=8, K2=3, LAMBDA=0.1,matches=None,autoeval=False):
     results_dict = {}  # Initialize as a dictionary
     posible_pair_matches, ids_correct_ins,out_without_in = [], np.array([]),[]
-    id_in_list = np.unique(ids[directions == 'In'])
-    id_out_list = np.unique(ids[directions == 'Out'])
+    id_in_list = np.unique(ids[directions == Direction.In.value])
+    id_out_list = np.unique(ids[directions == Direction.Out.value])
 
     for id_out in tqdm(id_out_list, desc="Processing Re Rank IDs"):
         if id_out < id_in_list[0]:
             continue
         
-        query_indices = np.where((ids == id_out) & (directions == 'Out'))[0]
+        query_indices = np.where((ids == id_out) & (directions == Direction.Out.value))[0]
         query = feature_tensor[query_indices]
         q_pids = img_names[query_indices]
 
@@ -147,7 +149,7 @@ def process_re_ranking(ids, img_names, directions, feature_tensor, n_images=4, m
             ids_correct_ins = np.append(ids_correct_ins, all_id_except_match_out)
 
 
-        gallery_candidate_indices = np.where((ids < id_out) & (directions == 'In') & (~np.isin(ids, ids_correct_ins)))[0]
+        gallery_candidate_indices = np.where((ids < id_out) & (directions == Direction.In.value) & (~np.isin(ids, ids_correct_ins)))[0]
         if len(gallery_candidate_indices) == 0:
             out_without_in.append(id_out)
             continue
