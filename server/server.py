@@ -179,13 +179,36 @@ def data_images(id):
         return jsonify({'error': str(e)}), 500
     
 def create_plot(df, primary_id,unique_ids, intersecting_id_colors=['green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'brown']):
+    
+    # SLOPES
     slopes = {}
     for unique_id in unique_ids:
         id_data = df[df['id'] == unique_id]
         slope, intercept, r_value, p_value, std_err = linregress(id_data['frame_number'], id_data['distance_to_center'])
         slopes[unique_id] = slope
         
-    fig, ax = plt.subplots(figsize=(10, 6))  # You can adjust the size as needed
+    reference_slope = slopes[primary_id]  # You need to define this
+    normalized_slopes = {unique_id: slope / reference_slope for unique_id, slope in slopes.items()}
+    
+    
+    scaled_slopes = {}
+    for unique_id in unique_ids:
+        id_data = df[df['id'] == unique_id]
+        min_y = id_data['distance_to_center'].min()
+        max_y = id_data['distance_to_center'].max()
+        scaled_slopes[unique_id] = (slopes[unique_id] - min_y) / (max_y - min_y) if max_y != min_y else 0
+    
+    
+    standardized_slopes = {}
+    for unique_id in unique_ids:
+        id_data = df[df['id'] == unique_id]
+        mean_y = id_data['distance_to_center'].mean()
+        std_y = id_data['distance_to_center'].std()
+        standardized_slopes[unique_id] = (slopes[unique_id] - mean_y) / std_y if std_y != 0 else 0
+        
+    #SLOPES
+        
+    fig, ax = plt.subplots(figsize=(12, 6))  # You can adjust the size as needed
 
     # Filter the dataframe for the primary ID and sort it
     df_primary_id = df[df['id'] == primary_id].sort_values(by='frame_number')
@@ -223,13 +246,26 @@ def create_plot(df, primary_id,unique_ids, intersecting_id_colors=['green', 'ora
     # Construct the title to include the ID and its timeframe
     duration = timeframe_end - timeframe_start
     title_text = f'ID {primary_id}: #{duration} '
-    ax.set_title(title_text, color='red')
+    ax.set_title(title_text, color='red', fontsize=10)
 
     ax.set_xlabel('Frame Number')
     ax.set_ylabel('Distance to Center')
     ax.legend(loc='upper left', fontsize='small')
+    #SLOPES DISPLAY
     slopes_text = ', '.join([f'{key}: {value:.3f}' for key, value in slopes.items()])
-    fig.text(0.5, 0.01, slopes_text, ha='center', va='center', fontsize=10, color='green', style='italic')  # Adjust the position and style as needed
+    fig.text(0.5, 0.03, f"{slopes_text} = slopes", ha='center', va='center', fontsize=10, color='green', style='italic')  # Adjust the position and style as needed
+    
+    normalized_slopes_text = ', '.join([f'{key}: {value:.3f}' for key, value in normalized_slopes.items()])
+    fig.text(0.5, 0.96, f"{normalized_slopes_text} = normalized", ha='center', va='center', fontsize=10, color='blue', style='italic')  # Adjust the position and style as needed
+    
+    scaled_slopes_text = ', '.join([f'{key}: {value:.3f}' for key, value in scaled_slopes.items()])
+    fig.text(0.5, 0.99, f"{scaled_slopes_text} = scaled", ha='center', va='center', fontsize=10, color='blue', style='italic')  # Adjust the position and style as needed
+    
+    standardized_slopes_text = ', '.join([f'{key}: {value:.3f}' for key, value in standardized_slopes.items()])
+    fig.text(0.5, 0.93, f"{standardized_slopes_text} = standardized", ha='center', va='center', fontsize=10, color='blue', style='italic')  # Adjust the position and style as needed
+    #SLOPES DISPLAY
+    
+    
     
     files = get_project_files()
     base_root = files['base_root']
