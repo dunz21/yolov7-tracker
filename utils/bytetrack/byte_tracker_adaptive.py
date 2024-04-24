@@ -140,6 +140,7 @@ class STrack(BaseTrack):
 
 class BYTETrackerAdaptive(object):
     def __init__(self, args, frame_rate=30):
+        STrack.clear_count()
         self.tracked_stracks = []  # type: list[STrack]
         self.lost_stracks = []  # type: list[STrack]
         self.removed_stracks = []  # type: list[STrack]

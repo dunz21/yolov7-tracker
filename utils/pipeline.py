@@ -140,14 +140,16 @@ def get_files(folder_path, complete_path=True):
             "db": os.path.join(folder_path, db_files[0]),
             "imgs": os.path.join(folder_path, img_folders[0]),
             "video": os.path.join(folder_path, videos[0]),
-            "csv": os.path.join(folder_path, csv_files[0])
+            "csv": os.path.join(folder_path, csv_files[0]),
+            "base_root": os.path.join(folder_path),
         }
     else:
         return {
             "db": db_files[0],
             "imgs": img_folders[0],
             "video": videos[0],
-            "csv": csv_files[0]
+            "csv": csv_files[0],
+            "base_root": os.path.join(folder_path),
         }
 
 # 0.- Get Folders

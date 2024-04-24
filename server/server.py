@@ -22,6 +22,10 @@ import base64
 from utils.data_analysis import get_overlap_undefined,get_direction_info
 from flask_caching import Cache
 from utils.types import Direction
+import subprocess
+from utils.pipeline import get_files
+from scipy.stats import linregress
+
 # Configure cache
 cache_config = {
     "DEBUG": True,           # some Flask specific configs
@@ -36,9 +40,9 @@ cache = Cache(app)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-SERVER_IP = '127.0.0.1'
+# SERVER_IP = '127.0.0.1'
 # SERVER_IP = '181.160.228.136'
-# SERVER_IP = '181.160.238.200'
+SERVER_IP = '181.161.111.154'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3002
 FRAME_RATE = 15
@@ -46,14 +50,16 @@ HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'ad
 BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
 
 def get_db_connection():
-    print(g.path_to_db)
     conn = sqlite3.connect(g.path_to_db)
     conn.row_factory = sqlite3.Row
     return conn
+
 def get_base_folder_path():
     path = g.path_to_images
     return path
 
+def get_project_files():
+    return g.files
 
 @app.route(f"{SERVER_FOLDER_BASE_PATH}<path:filename>")
 def serve_image(filename):
@@ -66,6 +72,8 @@ def before_request_func():
     if project_path:
         projects = get_projects_available(BASE_FOLDER)
         project_data = projects.get(project_path, "Project not found")
+        g.files = get_files(f"{BASE_FOLDER}{project_path}")
+        # TODO: REMOVE ALL BELOW
         g.path_to_images = f"{project_path}/{project_data[0]}"
         g.path_to_db = f"{BASE_FOLDER}{project_path}/{project_data[1]}"
 
@@ -170,8 +178,13 @@ def data_images(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'brown']):
-    # Create the figure and axis objects
+def create_plot(df, primary_id,unique_ids, intersecting_id_colors=['green', 'orange', 'purple', 'cyan', 'magenta', 'yellow', 'brown']):
+    slopes = {}
+    for unique_id in unique_ids:
+        id_data = df[df['id'] == unique_id]
+        slope, intercept, r_value, p_value, std_err = linregress(id_data['frame_number'], id_data['distance_to_center'])
+        slopes[unique_id] = slope
+        
     fig, ax = plt.subplots(figsize=(10, 6))  # You can adjust the size as needed
 
     # Filter the dataframe for the primary ID and sort it
@@ -185,8 +198,8 @@ def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purp
                c='red', s=10, alpha=0.6, label=f'ID {primary_id} Out')
 
     # Calculate the time frame start and end
-    timeframe_start = df_primary_id['frame_number'].min()
-    timeframe_end = df_primary_id['frame_number'].max()
+    timeframe_start = df['frame_number'].min()
+    timeframe_end = df['frame_number'].max()
 
     # Identify other intersecting IDs within this timeframe
     intersecting_ids = df[(df['frame_number'] >= timeframe_start) & 
@@ -205,7 +218,7 @@ def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purp
     # Plot formatting
     ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
     ax.set_xlim(timeframe_start - 10, timeframe_end + 10)  # A little space around the edges
-    ax.set_ylim(df_primary_id['distance_to_center'].min() - 10, df_primary_id['distance_to_center'].max() + 10)
+    ax.set_ylim(df['distance_to_center'].min() - 10, df['distance_to_center'].max() + 10)
 
     # Construct the title to include the ID and its timeframe
     duration = timeframe_end - timeframe_start
@@ -215,15 +228,71 @@ def create_plot(df, primary_id, intersecting_id_colors=['green', 'orange', 'purp
     ax.set_xlabel('Frame Number')
     ax.set_ylabel('Distance to Center')
     ax.legend(loc='upper left', fontsize='small')
+    slopes_text = ', '.join([f'{key}: {value:.3f}' for key, value in slopes.items()])
+    fig.text(0.5, 0.01, slopes_text, ha='center', va='center', fontsize=10, color='green', style='italic')  # Adjust the position and style as needed
     
+    files = get_project_files()
+    base_root = files['base_root']
+    output_directory = f"{base_root}/tmp"
+    plot_path = f"{output_directory}/chart.png"
+    os.makedirs(output_directory, exist_ok=True)
     
-    # Save the figure
-    base_path_img = get_base_folder_path()
-    plot_path = f"{BASE_FOLDER}{base_path_img}/chart.png"
     
     plt.savefig(plot_path)
     plt.close(fig)  # Close the figure to free memory
-    return f"{SERVER_FOLDER_BASE_PATH}{base_path_img}/chart.png"
+    return f"{SERVER_FOLDER_BASE_PATH}{base_root.split('/')[-1]}/tmp/chart.png"
+
+@app.route('/api/analysis-data-video/<id>', methods=['GET'])
+def cut_video(id):
+    
+    db = get_db_connection()
+    
+    query = 'SELECT * FROM overlap_results WHERE id = ?'
+    overlap_results = pd.read_sql(query, db, params=[id])
+    
+    overlap_results_only_id = overlap_results[overlap_results['id'] == int(id)]
+    # Convert time columns to datetime, specifying the format for consistent and expected parsing
+    format_str = '%H:%M:%S.%f'  # Adjust the format string as needed based on your actual data format
+    times = pd.to_datetime(overlap_results_only_id[['start_time', 'end_time', 'id_overlap_start_time', 'id_overlap_end_time']].stack(), format=format_str, errors='coerce').unstack()
+
+    # Find the earliest start time and the latest end time
+    earliest_time = times.min().min()
+    latest_time = times.max().max()
+
+    # Format the times as strings appropriate for ffmpeg (HH:MM:SS.mmm)
+    start_time_str = earliest_time.strftime('%H:%M:%S.%f')[:-3]
+    end_time_str = latest_time.strftime('%H:%M:%S.%f')[:-3]
+
+    # Calculate the duration of the clip
+    duration = (latest_time - earliest_time).total_seconds()
+    
+    
+    files = get_project_files()
+    video_input = files['video']
+    base_root = files['base_root']
+    
+    # Define the output video path
+    output_directory = f"{base_root}/tmp"
+    output_video_path = f"{output_directory}/video_cut.mp4"
+    os.makedirs(output_directory, exist_ok=True)
+
+    # Run ffmpeg to cut the video
+    ffmpeg_command = [
+        'ffmpeg',
+        '-ss', start_time_str,
+        '-i', video_input,
+        '-t', str(duration),
+        '-c', 'copy',
+        output_video_path,
+        '-y',  # Overwrite output files without asking
+    ]
+    subprocess.run(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    return jsonify({
+        'video_path': f"{SERVER_FOLDER_BASE_PATH}{base_root.split('/')[-1]}/tmp/video_cut.mp4",
+        'id': id,
+    })
+
     
 @app.route('/api/analysis-data-images', methods=['POST'])
 def analysis_data_images():
@@ -270,7 +339,6 @@ def analysis_data_images():
         
         
         overlap_results_only_id = overlap_results[overlap_results['id'] == int(id)]
-        
         ids_overlap = list(overlap_results_only_id['id_overlap'])
         ids_overlap.append(int(id))  # Append the integer version of id
 
@@ -296,7 +364,7 @@ def analysis_data_images():
         query = 'SELECT id, distance_to_center, frame_number FROM bbox_raw WHERE id IN ({})'.format(', '.join(['?']*len(ids_overlap)))
         bbox2 = pd.read_sql(query, db, params=ids_overlap)
 
-        plot_path = create_plot(bbox2,int(id))
+        plot_path = create_plot(bbox2,int(id),ids_overlap)
 
         for overlap in overlap_results_only_id_dict:
             # Convert datetime.time to strings
