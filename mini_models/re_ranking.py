@@ -12,6 +12,9 @@ from utils.time import seconds_to_time
 from utils.tools import number_to_letters
 from utils.pipeline import get_files
 from utils.types import Direction
+from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
+from utils.pipeline import get_features_from_model
+from reid.switch_id import switch_id_corrector_pipeline
 
 def re_ranking(probFea, galFea, k1, k2, lambda_value, local_distmat = None, only_local = False):
     # if feature vector is numpy, you should use 'torch.tensor' transform it to tensor
@@ -330,9 +333,10 @@ def generate_re_ranking_html_report(re_ranking_data, base_folder, frame_rate, re
         
 if __name__ == '__main__':
     
-    files = get_files('/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_17_santos_dumont')
-    db = files['db']
-    
+    files = get_files('/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_26_calper_portugal')
+    db = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_26_calper_portugal/calper_portugal_bbox.db'
+    imgs = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_26_calper_portugal/imgs_calper_portugal'
+    csv = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_26_calper_portugal/calper_portugal_bbox'
     FRAME_RATE = 15
     n_images = 8
     max_number_back_to_compare = 57
@@ -342,10 +346,13 @@ if __name__ == '__main__':
     # filter_known_matches = '/home/diego/Desktop/MatchSimple.csv'  
     # filter_known_matches = None
 
-    conn = sqlite3.connect(db)
-    cursor = conn.cursor()    
-    features_csv = pd.read_sql('SELECT * FROM features', conn)
     
     
-    complete_re_ranking(features_csv,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db)
+    convert_csv_to_sqlite(csv_file_path=f"{csv}.csv", db_file_path=db, table_name='bbox_raw')
+    switch_id_corrector_pipeline(db_path=db, base_folder_path=imgs,weights='model_weights.pth',model_name='solider')
+    prepare_data_img_selection(db_path=db, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
+    predict_img_selection(db_file_path=db, model_weights_path='mini_models/results/image_selection_model.pkl')
+    clean_img_folder_top_k(db_file_path=db, base_folder_images=imgs, dest_folder_results=f"{imgs}_top4", k_fold=4, threshold=0.9)
+    features = get_features_from_model(model_name='solider', folder_path=f"{imgs}_top4", weights='/home/diego/Documents/yolov7-tracker/model_weights.pth', db_path=db)
+    complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db)
     

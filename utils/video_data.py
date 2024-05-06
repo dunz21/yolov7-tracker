@@ -1,5 +1,6 @@
 import numpy as np
 def get_video_data():
+    ## TOP LEFT, CLOCKWISE
     data= [
         {
             'name' : "conce",
@@ -18,6 +19,34 @@ def get_video_data():
             'polygons_in' : np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
             'polygons_out' : np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
             'polygon_area' : np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
+        },
+        {
+            'name' : "tobalaba",
+            # 'source' : "/home/diego/testTipo41Tobalba6Mayo.mp4",
+            'source' : "/home/diego/Documents/Footage/diponti-tobalaba/4mayo_test_failure.mp4",
+            'description' : "Video DiPonti Tobalaba",
+            'folder_img' : "imgs_diponti_tobalaba",
+            'polygons_in' : np.array([[1265,577],[1285,783],[1220,782],[1195,579]], np.int32),
+            'polygons_out' : np.array([[1265,577], [1358,574],[1373,773],[1285,783]], np.int32),
+            'polygon_area' : np.array([[1119,498],[1432,505],[1492,818],[1180,817]], np.int32),
+        },
+        {
+            'name' : "calper_portugal",
+            'source' : "/home/diego/Documents/Footage/calper/portugal_20240424.mp4",
+            'description' : "Video de Santos Dumont",
+            'folder_img' : "imgs_calper_portugal",
+            'polygons_in' : np.array([[508,215],[645,221],[658,245],[512,241]], np.int32),
+            'polygons_out' : np.array([[508,182], [508,215],[645, 221],[645,192]], np.int32),
+            'polygon_area' : np.array([[464,155],[441,282],[726,303],[696,168]], np.int32),
+        },
+        {
+            'name' : "calper_portugal_debug",
+            'source' : "/home/diego/Documents/Footage/calper/calper_in_portugal.mp4",
+            'description' : "Video de Santos Dumont",
+            'folder_img' : "imgs_calper_portugal",
+            'polygons_in' : np.array([[508,215],[645,221],[658,245],[512,241]], np.int32),
+            'polygons_out' : np.array([[508,182], [508,215],[645, 221],[645,192]], np.int32),
+            'polygon_area' : np.array([[464,155],[441,282],[726,303],[696,168]], np.int32),
         },
         {
             'name' : "santos_dumont_debug",
@@ -48,7 +77,7 @@ def get_video_data():
         },
         {
             'name' : "conce_debug",
-            'source' : "/home/diego/Documents/Footage/conce_5_min.mp4",
+            'source' : "/home/diego/Documents/Footage/curves_none_analysis/none_analysis_2558.mp4",
             'description' : "Video de Conce",
             'folder_img' : "imgs_conce_debug",
             'polygons_in' : np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),

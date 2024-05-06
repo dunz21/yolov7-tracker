@@ -41,8 +41,8 @@ cache = Cache(app)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # SERVER_IP = '127.0.0.1'
-# SERVER_IP = '181.160.228.136'
-SERVER_IP = '181.161.111.154'
+# SERVER_IP = '181.161.116.25'
+SERVER_IP = '181.161.125.107'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3002
 FRAME_RATE = 15
@@ -136,9 +136,12 @@ def data_images(id):
             image['direction'] = image['img_name'].split('_')[3]
         
         
+        files = get_project_files()
+        video_input = files['video']
+        csv = files['csv']
         
-        video = "/home/diego/Documents/Footage/CONCEPCION_CH1.mp4"
-        df = pd.read_csv('/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_17_conce_bytetrack/conce_bbox.csv')
+        video = video_input
+        df = pd.read_csv(csv)
         ID_TO_TRACK = int(id)
         # time_stamp = '00:30:09'  # The time stamp where you want to capture the image
         time_stamp = images_data[0]['time']
@@ -346,7 +349,7 @@ def analysis_data_images():
             bbox['time_sec'] = bbox.apply(lambda row: int(row['frame_number']) // FRAME_RATE, axis=1)
             bbox['time_video'] = pd.to_datetime(bbox['time_sec'], unit='s').dt.time
             
-            overlap_results = get_overlap_undefined(bbox, 0,['undefined'])
+            overlap_results = get_overlap_undefined(bbox, 0,[Direction.Undefined.value])
             overlap_results.to_sql('overlap_results', db, if_exists='replace', index=False)
             return jsonify({'success': True})
         

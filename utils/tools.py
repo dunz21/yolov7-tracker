@@ -158,6 +158,10 @@ def clean_img_folder_top_k(db_file_path='', base_folder_images='', dest_folder_r
             id_df = data[data['id'] == id_value]
             filtered_id_df = id_df[(id_df['model_label_conf'] > local_threshold) & (id_df['model_label_img'] == 2)].copy()
             
+            ### Esto solo ocurre cuando el modelo piensa que todas las imagenes son malas
+            if local_threshold <= 0.5:
+                filtered_id_df = id_df[((id_df['model_label_img'] == 2) | (id_df['model_label_img'] == 1)) & (id_df['model_label_conf'] > local_threshold)].copy()
+            
             if len(filtered_id_df) >= k_fold or local_threshold <= 0:
                 break
             local_threshold -= 0.05
