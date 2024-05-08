@@ -121,7 +121,9 @@ def detect(save_img=False,video_data=None):
     time_for_each_100_frames = []
     current_frame = 0  # Initialize current frame counter
 
-    for path, img, im0s, vid_cap, frame in dataset:
+    for path, img, im0s, vid_cap, frame, valid_frame_iteration in dataset:
+        if not valid_frame_iteration:
+            continue
         save_dir_str = str(save_dir)
         folder_name = f"{save_dir_str}/{video_data['folder_img']}"
         csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
@@ -285,7 +287,8 @@ def detect(save_img=False,video_data=None):
                 if isinstance(vid_writer, cv2.VideoWriter):
                     vid_writer.release()  # release previous video writer
                 if vid_cap:  # video
-                    fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                    # fps = vid_cap.get(cv2.CAP_PROP_FPS) #TODO: Check this 
+                    fps = 15
                     w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 else:  # stream
@@ -412,7 +415,7 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'conce'), None)
+            video_data = next((final for final in DATA if final['name'] == 'tobalaba_7mayo'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)

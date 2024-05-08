@@ -163,26 +163,35 @@ class LoadImages:  # for inference
         if self.count == self.nf:
             raise StopIteration
         path = self.files[self.count]
-
+        valid_frame_iteration = True # For videos
         if self.video_flag[self.count]:
             # Read video
             self.mode = 'video'
             ret_val, img0 = self.cap.read()
-            if not ret_val:
-                self.count += 1
-                 # Update total_frame_videos when a video ends
-                self.total_frame_videos += self.frame
-                self.cap.release()
-                if self.count == self.nf:  # last video
-                    raise StopIteration
-                else:
-                    path = self.files[self.count]
-                    self.new_video(path)
-                    ret_val, img0 = self.cap.read()
+            
+            if not ret_val and self.frame != self.nframes:
+                with open(f'{"/".join(path.split("/")[:-1])}/logs_video.txt', 'a') as log_file:
+                    log_file.write(f'Error reading video {path} at frame {self.frame}\n')
+                valid_frame_iteration = False
+                self.frame += 1
+                print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+                return path, None, None, None, self.count, valid_frame_iteration
+            else:
+                if not ret_val: #Something happer
+                    self.count += 1
+                    # Update total_frame_videos when a video ends
+                    self.total_frame_videos += self.frame
+                    self.cap.release()
+                    if self.count == self.nf:  # last video
+                        raise StopIteration
+                    else:
+                        path = self.files[self.count]
+                        self.new_video(path)
+                        ret_val, img0 = self.cap.read()
 
             self.frame += 1
             print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
-
+        # For images
         else:
             # Read image
             self.count += 1
@@ -197,7 +206,7 @@ class LoadImages:  # for inference
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        return path, img, img0, self.cap, self.count
+        return path, img, img0, self.cap, self.count, valid_frame_iteration
 
     def new_video(self, path):
         self.frame = 0
