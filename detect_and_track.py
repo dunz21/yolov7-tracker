@@ -127,7 +127,8 @@ def detect(save_img=False,video_data=None):
         save_dir_str = str(save_dir)
         folder_name = f"{save_dir_str}/{video_data['folder_img']}"
         csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
-        FPS = vid_cap.get(cv2.CAP_PROP_FPS)
+        # FPS = vid_cap.get(cv2.CAP_PROP_FPS)
+        FPS = 15
         # if width == 0:
         #     total_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         #     total_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -413,9 +414,15 @@ if __name__ == '__main__':
             for opt.weights in ['yolov7.pt']:
                 detect()
                 strip_optimizer(opt.weights)
-        else:
+        else:        
+            # DATA = get_video_data()
+            # video_data = next((final for final in DATA if final['name'] == 'tobalaba_10mayo'), None)
+            # if argopt.source != '':
+            #     video_data['source'] = argopt.source
+            # detect(video_data=video_data)
+            
             DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'tobalaba_7mayo'), None)
+            video_data = next((final for final in DATA if final['name'] == 'tobalaba_11mayo'), None)
             if argopt.source != '':
                 video_data['source'] = argopt.source
             detect(video_data=video_data)
