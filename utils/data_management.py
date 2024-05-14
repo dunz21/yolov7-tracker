@@ -16,36 +16,40 @@ def process_data(path,start_time):
     
     db = conn
     list_visits = pd.read_sql_query("SELECT * FROM bbox_raw WHERE direction = ?;", db, params=(direction_param,))
-    list_visits = list_visits.dropna(subset=['img_name'])
+    # list_visits = list_visits.dropna(subset=['img_name'])
     
     # Drop duplicates based on 'id' to keep only one row per id
     list_visits = list_visits.drop_duplicates(subset=['id'])
     
     # Add 'direction' column by splitting 'img_name' and extracting the fourth element
-    list_visits['direction'] = list_visits['img_name'].apply(lambda x: x.split('_')[3])
+    # list_visits['direction'] = list_visits['img_name'].apply(lambda x: x.split('_')[3])
     
     # Filter dataframe for rows where direction is either 'In' or 'Out'
-    list_visits = list_visits[list_visits['direction'].isin([Direction.In.value, Direction.Out.value])]
+    # list_visits = list_visits[list_visits['direction'].isin([Direction.In.value, Direction.Out.value])]
     
     # Add 'time' column calculated from 'frame_number' divided by 15, rounded to hours
     hours, minutes, seconds = map(int, start_time.split(':'))
     total_seconds = hours * 3600 + minutes * 60 + seconds
     
-    list_visits['time'] = list_visits['frame_number'].apply(lambda x: seconds_to_time((x / 15) + total_seconds))
+    list_visits['time_calculated'] = list_visits['frame_number'].apply(lambda x: seconds_to_time((x / 15) + total_seconds))
     
     # Filter by direction based on input parameter
     list_visits = list_visits[list_visits['direction'] == direction_param]
     
-    # Convert 'time' to datetime to facilitate grouping by hour
-    list_visits['hour'] = pd.to_datetime(list_visits['time'],format='%H:%M:%S').dt.hour
+    # Convert 'time_calculated' to datetime to facilitate grouping by hour
+    list_visits['hour'] = pd.to_datetime(list_visits['time_calculated'],format='%H:%M:%S').dt.hour
     
     # Get the full hour range from min to max
     hours_range = range(list_visits['hour'].min(), list_visits['hour'].max() + 1)
     
+    
+    total_ids_between_18_19 = list_visits[(list_visits['hour'] >= 18) & (list_visits['hour'] < 19)][['id','frame_number','time_calculated']]
+    #list_visits.to_csv('list_visits.csv')
+    
     # Group data by hour and count the occurrences
     grouped_data = list_visits.groupby('hour').size().reindex(hours_range, fill_value=0).reset_index(name='count')
-    grouped_data['time'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00")
-    grouped_data = grouped_data[['count', 'time']]
+    grouped_data['time_calculated'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00")
+    grouped_data = grouped_data[['count', 'time_calculated']]
     
     return grouped_data.to_dict(orient='records')
     
@@ -54,8 +58,8 @@ def save_visits_to_mysql(list_visits_group_by_hour, store_id, date, connection):
         with connection.cursor() as cursor:
             sql = "INSERT INTO visits (`count`, `time`, `store_id`, `date`, `created_at`, `updated_at`) VALUES (%s, %s, %s, %s, NOW(), NOW())"
             for item in list_visits_group_by_hour:
-                cursor.execute(sql, (item['count'], item['time'], store_id, date))
-                print(f"Inserted {item['count']} visits at {item['time']}")
+                cursor.execute(sql, (item['count'], item['time_calculated'], store_id, date))
+                print(f"Inserted {item['count']} visits at {item['time_calculated']}")
         connection.commit()
     finally:
         print(date)
@@ -120,21 +124,21 @@ if __name__ == '__main__':
         #     'start_time': '10:31:00',
         #     'date': '2024-05-08',
         # },
-        # {
-        #     'path': '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_12_tobalaba_9mayo',
-        #     'start_time': '10:39:00',
-        #     'date': '2024-05-09',
-        # },
+        {
+            'path': '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_12_tobalaba_9mayo',
+            'start_time': '10:00:00',
+            'date': '2024-05-09',
+        },
         # {
         #     'path': '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_13_tobalaba_12mayo',
         #     'start_time': '10:00:00',
         #     'date': '2024-05-12',
         # },
-        {
-            'path': '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_13_tobalaba_10mayo',
-            'start_time': '10:00:00',
-            'date': '2024-05-10',
-        },
+        # {
+        #     'path': '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_13_tobalaba_10mayo',
+        #     'start_time': '10:00:00',
+        #     'date': '2024-05-10',
+        # },
     ]
     
     
