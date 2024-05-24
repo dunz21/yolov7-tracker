@@ -39,6 +39,10 @@ from mini_models.re_ranking import complete_re_ranking
 from reid.switch_id import switch_id_corrector_pipeline
 from utils.compress_video import compress_and_replace_video
 from IPython import embed
+import ast
+from dotenv import load_dotenv
+
+
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave
@@ -306,12 +310,12 @@ def detect(save_img=False,video_data=None):
     db_base_path = f"{csv_box_name}.db"
     ### Limpieza switch ID 
     convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
-    switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=folder_name,weights='model_weights.pth',model_name='solider')
-    prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
-    predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
-    clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
-    features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
-    complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db_base_path)
+    # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=folder_name,weights='model_weights.pth',model_name='solider')
+    # prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
+    # predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
+    # clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
+    # features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
+    # complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db_base_path)
 
     
     # with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
@@ -319,12 +323,39 @@ def detect(save_img=False,video_data=None):
     #     log_file.write(f"Time for each 100 frames: {formatted_times} \n")
     print(f'Done. ({time.time() - t0:.3f}s)')
     with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
-        log_file.write(f"{time.time() - t0:.3f} \n")
+        log_file.write(f"{time.time() - t0:.3f}[s] \n")
     
     if save_img:
         vid_writer.release()
-        compress_and_replace_video(save_path)
+        compress_and_replace_video(save_path,encoder='libx264')
 
+
+def load_video_data():
+    if 'ENV_FILE' in os.environ:
+        video_dir = os.getenv('VIDEO_DIR_CONTAINER', '/app/videos')  # Always use the Docker container's video directory
+        video_file = os.getenv('VIDEO_FILE', 'video.mp4')
+        video_path = os.path.join(video_dir, video_file)
+        print(f"Video path: {video_path}")
+        video_data = {
+            'name': os.getenv('name'),
+            'source': video_path,
+            'description': os.getenv('description'),
+            'folder_img': os.getenv('folder_img'),
+            'polygons_in': np.array(eval(os.getenv('polygons_in')), np.int32),
+            'polygons_out': np.array(eval(os.getenv('polygons_out')), np.int32),
+            'polygon_area': np.array(eval(os.getenv('polygon_area')), np.int32),
+        }
+    else:
+        video_data = {
+            'name': "santos_dumont_debug",
+            'source': "/home/diego/Documents/Footage/dumont_debug1.mp4",
+            'description': "Video de Santos Dumont",
+            'folder_img': "imgs_santos_dumont_debug",
+            'polygons_in': np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
+            'polygons_out': np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
+            'polygon_area': np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
+        }
+    return video_data
 
 class Options:
     def __init__(self):
@@ -351,81 +382,18 @@ class Options:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str,
-                        default='yolov7.pt', help='model.pt path(s)')
-    parser.add_argument('--download', action='store_true',
-                        help='download model weights automatically')
-    parser.add_argument('--no-download', dest='download', action='store_false',
-                        help='not download model weights if already exist')
-    # file/folder, 0 for webcam
-    parser.add_argument('--source', type=str, default='', help='source')
-    parser.add_argument('--img-size', type=int, default=640,
-                        help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float,
-                        default=0.25, help='object confidence threshold')
-    parser.add_argument('--iou-thres', type=float,
-                        default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--device', default='',
-                        help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--view-img', action='store_true',
-                        help='display results')
-    parser.add_argument('--save-txt', action='store_true',
-                        help='save results to *.txt')
-    parser.add_argument('--save-conf', action='store_true',
-                        help='save confidences in --save-txt labels')
-    parser.add_argument('--nosave', action='store_true',
-                        help='do not save images/videos')
-    parser.add_argument('--classes', nargs='+', type=int,
-                        help='filter by class: --class 0, or --class 0 2 3')
-    parser.add_argument('--agnostic-nms', action='store_true',
-                        help='class-agnostic NMS')
-    parser.add_argument('--augment', action='store_true',
-                        help='augmented inference')
-    parser.add_argument('--update', action='store_true',
-                        help='update all models')
-    parser.add_argument('--project', default='runs/detect',
-                        help='save results to project/name')
-    parser.add_argument('--name', default='object_tracking',
-                        help='save results to project/name')
-    parser.add_argument('--exist-ok', action='store_true',
-                        help='existing project/name ok, do not increment')
-    parser.add_argument('--no-trace', action='store_true',
-                        help='don`t trace model')
-    parser.add_argument('--colored-trk', action='store_true',
-                        help='assign different color to every track')
-    parser.add_argument('--save-bbox-dim', action='store_true',
-                        help='save bounding box dimensions with --save-txt tracks')
-    parser.add_argument('--save-with-object-id', action='store_true',
-                        help='save results with object id to *.txt')
-
-    parser.set_defaults(download=True)
-    argopt = parser.parse_args() #OLD
-    
     opt = Options()
     print(opt.__dict__)
-    
+
     if opt.download and not os.path.exists(''.join(opt.weights)):
         print('Model weights not found. Attempting to download now...')
         download('./')
 
     with torch.no_grad():
-        if opt.update:  # update all models (to fix SourceChangeWarning)
-            for opt.weights in ['yolov7.pt']:
-                detect()
-                strip_optimizer(opt.weights)
-        else:        
-            # DATA = get_video_data()
-            # video_data = next((final for final in DATA if final['name'] == 'tobalaba_10mayo'), None)
-            # if argopt.source != '':
-            #     video_data['source'] = argopt.source
-            # detect(video_data=video_data)
-            
-            DATA = get_video_data()
-            video_data = next((final for final in DATA if final['name'] == 'tobalaba_11mayo'), None)
-            if argopt.source != '':
-                video_data['source'] = argopt.source
-            detect(video_data=video_data)
+        # load_dotenv()
+
+        video_data = load_video_data()
+        detect(video_data=video_data)
 
             
             

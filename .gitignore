@@ -13,3 +13,5 @@ imgs*
 *.db
 logs/*
 output/*
+env
+.env

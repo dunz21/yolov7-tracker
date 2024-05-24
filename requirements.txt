@@ -1,3 +1,4 @@
+pip==22.0.3
 opencv-python
 numpy
 pandas
@@ -9,12 +10,13 @@ shapely
 psutil
 seaborn
 IPython
+python-dotenv
 cython_bbox
 scikit-learn==1.2.2
 torch==2.1.1
 torchvision
 torchaudio
-lap
+lapx
 tqdm
 requests
 yacs
