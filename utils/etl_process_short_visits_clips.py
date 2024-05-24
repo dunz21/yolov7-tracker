@@ -125,13 +125,40 @@ def process_clips_to_s3(path, client_id, store_id, date, pre_url, bucket_name='v
 
 if __name__ == '__main__':
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_09_tobalaba_8mayo'
+    date = '2024-05-08'
     store_id = 3
     client_id = 1
-    date = '2024-05-08'
     pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
     
     connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
 
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_06_tobalaba_2mayo'
+    date = '2024-05-02'
+    
+    clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
+    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_3mayo'
+    date = '2024-05-03'
+    
+    clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
+    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_4mayo'
+    date = '2024-05-04'
+    clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
+    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_5mayo'
+    date = '2024-05-05'
+    clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
+    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_6mayo'
+    date = '2024-05-06'
+    clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
+    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_13_tobalaba_7mayo'
+    date = '2024-05-07'
+    
+    
     
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
     save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
