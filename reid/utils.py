@@ -83,9 +83,6 @@ def guess_final_direction(arr, initial_value):
                 return Direction.In.value
     return initial_value
     
-
-
-
 def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_subframe', direction=None, bbox=None):
     x1,y1,x2,y2,score = bbox
     x1 = int(x1)

@@ -2,6 +2,8 @@ import cv2
 import os
 import numpy as np
 from PIL import Image
+from shapely.geometry import LineString, Point
+from reid.utils import point_side_of_line
 
 COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0),(210,105, 30),(220, 20, 60),
             (192,192,192),(255,228,196),( 50,205, 50),(139,  0,139),(100,149,237),(138, 43,226),(238,130,238),
@@ -69,7 +71,56 @@ def draw_polygon_interested_area(frame, polygon_pts=np.array([[0,1080],[0,600],[
     polygon_pts = polygon_pts.reshape((-1, 1, 2))
     cv2.polylines(frame, [polygon_pts], isClosed=True, color=(0, 255, 0), thickness=1)
     
+def calculate_overlap(rect1, rect2):
+    # Extract coordinates
+    x1_1, y1_1, x2_1, y2_1 = rect1
+    x1_2, y1_2, x2_2, y2_2 = rect2
+
+    # Calculate intersection area
+    x_left = max(x1_1, x1_2)
+    y_top = max(y1_1, y1_2)
+    x_right = min(x2_1, x2_2)
+    y_bottom = min(y2_1, y2_2)
+
+    # Check if there is an intersection
+    if x_right < x_left or y_bottom < y_top:
+        return 0  # No overlap
+
+    intersection_area = (x_right - x_left) * (y_bottom - y_top)
+
+    # Calculate the area of both rectangles
+    area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
+    area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+
+    # Calculate union area
+    union_area = area1 + area2 - intersection_area
+
+    # Calculate the overlap percentage
+    overlap = intersection_area / union_area
+
+    return overlap
+
+def distance_to_bbox_bottom_line(line=[], bbox=[]):
+    """
+    Calculate the distance between the closest point on a line and the center of the bottom edge of a bounding box (bbox).
     
+    :param line: A list of points [[x1, y1], [x2, y2]] defining the line.
+    :param bbox: A tuple representing the bounding box (x1, y1, x2, y2).
+    :return: The shortest distance between the line and the center of the bottom edge of the bbox.
+    """
+    line_obj = LineString(line)
+    x1, y1, x2, y2 = bbox
+
+    # Calculate the center of the bottom edge of the bbox
+    bottom_center = Point((x1 + x2) / 2, y2)
+
+    # Calculate the shortest distance from the bottom center to the line
+    distance = bottom_center.distance(line_obj)
+    positive_negative = point_side_of_line([(x1 + x2) / 2,y2], line[0], line[1])
+    if positive_negative == 'Out':
+        distance = -distance
+    return distance
+  
 def draw_configs(frame, configs):
     # Starting coordinates for the rectangle
     x1, y1 = 10, 10  # 10 pixels from the top and left edge for padding
@@ -96,3 +147,37 @@ def draw_configs(frame, configs):
 
     return frame
 
+def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
+    for box in bbox:
+        x1, y1, x2, y2,id,score = box
+        x1 = int(x1)
+        y1 = int(y1)
+        x2 = int(x2)
+        y2 = int(y2)
+        # id = int(id)
+        x1 += offset[0]
+        x2 += offset[0]
+        y1 += offset[1]
+        y2 += offset[1]
+        # id = int(identities[i]) if identities is not None else 0
+
+        label = str(id) + ":" + "person"
+        if extra_info is not None:
+            label += str(f"s:{score:.2f}")
+            label += str(f"oc:{extra_info[id]['overlap']:.2f}")
+            label += str(f"di:{extra_info[id]['distance']:.2f}")
+
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+        if color is None:
+            color = (255, 0, 20)
+            # color_rect_text = (255, 144, 30)
+
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+        if position == 'Top':
+            cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
+            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        else:
+            cv2.rectangle(img, (x1, y2 - 20), (x1 + w, y2), color, -1)
+            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+
+    return img

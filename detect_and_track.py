@@ -23,7 +23,7 @@ from intersect_ import *
 # For SORT tracking
 from sort import *
 import time
-from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs
+from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs,draw_boxes,distance_to_bbox_bottom_line,calculate_overlap
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
 from utils.smile_track.mc_SMILEtrack import SMILEtrack
@@ -33,14 +33,13 @@ from reid.BoundingBox import BoundingBox
 from shapely.geometry import LineString, Point
 from types import SimpleNamespace
 from datetime import datetime
-from utils.tools import distance_to_bbox_bottom_line,calculate_overlap,draw_boxes,convert_csv_to_sqlite,prepare_data_img_selection,predict_img_selection,clean_img_folder_top_k,prepare_data_img_selection
-from utils.pipeline import get_features_from_model
-from mini_models.re_ranking import complete_re_ranking
-from reid.switch_id import switch_id_corrector_pipeline
+from pipeline.vit_pipeline import get_features_from_model
+from pipeline.re_ranking import complete_re_ranking
 from utils.compress_video import compress_and_replace_video
 from IPython import embed
 import ast
-from dotenv import load_dotenv
+from pipeline.main import process_pipeline
+# from dotenv import load_dotenv
 
 
 def detect(save_img=False,video_data=None):
@@ -130,7 +129,7 @@ def detect(save_img=False,video_data=None):
             continue
         save_dir_str = str(save_dir)
         folder_name = f"{save_dir_str}/{video_data['folder_img']}"
-        csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox"
+        csv_box_name = f"{save_dir_str}/{video_data['name']}_bbox.csv"
         # FPS = vid_cap.get(cv2.CAP_PROP_FPS)
         FPS = 15
         # if width == 0:
@@ -307,9 +306,9 @@ def detect(save_img=False,video_data=None):
         #     time_for_each_100_frames.append(time.time() - t100)
         #     t100 = time.time()
             
-    db_base_path = f"{csv_box_name}.db"
+    # db_base_path = f"{csv_box_name}.db"
     ### Limpieza switch ID 
-    convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
+    # convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
     # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=folder_name,weights='model_weights.pth',model_name='solider')
     # prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
     # predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
@@ -328,7 +327,8 @@ def detect(save_img=False,video_data=None):
     if save_img:
         vid_writer.release()
         compress_and_replace_video(save_path,encoder='libx264')
-
+    
+    return csv_box_name,save_path, folder_name
 
 def load_video_data():
     if 'ENV_FILE' in os.environ:
@@ -344,6 +344,11 @@ def load_video_data():
             'polygons_in': np.array(eval(os.getenv('polygons_in')), np.int32),
             'polygons_out': np.array(eval(os.getenv('polygons_out')), np.int32),
             'polygon_area': np.array(eval(os.getenv('polygon_area')), np.int32),
+            'client_id': os.getenv('CLIENT_ID'),
+            'store_id': os.getenv('STORE_ID'),
+            'video_date': os.getenv('VIDEO_DATE'),
+            'start_time_video': os.getenv('START_TIME_VIDEO'),
+            'frame_rate_video': os.getenv('FRAME_RATE_VIDEO')
         }
     else:
         video_data = {
@@ -354,6 +359,11 @@ def load_video_data():
             'polygons_in': np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
             'polygons_out': np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
             'polygon_area': np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
+            'client_id': 1,
+            'store_id': 3,
+            'video_date': "2021-09-01",
+            'start_time_video': '10:00:00',
+            'frame_rate_video': 15
         }
     return video_data
 
@@ -391,9 +401,14 @@ if __name__ == '__main__':
 
     with torch.no_grad():
         # load_dotenv()
-
         video_data = load_video_data()
-        detect(video_data=video_data)
+        # csv,video,img_folder = detect(video_data=video_data)
+        csv,video,img_folder = 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_docker_bbox.csv' , 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_2024-05-21.mp4','runs/detect/2024_05_25_tobalaba_docker/imgs_diponti_tobalaba'
+        process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'])
+        
+        
+        
+        
 
             
             

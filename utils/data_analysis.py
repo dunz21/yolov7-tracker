@@ -7,7 +7,7 @@ import pandas as pd
 from collections import Counter
 from tqdm import tqdm
 import sqlite3
-from utils.pipeline import get_files
+from pipeline.vit_pipeline import get_files
 from utils.time import seconds_to_time
 from utils.types import Direction
 

@@ -9,8 +9,7 @@ import os
 import sqlite3
 from flask import g
 import torch
-from mini_models.re_ranking import process_re_ranking
-from utils.tools import number_to_letters
+from pipeline.re_ranking import process_re_ranking
 from utils.time import seconds_to_time
 import pandas as pd
 import datetime    
@@ -23,7 +22,7 @@ from utils.data_analysis import get_overlap_undefined,get_direction_info
 from flask_caching import Cache
 from utils.types import Direction
 import subprocess
-from utils.pipeline import get_files
+from pipeline.vit_pipeline import get_files
 from scipy.stats import linregress
 
 # Configure cache
@@ -48,6 +47,12 @@ PORT = 3002
 FRAME_RATE = 15
 HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo'
 BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
+
+def number_to_letters(num):
+    mapping = {i: chr(122 - i) for i in range(10)}
+    num_str = str(num)
+    letter_code = ''.join(mapping[int(digit)] for digit in num_str)
+    return letter_code
 
 def get_db_connection():
     conn = sqlite3.connect(g.path_to_db)
@@ -1075,107 +1080,6 @@ def modify_count(data, min_count=20, max_count=70):
     for item in data:
         item['count'] = random.randint(min_count, max_count)
     return data
-
-@app.route('/api/process_data', methods=['GET'])
-def process_data():
-    direction_param = request.args.get('direction', Direction.In.value)  # Get direction parameter, default 'In'
-    
-    # Connect to the SQLite database
-    db = get_db_connection()
-    # Load the 'bbox_raw' table into a DataFrame
-    df = pd.read_sql_query("SELECT * FROM bbox_raw WHERE img_name IS NOT NULL", db)
-    
-    # Ensure img_name has a value
-    df = df.dropna(subset=['img_name'])
-    
-    # Drop duplicates based on 'id' to keep only one row per id
-    df = df.drop_duplicates(subset=['id'])
-    
-    # Add 'direction' column by splitting 'img_name' and extracting the fourth element
-    df['direction'] = df['img_name'].apply(lambda x: x.split('_')[3])
-    
-    # Filter dataframe for rows where direction is either 'In' or 'Out'
-    df = df[df['direction'].isin([Direction.In.value, Direction.Out.value])]
-    
-    # Add 'time' column calculated from 'frame_number' divided by 15, rounded to hours
-    df['time'] = df['frame_number'].apply(lambda x: seconds_to_time((x / 15) + (60 * 60 * 8)))
-    
-    # Filter by direction based on input parameter
-    df = df[df['direction'] == direction_param]
-    
-    # Convert 'time' to datetime to facilitate grouping by hour
-    df['hour'] = pd.to_datetime(df['time']).dt.hour
-    
-    # Get the full hour range from min to max
-    hours_range = range(df['hour'].min(), df['hour'].max() + 1)
-    
-    # Group data by hour and count the occurrences
-    grouped_data = df.groupby('hour').size().reindex(hours_range, fill_value=0).reset_index(name='count')
-    grouped_data['time'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00")
-    grouped_data = grouped_data[['count', 'time']]
-    
-    # Close the database connection
-    db.close()
-    connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
-    
-    data = grouped_data.to_dict(orient='records')
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-01",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-02",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-03",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-04",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-05",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-06",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-07",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-08",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-09",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-10",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-11",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-12",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 1, "2024-04-13",connection)
-    
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-01",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-02",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-03",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-04",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-05",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-06",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-07",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-08",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-09",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-10",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-11",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-12",connection)
-    # data = modify_count(data,20,80)
-    # save_visits(data, 2, "2024-04-13",connection)
-    # data = modify_count(data,20,80)
-    # connection.close()
-
-    return jsonify(data)
 
 def save_visits(data, store_id, date, connection):
     try:
