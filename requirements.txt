@@ -21,3 +21,4 @@ tqdm
 requests
 yacs
 boto3
+pymysql

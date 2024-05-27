@@ -170,9 +170,7 @@ class LoadImages:  # for inference
             ret_val, img0 = self.cap.read()
             
             if not ret_val and self.frame != self.nframes:
-                #TODO: Log video frames error, move it to the path of the resulting video, this will track ffmpeg performance
-                # with open(f'{"/".join(path.split("/")[:-1])}/logs_video.txt', 'a') as log_file:
-                #     log_file.write(f'Error reading video {path} at frame {self.frame}\n')
+                logger.error(f'Error reading video {path} at frame {self.frame}')
                 valid_frame_iteration = False
                 self.frame += 1
                 print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')

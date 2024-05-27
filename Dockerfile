@@ -5,7 +5,11 @@ FROM nvidia/cuda:12.3.2-runtime-ubuntu22.04 as base
 WORKDIR /app
 
 # Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg tzdata
+
+# Set the timezone to America/Santiago
+ENV TZ=America/Santiago
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install Python and pip
 RUN apt-get install -y python3 python3-pip

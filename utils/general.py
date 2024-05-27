@@ -34,6 +34,16 @@ def set_logging(rank=-1):
     logging.basicConfig(
         format="%(message)s",
         level=logging.INFO if rank in [-1, 0] else logging.WARN)
+    
+def set_log(filename='app.log'):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(filename),
+            # logging.StreamHandler() #Si es que quiero que los priint se muestren en consola
+        ]
+    )
 
 
 def init_seeds(seed=0):

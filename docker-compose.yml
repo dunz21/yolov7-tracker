@@ -3,10 +3,10 @@ version: '3.8'
 services:
   yolo_service:
     build: .
-    env_file:
+    IS_DOCKER:
       - .env
     environment:
-      - ENV_FILE=.env
+      - IS_DOCKER=.env
       - VIDEO_FILE=conce_5_min.mp4
       - name=santos_dumont_docker_1
     volumes:
@@ -22,10 +22,10 @@ services:
 
   yolo_service2:
     build: .
-    env_file:
+    IS_DOCKER:
       - .env
     environment:
-      - ENV_FILE=.env
+      - IS_DOCKER=.env
       - VIDEO_FILE=conce_5_min_copy.mp4
       - name=santos_dumont_docker_2
     volumes:

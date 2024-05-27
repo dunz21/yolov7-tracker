@@ -3,6 +3,7 @@ import cv2
 import time
 import torch
 import argparse
+import logging
 from pathlib import Path
 from numpy import random
 from random import randint
@@ -13,7 +14,7 @@ from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages, LoadWebcam
 from utils.general import check_img_size, check_requirements, \
     check_imshow, non_max_suppression, apply_classifier, \
-    scale_coords, xyxy2xywh, strip_optimizer, set_logging, \
+    scale_coords, xyxy2xywh, strip_optimizer, set_log, \
     increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, \
@@ -23,7 +24,7 @@ from intersect_ import *
 # For SORT tracking
 from sort import *
 import time
-from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs,draw_boxes,distance_to_bbox_bottom_line,calculate_overlap
+from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs,draw_boxes,distance_to_bbox_bottom_line,calculate_overlap,filter_model_detector_output
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
 from utils.smile_track.mc_SMILEtrack import SMILEtrack
@@ -40,7 +41,6 @@ from IPython import embed
 import ast
 from pipeline.main import process_pipeline
 # from dotenv import load_dotenv
-
 
 def detect(save_img=False,video_data=None):
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
@@ -78,13 +78,15 @@ def detect(save_img=False,video_data=None):
 
     # opt.name = video_data['folder_img']
     # Directories
-    formatted_date = datetime.now().strftime('%Y_%m_%d')
-    folder_name = f"{formatted_date}_{video_data['name']}"
+    folder_name = f"{video_data['name']}"
     save_dir = Path(increment_path(Path(opt.project) / folder_name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
     os.chmod(save_dir, 0o775)
     # Initialize
-    set_logging()
+    set_log(f"{save_dir}/app.log")
+    logger = logging.getLogger(__name__)
+    logger.info(video_data)
+    
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
@@ -208,8 +210,10 @@ def detect(save_img=False,video_data=None):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 det = det.cpu().detach().numpy()
                 det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data['polygon_area'])
-                # if len(det) == 0:
-                #     continue #Esto no permite que el Tracker se actualice, y matar los remove
+                det = filter_model_detector_output(yolo_output=det, specific_area_coords=video_data['filter_area'])
+                #if len(det) == 0:
+                #   continue #Esto no permite que el Tracker se actualice, y matar los remove
+                
                 box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det]
                 draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
                 
@@ -316,13 +320,8 @@ def detect(save_img=False,video_data=None):
     # features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
     # complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db_base_path)
 
-    
-    # with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:
-    #     formatted_times = [f"{t:.2f}" for t in time_for_each_100_frames]
-    #     log_file.write(f"Time for each 100 frames: {formatted_times} \n")
     print(f'Done. ({time.time() - t0:.3f}s)')
-    with open(f'{save_dir_str}/tracker.txt', 'a') as log_file:
-        log_file.write(f"{time.time() - t0:.3f}[s] \n")
+    logger.info(f'Done. ({time.time() - t0:.3f}s)')
     
     if save_img:
         vid_writer.release()
@@ -331,7 +330,7 @@ def detect(save_img=False,video_data=None):
     return csv_box_name,save_path, folder_name
 
 def load_video_data():
-    if 'ENV_FILE' in os.environ:
+    if 'IS_DOCKER' in os.environ:
         video_dir = os.getenv('VIDEO_DIR_CONTAINER', '/app/videos')  # Always use the Docker container's video directory
         video_file = os.getenv('VIDEO_FILE', 'video.mp4')
         video_path = os.path.join(video_dir, video_file)
@@ -344,21 +343,23 @@ def load_video_data():
             'polygons_in': np.array(eval(os.getenv('polygons_in')), np.int32),
             'polygons_out': np.array(eval(os.getenv('polygons_out')), np.int32),
             'polygon_area': np.array(eval(os.getenv('polygon_area')), np.int32),
-            'client_id': os.getenv('CLIENT_ID'),
-            'store_id': os.getenv('STORE_ID'),
+            'filter_area': np.array(eval(os.getenv('filter_area',[])), np.int32),
+            'client_id': int(os.getenv('CLIENT_ID')),
+            'store_id': int(os.getenv('STORE_ID')),
             'video_date': os.getenv('VIDEO_DATE'),
             'start_time_video': os.getenv('START_TIME_VIDEO'),
-            'frame_rate_video': os.getenv('FRAME_RATE_VIDEO')
+            'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO'))
         }
     else:
         video_data = {
             'name': "santos_dumont_debug",
-            'source': "/home/diego/Documents/Footage/dumont_debug1.mp4",
+            'source': "/home/diego/mydrive/tobalaba_2024-05-22.mp4",
             'description': "Video de Santos Dumont",
             'folder_img': "imgs_santos_dumont_debug",
-            'polygons_in': np.array([[865, 510],[1117,550],[1115,595],[831,541]], np.int32),
-            'polygons_out': np.array([[894, 480],[1118,510],[1117,550],[865,510]], np.int32),
-            'polygon_area': np.array([[731,325],[1179,378],[1206,562],[1119,1050],[442,850],[710,511]], np.int32),
+            'polygons_in': np.array([[1265,577],[1285,813],[1220,816],[1195,579]], np.int32),
+            'polygons_out': np.array([[1265,577], [1358,574],[1373,813],[1285,813]], np.int32),
+            'polygon_area': np.array([[1131,560],[1432,547],[1492,883],[1173,883]], np.int32),
+            'filter_area':  [(1154, 353), (1232, 353), (1230, 563), (1120, 564)],
             'client_id': 1,
             'store_id': 3,
             'video_date': "2021-09-01",
@@ -402,8 +403,8 @@ if __name__ == '__main__':
     with torch.no_grad():
         # load_dotenv()
         video_data = load_video_data()
-        # csv,video,img_folder = detect(video_data=video_data)
-        csv,video,img_folder = 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_docker_bbox.csv' , 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_2024-05-21.mp4','runs/detect/2024_05_25_tobalaba_docker/imgs_diponti_tobalaba'
+        csv,video,img_folder = detect(video_data=video_data)
+        # csv,video,img_folder = 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_docker_bbox.csv' , 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_2024-05-21.mp4','runs/detect/2024_05_25_tobalaba_docker/imgs_diponti_tobalaba'
         process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'])
         
         

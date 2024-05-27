@@ -33,7 +33,7 @@ def get_video_data():
         {
             'name' : "tobalaba_2024-05-10",
             # 'source' : "/home/diego/testTipo41Tobalba6Mayo.mp4",
-            'source' : "/home/diego/Documents/Footage/diponti-tobalaba/tobalaba_2024-05-10.mp4",
+            'source' : "/home/diego/mydrive/tobalaba_2024-05-22.mp4",
             'description' : "Video DiPonti Tobalaba",
             'folder_img' : "imgs_diponti_tobalaba",
             'polygons_in' : np.array([[1265,577],[1285,783],[1220,782],[1195,579]], np.int32),

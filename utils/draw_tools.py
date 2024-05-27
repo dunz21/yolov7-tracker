@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 from PIL import Image
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon, box
 from reid.utils import point_side_of_line
 
 COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0),(210,105, 30),(220, 20, 60),
@@ -66,6 +66,38 @@ def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[
             filtered_detections.append(det)
 
     return np.array(filtered_detections)
+
+def filter_model_detector_output(yolo_output, min_area=10000, specific_area_coords=[], overlap_threshold=0.5):
+    """
+    Filters YOLO output bounding boxes based on minimum area and overlap with a specific area.
+    
+    Parameters:
+    yolo_output (ndarray): The YOLO output array.
+    min_area (float): The minimum area threshold for bounding boxes.
+    specific_area_coords (list): List of (x, y) tuples defining the specific area polygon.
+    overlap_threshold (float): The overlap threshold for filtering (default is 0.5).
+
+    Returns:
+    ndarray: Filtered YOLO output.
+    """
+    filtered_output = []
+    specific_area = Polygon(specific_area_coords)
+    
+    for bbox in yolo_output:
+        x1, y1, x2, y2, score, class_id = bbox
+        bbox_polygon = box(x1, y1, x2, y2)
+        bbox_area = bbox_polygon.area
+
+        if bbox_area < min_area:
+            continue
+        
+        intersection_area = bbox_polygon.intersection(specific_area).area
+        if intersection_area / bbox_area >= overlap_threshold:
+            continue
+        
+        filtered_output.append(bbox)
+    
+    return np.array(filtered_output, dtype=np.float32)
 
 def draw_polygon_interested_area(frame, polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
     polygon_pts = polygon_pts.reshape((-1, 1, 2))
