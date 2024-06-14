@@ -3,15 +3,15 @@ version: '3.8'
 services:
   yolo_service:
     build: .
-    IS_DOCKER:
+    env_file:
       - .env
     environment:
-      - IS_DOCKER=.env
       - VIDEO_FILE=conce_5_min.mp4
       - name=santos_dumont_docker_1
     volumes:
       - ./runs/detect:/app/runs/detect
       - /home/diego/mydrive/carpeta1:${VIDEO_DIR_CONTAINER}
+    network_mode: "host"
     deploy:
       resources:
         reservations:
@@ -22,15 +22,15 @@ services:
 
   yolo_service2:
     build: .
-    IS_DOCKER:
+    env_file:
       - .env
     environment:
-      - IS_DOCKER=.env
       - VIDEO_FILE=conce_5_min_copy.mp4
       - name=santos_dumont_docker_2
     volumes:
       - ./runs/detect:/app/runs/detect
       - /home/diego/mydrive/carpeta2:${VIDEO_DIR_CONTAINER}
+    network_mode: "host"
     deploy:
       resources:
         reservations:

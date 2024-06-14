@@ -179,7 +179,7 @@ def detect(save_img=False,video_data=None):
                 "tracker" : tracker_reid.__class__.__name__,
                 "weights":weights.split("/")[-1],
                 }
-            draw_configs(im0s,info)
+            draw_configs(im0s,info,scale=im0s.shape[0])
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data['polygon_area'])
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data['polygons_in'],polygon_out=video_data['polygons_out'])
 
@@ -305,27 +305,14 @@ def detect(save_img=False,video_data=None):
                 vid_writer = cv2.VideoWriter(
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
             vid_writer.write(im0)
-            
-        # if frame % 100 == 0:
-        #     time_for_each_100_frames.append(time.time() - t100)
-        #     t100 = time.time()
-            
-    # db_base_path = f"{csv_box_name}.db"
-    ### Limpieza switch ID 
-    # convert_csv_to_sqlite(csv_file_path=f"{csv_box_name}.csv", db_file_path=db_base_path, table_name='bbox_raw')
-    # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=folder_name,weights='model_weights.pth',model_name='solider')
-    # prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
-    # predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
-    # clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=folder_name, dest_folder_results=f"{folder_name}_top4", k_fold=4, threshold=0.9)
-    # features = get_features_from_model(model_name='solider', folder_path=f"{folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
-    # complete_re_ranking(features,n_images=8,max_number_back_to_compare=57,K1=8,K2=3,LAMBDA=0,db_path=db_base_path)
+        
 
     print(f'Done. ({time.time() - t0:.3f}s)')
     logger.info(f'Done. ({time.time() - t0:.3f}s)')
     
     if save_img:
         vid_writer.release()
-        compress_and_replace_video(save_path,encoder='libx264')
+        compress_and_replace_video(save_path)
     
     return csv_box_name,save_path, folder_name
 
@@ -348,7 +335,11 @@ def load_video_data():
             'store_id': int(os.getenv('STORE_ID')),
             'video_date': os.getenv('VIDEO_DATE'),
             'start_time_video': os.getenv('START_TIME_VIDEO'),
-            'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO'))
+            'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO')),
+            'db_host': os.getenv('DB_HOST'),
+            'db_user': os.getenv('DB_USER'),
+            'db_password': os.getenv('DB_PASSWORD'),
+            'db_name': os.getenv('DB_NAME'),
         }
     else:
         video_data = {
@@ -404,15 +395,13 @@ if __name__ == '__main__':
         # load_dotenv()
         video_data = load_video_data()
         csv,video,img_folder = detect(video_data=video_data)
-        # csv,video,img_folder = 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_docker_bbox.csv' , 'runs/detect/2024_05_25_tobalaba_docker/tobalaba_2024-05-21.mp4','runs/detect/2024_05_25_tobalaba_docker/imgs_diponti_tobalaba'
-        process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'])
+        process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'],DB=video_data['db_name'],HOST=video_data['db_host'],ADMIN=video_data['db_user'],PASS=video_data['db_password'])
+        
+        # csv = 'runs/detect/tobalaba_2024-05-27/tobalaba_2024-05-27_bbox.csv'
+        # video = 'runs/detect/tobalaba_2024-05-27/tobalaba_2024-05-27.mp4'
+        # img_folder = 'runs/detect/tobalaba_2024-05-27/imgs_diponti_tobalaba'
+        # video_data['video_date'] = '2024-05-27'
+        # video_data['start_time_video'] = '10:00:00'
+        # process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'])
         
         
-        
-        
-
-            
-            
-                
-                
-                

@@ -20,19 +20,17 @@ COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0
 def draw_boxes_entrance_exit(image=None,polygon_in=np.array([[265, 866],[583, 637],[671, 686],[344, 948]], np.int32),polygon_out=np.array([[202, 794],[508, 608],[575, 646],[263, 865]], np.int32)):
     # 0 -> 1 means exit
     # 1 -> 0 means entrance
-    #Inside 
-    RED = (0, 0, 255) #BGR
-    RED = (84,27,227) #BGR
+    #Inside Green
+    GREEN = (116,186,79) #BGR
     pts_entrance = polygon_in.reshape((-1, 1, 2))
     if image is not None:
-        cv2.polylines(image, [pts_entrance], isClosed=True, color=RED, thickness=2)
+        cv2.polylines(image, [pts_entrance], isClosed=True, color=GREEN, thickness=2)
 
-    #Outside
-    BLUE = (255,0,0) #BGR
-    BLUE = (116,186,79) #BGR
+    #Outside Red
+    RED = (84,27,227) #BGR
     pts_exit = polygon_out.reshape((-1, 1, 2))
     if image is not None:
-        cv2.polylines(image, [pts_exit], isClosed=True, color=BLUE, thickness=2)
+        cv2.polylines(image, [pts_exit], isClosed=True, color=RED, thickness=2)
     return [pts_entrance,pts_exit]
 
 def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
@@ -153,13 +151,21 @@ def distance_to_bbox_bottom_line(line=[], bbox=[]):
         distance = -distance
     return distance
   
-def draw_configs(frame, configs):
-    # Starting coordinates for the rectangle
-    x1, y1 = 10, 10  # 10 pixels from the top and left edge for padding
-    # Default width for the rectangle, could be adjusted based on the length of the text
-    w = 250
-    # Calculate height based on number of configs: 25 pixels per line + 5 pixels padding at the top and bottom
-    h = len(configs) * 25 + 10
+def draw_configs(frame, configs, scale=1920):
+    if scale < 1920:
+        # Coordinates and sizes for a 1280x720 resolution
+        x1, y1 = 7, 7  # Adjusted for smaller screen
+        w = 166  # Adjusted width
+        h = len(configs) * 16 + 7  # Adjusted height
+        font_scale = 0.4
+        line_height = 16
+    else:
+        # Coordinates and sizes for a 1920x1080 resolution
+        x1, y1 = 10, 10  # 10 pixels from the top and left edge for padding
+        w = 250  # Default width for the rectangle
+        h = len(configs) * 25 + 10  # Calculate height based on number of configs
+        font_scale = 0.6
+        line_height = 25
 
     # The color of the rectangle: Black with full opacity
     color = (0, 0, 0, 255)
@@ -167,15 +173,15 @@ def draw_configs(frame, configs):
     cv2.rectangle(frame, (x1, y1), (x1 + w, y1 + h), color, -1)
 
     # Initial position to start drawing the text
-    text_y = y1 + 20  # Start 20 pixels down from the top of the rectangle
+    text_y = y1 + 20 if scale >= 1920 else y1 + 12  # Adjust start position based on scale
 
     # Iterate through the dictionary and draw each stat
     for key, value in configs.items():
         label = f"{key}: {value}"
         # Draw the text
-        cv2.putText(frame, label, (x1 + 5, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+        cv2.putText(frame, label, (x1 + 5, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, [255, 255, 255], 1)
         # Move down to the next line
-        text_y += 25
+        text_y += line_height
 
     return frame
 

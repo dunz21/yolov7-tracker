@@ -3,7 +3,7 @@ import os
 import time
 import logging
 
-def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='fast', cq=40):
+def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='slow', cq=40):
     """
     Compresses a video using FFmpeg, replaces the original video with the compressed version.
 

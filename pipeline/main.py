@@ -9,10 +9,10 @@ from pipeline.mysql_config import get_connection
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_mysql
 import logging
 
-def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate=''):
+def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',HOST='', ADMIN='', PASS='', DB=''):
     logger = logging.getLogger(__name__)
     
-    HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo-stage'
+    
     pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
     # client_id = 1
     # store_id = 3

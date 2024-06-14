@@ -73,8 +73,12 @@ def extract_short_visits(video_path='',db_path='', max_distance=0.21, min_time_d
             'ffmpeg',
             '-ss', row['start_in'],
             '-i', video_path,
+            "-vf", f"scale=1280:720",
+            "-c:v", "h264_nvenc",
+            "-cq:v", '40',
+            "-preset", 'slow',
             '-t', str(duration),
-            '-c', 'copy',
+            "-c:a", "copy",  
             clip_path,
             '-y',  # Overwrite output files without asking
         ]
