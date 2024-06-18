@@ -312,7 +312,8 @@ def detect(save_img=False,video_data=None):
     
     if save_img:
         vid_writer.release()
-        compress_and_replace_video(save_path)
+        if video_data['without_video_comression'] == 0:
+            compress_and_replace_video(save_path)
     
     return csv_box_name,save_path, folder_name
 
@@ -336,6 +337,7 @@ def load_video_data():
             'video_date': os.getenv('VIDEO_DATE'),
             'start_time_video': os.getenv('START_TIME_VIDEO'),
             'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO')),
+            'without_video_comression': int(os.getenv('WITHOUT_VIDEO_COMPRESSION'), 0),
             'db_host': os.getenv('DB_HOST'),
             'db_user': os.getenv('DB_USER'),
             'db_password': os.getenv('DB_PASSWORD'),
@@ -395,7 +397,7 @@ if __name__ == '__main__':
         # load_dotenv()
         video_data = load_video_data()
         csv,video,img_folder = detect(video_data=video_data)
-        process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'],DB=video_data['db_name'],HOST=video_data['db_host'],ADMIN=video_data['db_user'],PASS=video_data['db_password'])
+        # process_pipeline(csv_box_name=csv, video_path=video, img_folder_name=img_folder,client_id=video_data['client_id'],store_id=video_data['store_id'],video_date=video_data['video_date'],start_time_video=video_data['start_time_video'],frame_rate=video_data['frame_rate_video'],DB=video_data['db_name'],HOST=video_data['db_host'],ADMIN=video_data['db_user'],PASS=video_data['db_password'])
         
         # csv = 'runs/detect/tobalaba_2024-05-27/tobalaba_2024-05-27_bbox.csv'
         # video = 'runs/detect/tobalaba_2024-05-27/tobalaba_2024-05-27.mp4'

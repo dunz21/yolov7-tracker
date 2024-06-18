@@ -118,7 +118,7 @@ def get_files(folder_path, complete_path=True):
         full_path = os.path.join(folder_path, item)
         if os.path.isdir(full_path):
             # Exclude directories ending with _topK
-            if item.startswith("imgs_") and not "_top" in item:
+            if item.startswith("imgs") and not "_top" in item:
                 img_folders.append(item)
         elif os.path.isfile(full_path):
             if item.endswith('.mp4'):
@@ -129,7 +129,9 @@ def get_files(folder_path, complete_path=True):
                 csv_files.append(item)
 
     # Check for conditions: only one DB, one video, and one CSV
-    if len(db_files) != 1:
+    
+    
+    if len(db_files) > 1:
         raise ValueError("There should be exactly one DB file in the directory.")
     if len(videos) != 1:
         raise ValueError("There should be exactly one video file in the directory.")
@@ -137,7 +139,7 @@ def get_files(folder_path, complete_path=True):
         raise ValueError("There should be exactly one CSV file in the directory.")
     if complete_path:
         return {
-            "db": os.path.join(folder_path, db_files[0]),
+            "db": os.path.join(folder_path, db_files[0]) if len(db_files) == 1 else None,
             "imgs": os.path.join(folder_path, img_folders[0]),
             "video": os.path.join(folder_path, videos[0]),
             "csv": os.path.join(folder_path, csv_files[0]),

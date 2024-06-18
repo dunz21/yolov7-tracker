@@ -12,6 +12,55 @@ from pipeline.vit_pipeline import get_folders, save_folders_to_solider_csv
 from pipeline.convert_csv_to_sqlite import convert_csv_to_sqlite
 from IPython import embed
 from utils.types import Direction
+from pipeline.vit_pipeline import get_files
+
+
+SWITCH_ID_FOLDER = 'switch_id'
+SWITCH_ID_TEXT_FILE = 'result.txt'
+
+
+
+
+
+### 0.- Reset all
+def reset_switch_id_modifications(path_to_folder):
+    # Define the path to the switch_id folder and result.txt
+    switch_id_folder = os.path.join(path_to_folder, SWITCH_ID_FOLDER)
+    result_file = os.path.join(switch_id_folder, SWITCH_ID_TEXT_FILE)
+
+    if not os.path.isfile(result_file):
+        print(f"The file '${SWITCH_ID_TEXT_FILE}' does not exist in {switch_id_folder}")
+        return
+
+    # Read the result.txt file
+    with open(result_file, 'r') as file:
+        lines = file.readlines()
+
+    for line in lines:
+        # Parse the original_id and new_id from the line
+        parts = line.strip().split()
+        original_id = parts[1]
+        new_ids = line.split('new_id: [')[1].strip(']\n').split(', ')
+
+        # Define the paths for the original and new folders
+        original_folder_path = os.path.join(switch_id_folder, original_id)
+
+        # Move the original folder one level up
+        if os.path.isdir(original_folder_path):
+            shutil.move(original_folder_path, path_to_folder)
+
+        # Delete the new_id folders that are one level up
+        for new_id in new_ids:
+            new_folder_path = os.path.join(path_to_folder, new_id.strip())
+            if os.path.isdir(new_folder_path):
+                shutil.rmtree(new_folder_path)
+
+    # Remove the switch_id folder
+    if os.path.isdir(switch_id_folder):
+        shutil.rmtree(switch_id_folder)
+
+    print("Processing complete.")
+
 ### 1.- Obtener los posibles switchs IDs
 def get_possible_switch_id(db_path):
     conn = sqlite3.connect(db_path)
@@ -165,9 +214,9 @@ def process_and_copy_images(data, base_folder_path, db_path):
     try:
         for id, clusters in data.items():
             original_id_folder = os.path.join(base_folder_path, str(id))
-            switch_id_folder = os.path.join(base_folder_path, 'switch_id')
-            if not os.path.exists(switch_id_folder):
-                os.makedirs(switch_id_folder)
+            switch_id_folder = os.path.join(base_folder_path, SWITCH_ID_FOLDER) #Crea nueva carptea switch ID
+            if not os.path.exists(switch_id_folder): #Crea nueva carptea switch ID
+                os.makedirs(switch_id_folder) #Crea nueva carptea switch ID
             new_id_list = []
 
             for cluster_label, info in clusters.items():
@@ -206,8 +255,8 @@ def process_and_copy_images(data, base_folder_path, db_path):
             moved_folder_path = os.path.join(switch_id_folder, str(id))
             os.rename(original_id_folder, moved_folder_path)
 
-            # Create or append to the result.txt file
-            with open(os.path.join(switch_id_folder, 'result.txt'), 'a') as file:
+            # Create or append to the SWITCH_ID_TEXT_FILE file
+            with open(os.path.join(switch_id_folder, SWITCH_ID_TEXT_FILE), 'a') as file:
                 file.write(f"original_id: {id} new_id: {new_id_list}\n")
 
     except Exception as e:
@@ -241,9 +290,15 @@ def switch_id_corrector_pipeline(db_path='', base_folder_path='',weights='',mode
 
 
 if __name__ == '__main__':
-    folder_path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/imgs_conce_debug'
-    db_path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.db'
-    csv_path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_03_conce_debug_switch_id/conce_debug_bbox.csv'
+    files = get_files('/home/diego/Documents/yolov7-tracker/runs/detect/conce_test_switch_id_13')
+    folder_path = files['imgs']
+    db_path = files['csv'].replace('.csv', '.db')
+    csv_path = files['csv']
+    
+    
+    ### 0.- Reset all
+    reset_switch_id_modifications(folder_path)
+    
     convert_csv_to_sqlite(csv_file_path=csv_path, db_file_path=db_path, table_name='bbox_raw')
     ### 1.- Get the possible switch IDs
     ids = get_possible_switch_id(db_path)

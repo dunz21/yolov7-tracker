@@ -31,9 +31,9 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     logger.info(f"Step 1 completed: Converted {csv_box_name}.csv to SQLite database at {db_base_path}")
     
     # Step 2: Correct IDs in the database using the switch ID corrector pipeline
-    # logger.info("Step 2: Correct IDs in the database using the switch ID corrector pipeline")
-    # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=img_folder_name, weights='model_weights.pth', model_name='solider')
-    # logger.info(f"Step 2 completed: Corrected IDs using switch ID corrector pipeline")
+    logger.info("Step 2: Correct IDs in the database using the switch ID corrector pipeline")
+    switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=img_folder_name, weights='model_weights.pth', model_name='solider')
+    logger.info(f"Step 2 completed: Corrected IDs using switch ID corrector pipeline")
     
     # Step 3: Prepare data for image selection
     logger.info("Step 3: Prepare data for image selection")
