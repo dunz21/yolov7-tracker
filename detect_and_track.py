@@ -123,7 +123,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         if not valid_frame_iteration:
             continue
         save_dir_str = str(save_dir)
-        folder_name = f"{save_dir_str}/{video_data.folder_img}"
+        folder_name = f"{save_dir_str}/imgs"
         csv_box_name = f"{save_dir_str}/{video_data.name}_bbox.csv"
         # FPS = vid_cap.get(cv2.CAP_PROP_FPS)
         FPS = 15
@@ -305,7 +305,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     
     if save_img:
         vid_writer.release()
-        if video_data.without_video_comression == 0:
+        if video_data.without_video_compression == 0:
             compress_and_replace_video(save_path)
     
     return VideoPipeline(csv_box_name, save_path, folder_name)
@@ -329,7 +329,7 @@ if __name__ == '__main__':
         'video_date': os.getenv('VIDEO_DATE'),
         'start_time_video': os.getenv('START_TIME_VIDEO'),
         'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO')),
-        'without_video_comression': int(os.getenv('WITHOUT_VIDEO_COMPRESSION'), 0),
+        'without_video_compression': int(os.getenv('WITHOUT_VIDEO_COMPRESSION'), 0),
         'db_host': os.getenv('DB_HOST'),
         'db_user': os.getenv('DB_USER'),
         'db_password': os.getenv('DB_PASSWORD'),
