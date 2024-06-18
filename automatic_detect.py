@@ -22,7 +22,15 @@ if __name__ == '__main__':
         videoDataObj.setVideoMetaInfo(nextVideoInQueue['video_file_name'].split('.')[0], nextVideoInQueue['video_date'], nextVideoInQueue['video_time'])
         videoDataObj.setDB('localhost', 'admin', 'root', 'mivo')
         
-
-    with torch.no_grad():
-        videoPipeline = detect(videoDataObj, videoOptionObj)
-        #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
+        with torch.no_grad():
+            try:
+                print(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status")
+                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'processing'})
+                videoPipeline = detect(videoDataObj, videoOptionObj)
+                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'finished'})
+            except Exception as e:
+                print(e)
+                print("Error in detect")
+                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'failed'})
+                #continue
+            #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
