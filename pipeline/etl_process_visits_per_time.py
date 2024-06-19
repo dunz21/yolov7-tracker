@@ -4,6 +4,7 @@ import pandas as pd
 from utils.types import Direction
 from utils.time import seconds_to_time
 from pipeline.mysql_config import get_connection
+from config.api import APIConfig
 
 def extract_visits_per_hour(db_path,start_time,frame_rate):
     
@@ -50,30 +51,23 @@ def extract_visits_per_hour(db_path,start_time,frame_rate):
     
     return grouped_data.to_dict(orient='records')
     
-def save_visits_to_mysql(list_visits_group_by_hour=[], store_id='', date='', connection=''):
+def save_visits_to_api(list_visits_group_by_hour=[], store_id='', date=''):
     try:
-        with connection.cursor() as cursor:
-            sql = "INSERT INTO visits (`count`, `time`, `store_id`, `date`, `created_at`, `updated_at`) VALUES (%s, %s, %s, %s, NOW(), NOW())"
-            for item in list_visits_group_by_hour:
-                cursor.execute(sql, (item['count'], item['time_calculated'], store_id, date))
-                print(f"Inserted {item['count']} visits at {item['time_calculated']}")
-        connection.commit()
+        APIConfig.save_visits_per_hour(list_visits_group_by_hour, store_id, date)
     finally:
         print(date)
         
         
 def main(path,start_time,store_id,date,connection):
     list_visits_group_by_hour = extract_visits_per_hour(path,start_time)
-    save_visits_to_mysql(list_visits_group_by_hour, store_id, date, connection)
-    
+    save_visits_to_api(list_visits_group_by_hour, store_id, date)
+
 
 if __name__ == '__main__':
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_12_tobalaba_9mayo'
     start_time = '08:00:00'
     store_id = 3
     date = '2024-05-12'
-    HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo'
-    connection = get_connection(HOST, ADMIN, PASS, DB)
     
     
     # Only debug

@@ -4,12 +4,11 @@ from pipeline.switch_id_fixer import switch_id_corrector_pipeline
 from pipeline.image_selection import prepare_data_img_selection, predict_img_selection, clean_img_folder_top_k
 from pipeline.vit_pipeline import get_features_from_model
 from pipeline.re_ranking import complete_re_ranking
-from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_visits_to_mysql
-from pipeline.mysql_config import get_connection
-from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_mysql
+from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_visits_to_api
+from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
 import logging
 
-def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',HOST='', ADMIN='', PASS='', DB=''):
+def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='', API_URL=''):
     logger = logging.getLogger(__name__)
     
     
@@ -21,8 +20,8 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     # frame_rate = 15
     bucket_name='videos-mivo'
     
-    connection_mysql = get_connection(HOST, ADMIN, PASS, DB)
-    logger.info(f"Connected to MySQL database at {HOST}")
+    # connection_mysql = get_connection(HOST, ADMIN, PASS, DB)
+    # logger.info(f"Connected to MySQL database at {HOST}")
     
     # Step 1: Convert CSV to SQLite
     logger.info("Step 1: Convert CSV to SQLite")
@@ -67,7 +66,7 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     
     # Step 9: Save visits per hour to MySQL
     logger.info("Step 9: Save visits per hour to MySQL")
-    save_visits_to_mysql(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date, connection=connection_mysql)
+    save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date, api_url=API_URL)
     logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
     
     # Step 10: Extract short visits
@@ -82,7 +81,7 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     
     # Step 12: Save short visits to MySQL
     logger.info("Step 10.3: Save short visits to MySQL")
-    save_short_visits_to_mysql(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id, connection=connection_mysql)
+    save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id, api_url=API_URL)
     logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
     
     logger.info("Process pipeline completed successfully")

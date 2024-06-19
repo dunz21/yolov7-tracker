@@ -8,6 +8,7 @@ from utils.types import Direction
 from pipeline.vit_pipeline import get_files
 from utils.time import convert_time_to_seconds
 from pipeline.mysql_config import get_connection
+from config.api import APIConfig
 
 def extract_short_visits(video_path='',db_path='', max_distance=0.21, min_time_diff='00:01:00', max_time_diff='00:02:00', direction_param='In', fps=15):
     # Create the 'clips' directory if it doesn't exist
@@ -96,13 +97,9 @@ def upload_to_s3(file_path, bucket_name, s3_path):
     s3_client.upload_file(file_path, bucket_name, s3_path)
     print(f"Uploaded {file_path} to s3://{bucket_name}/{s3_path}")
 
-def save_short_visits_to_mysql(short_video_clips_urls=[], date='', store_id='', connection=''):
+def save_short_visits_to_api(short_video_clips_urls=[], date='', store_id=''):
     try:
-        with connection.cursor() as cursor:
-            sql = "INSERT INTO short_visits (url, date, store_id, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())"
-            for item in short_video_clips_urls:
-                cursor.execute(sql, (item['url'], date, store_id))
-        connection.commit()
+        APIConfig.save_short_visits(short_video_clips_urls, date, store_id)
     finally:
         print(f"Short visits saved for date {date}")
 
@@ -123,7 +120,7 @@ def process_clips_to_s3(short_video_clips=[], client_id='', store_id='', date=''
 def main(path, client_id, store_id, date, pre_url):
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
     connection = pymysql.connect(host=HOST, user=ADMIN, password=PASS, database=DB)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     connection.close()
 
 if __name__ == '__main__':
@@ -142,30 +139,30 @@ if __name__ == '__main__':
     main(path, client_id, store_id, date, pre_url)
     
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_3mayo'
     date = '2024-05-03'
     
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_4mayo'
     date = '2024-05-04'
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_5mayo'
     date = '2024-05-05'
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_07_tobalaba_6mayo'
     date = '2024-05-06'
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     path = '/home/diego/Documents/yolov7-tracker/runs/detect/2024_05_13_tobalaba_7mayo'
     date = '2024-05-07'
     
     
     
     clips_urls = process_clips_to_s3(path, client_id, store_id, date, pre_url)
-    save_short_visits_to_mysql(clips_urls, date, store_id, connection, pre_url)
+    save_short_visits_to_api(clips_urls, date, store_id)
     connection.close()

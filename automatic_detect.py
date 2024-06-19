@@ -5,12 +5,16 @@ from reid.VideoPipeline import VideoPipeline
 import torch
 import requests
 import os
-
+from pipeline.main import process_pipeline
+from config.api import APIConfig
 
 if __name__ == '__main__':
-    
+    # Initialize the APIConfig with the base URL
+    APIConfig.initialize("http://localhost:8000")
+
     videoOptionObj = VideoOption()
-    nextVideoInQueue = requests.get("http://localhost:8000/api/queue-videos").json()
+    nextVideoInQueue = APIConfig.queue_videos()
+    
     if nextVideoInQueue:
         base_folder_path = '/home/diego/mydrive/footage/'
         
@@ -24,13 +28,12 @@ if __name__ == '__main__':
         
         with torch.no_grad():
             try:
-                print(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status")
-                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'processing'})
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 videoPipeline = detect(videoDataObj, videoOptionObj)
-                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'finished'})
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
             except Exception as e:
                 print(e)
                 print("Error in detect")
-                requests.put(f"http://localhost:8000/api/queue-videos/{nextVideoInQueue['id']}/status", data={'status': 'failed'})
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'failed')
                 #continue
-            #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
+            process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
