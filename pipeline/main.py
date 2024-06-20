@@ -8,7 +8,7 @@ from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_vi
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
 import logging
 
-def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='', API_URL=''):
+def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate=''):
     logger = logging.getLogger(__name__)
     
     
@@ -66,7 +66,7 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     
     # Step 9: Save visits per hour to MySQL
     logger.info("Step 9: Save visits per hour to MySQL")
-    save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date, api_url=API_URL)
+    save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date)
     logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
     
     # Step 10: Extract short visits
@@ -81,7 +81,7 @@ def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_i
     
     # Step 12: Save short visits to MySQL
     logger.info("Step 10.3: Save short visits to MySQL")
-    save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id, api_url=API_URL)
+    save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
     logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
     
     logger.info("Process pipeline completed successfully")

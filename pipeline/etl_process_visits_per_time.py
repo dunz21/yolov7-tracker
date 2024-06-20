@@ -46,7 +46,7 @@ def extract_visits_per_hour(db_path,start_time,frame_rate):
     
     # Group data by hour and count the occurrences
     grouped_data = list_visits.groupby('hour').size().reindex(hours_range, fill_value=0).reset_index(name='count')
-    grouped_data['time_calculated'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00")
+    grouped_data['time_calculated'] = grouped_data['hour'].apply(lambda x: f"{x:02}:00:00")
     grouped_data = grouped_data[['count', 'time_calculated']]
     
     return grouped_data.to_dict(orient='records')

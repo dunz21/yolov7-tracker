@@ -10,7 +10,7 @@ from utils.time import convert_time_to_seconds
 from pipeline.mysql_config import get_connection
 from config.api import APIConfig
 
-def extract_short_visits(video_path='',db_path='', max_distance=0.21, min_time_diff='00:01:00', max_time_diff='00:02:00', direction_param='In', fps=15):
+def extract_short_visits(video_path='',db_path='', max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15):
     # Create the 'clips' directory if it doesn't exist
     clips_dir = os.path.join(os.path.dirname(video_path), 'clips')
     if not os.path.exists(clips_dir):

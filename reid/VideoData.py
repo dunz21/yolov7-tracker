@@ -24,7 +24,7 @@ class VideoData:
         ####### VIDEO META INFO ########
         # self.name = video_data['name']
         # self.video_date = video_data['video_date']
-        # self.start_time_video = video_data['start_time_video']
+        # self.video_time = video_data['video_time']
         
         
         ####### DB ########
@@ -59,13 +59,8 @@ class VideoData:
     def setVideoMetaInfo(self,video_name, video_date, video_time):
         self.name = video_name
         self.video_date = video_date
-        self.start_time_video = video_time
-        
-    def setDB(self, host, user, password, name):
-        self.db_host = host
-        self.db_user = user
-        self.db_password = password
-        self.db_name = name
+        self.video_time = video_time
+    
 
         
         

@@ -43,7 +43,7 @@ class APIConfig:
                 'date': date,
             }
             response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 200:
+            if response.status_code == 201:
                 print(f"Inserted {item['count']} visits at {item['time_calculated']}")
             else:
                 print(f"Failed to insert {item['count']} visits at {item['time_calculated']}. Status code: {response.status_code}, Response: {response.text}")
@@ -59,7 +59,7 @@ class APIConfig:
                 'store_id': store_id,
             }
             response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 200:
+            if response.status_code == 201:
                 print(f"Inserted short visit for URL {item['url']}")
             else:
                 print(f"Failed to insert short visit for URL {item['url']}. Status code: {response.status_code}, Response: {response.text}")

@@ -24,7 +24,6 @@ if __name__ == '__main__':
         videoDataObj.setPolygonArea(nextVideoInQueue['zone_in'], nextVideoInQueue['zone_out'], nextVideoInQueue['zone_area'])
         videoDataObj.setVideoSource(nextVideoInQueue['video_file_name'])
         videoDataObj.setVideoMetaInfo(nextVideoInQueue['video_file_name'].split('.')[0], nextVideoInQueue['video_date'], nextVideoInQueue['video_time'])
-        videoDataObj.setDB('localhost', 'admin', 'root', 'mivo')
         
         with torch.no_grad():
             try:
@@ -36,4 +35,4 @@ if __name__ == '__main__':
                 print("Error in detect")
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'failed')
                 #continue
-            process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
+            process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name, videoDataObj.client_id, videoDataObj.store_id, videoDataObj.video_date, videoDataObj.video_time, videoDataObj.frame_rate_video)

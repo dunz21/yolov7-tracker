@@ -10,7 +10,7 @@ class VideoOption:
         self.agnostic_nms = False
         self.augment = False
         self.update = False
-        self.project = 'runs/detect'
+        self.project = '/home/diego/mydrive/results'
         self.exist_ok = False
         self.no_trace = False
         self.save_bbox_dim = False
