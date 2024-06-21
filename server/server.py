@@ -39,14 +39,14 @@ cache = Cache(app)
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# SERVER_IP = '127.0.0.1'
+SERVER_IP = 'localhost'
 # SERVER_IP = '181.161.116.25'
-SERVER_IP = '181.161.125.107'
+# SERVER_IP = '181.161.125.107'
 SERVER_FOLDER_BASE_PATH = '/server-images/'
 PORT = 3002
 FRAME_RATE = 15
 HOST, ADMIN, PASS, DB =  'mivo-db.cj2ucwgierrs.us-east-1.rds.amazonaws.com', 'admin', '58#64KDashz^bLrqTG2', 'mivo'
-BASE_FOLDER = '/home/diego/Documents/yolov7-tracker/runs/detect/'
+BASE_FOLDER = '/home/diego/mydrive/results/1/3/1/'
 
 def number_to_letters(num):
     mapping = {i: chr(122 - i) for i in range(10)}
@@ -96,7 +96,7 @@ def get_projects_available(base_path):
                 
                 # Look for the first folder
                 for sub_item in files_and_folders:
-                    if os.path.isdir(os.path.join(item_path, sub_item)):
+                    if os.path.isdir(os.path.join(item_path, sub_item)) and sub_item.startswith('imgs'):
                         selected_items.append(sub_item)
                         break
                 

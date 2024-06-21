@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  automatic_detect_service:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage
+      - RESULTS_ROOT_FOLDER_PATH=/home/diego/mydrive/results
+      - BASE_URL_API=http://localhost:8000
+    command: ["python3", "automatic_detect.py"]
+    volumes:
+      - ./runs/detect:/app/runs/detect
+      - /home/diego/mydrive/footage:/home/diego/mydrive/footage
+      - /home/diego/mydrive/results:/home/diego/mydrive/results
+    network_mode: "host"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

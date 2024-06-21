@@ -1,5 +1,5 @@
 class VideoOption:
-    def __init__(self):
+    def __init__(self, folder_results=''):
         self.weights = 'yolov7.pt'
         self.img_size = 640
         self.conf_thres = 0.25
@@ -10,7 +10,7 @@ class VideoOption:
         self.agnostic_nms = False
         self.augment = False
         self.update = False
-        self.project = '/home/diego/mydrive/results'
+        self.project = folder_results
         self.exist_ok = False
         self.no_trace = False
         self.save_bbox_dim = False

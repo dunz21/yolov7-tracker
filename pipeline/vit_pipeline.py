@@ -121,7 +121,7 @@ def get_files(folder_path, complete_path=True):
             if item.startswith("imgs") and not "_top" in item:
                 img_folders.append(item)
         elif os.path.isfile(full_path):
-            if item.endswith('.mp4'):
+            if item.endswith('.mp4') or item.endswith('.mkv'):
                 videos.append(item)
             elif item.endswith('.db'):
                 db_files.append(item)
