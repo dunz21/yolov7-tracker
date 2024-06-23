@@ -22,12 +22,27 @@ docker run --gpus all --env-file .env   -e VIDEO_FILE=tobalaba_2024-05-24.mp4   
 
 ```
 #build paso 1
-docker-compose -f docker-compose-automatic-detect.yaml build
+docker compose -f docker-compose-automatic-detect.yaml build
 # usarlo paso 2
-docker-compose -f docker-compose-automatic-detect.yaml up
+docker compose -f docker-compose-automatic-detect.yaml up
 
 
 # De una 1 y 2
-docker-compose -f docker-compose-automatic-detect.yaml up --build 
+docker compose -f docker-compose-automatic-detect.yaml up --build 
+
+```
+```
+docker run --rm \
+  --env-file .env \
+  -e FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage \
+  -e RESULTS_ROOT_FOLDER_PATH=/home/diego/mydrive/results \
+  -e BASE_URL_API=http://localhost:8000 \
+  --volume $(pwd)/runs/detect:/app/runs/detect \
+  --volume /home/diego/mydrive/footage:/home/diego/mydrive/footage \
+  --volume /home/diego/mydrive/results:/home/diego/mydrive/results \
+  --network host \
+  --gpus '"device=0"' \
+  yolov7-tracker-automatic_detect_service \
+  python3 automatic_detect.py
 
 ```

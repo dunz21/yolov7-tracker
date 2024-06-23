@@ -27,7 +27,8 @@ if __name__ == '__main__':
         videoDataObj = VideoData()
         videoDataObj.setBaseFolder(footage_root_folder_path)
         videoDataObj.setClientStoreChannel(nextVideoInQueue['client_id'], nextVideoInQueue['store_id'], nextVideoInQueue['channel_id'])
-        videoDataObj.setPolygonArea(nextVideoInQueue['zone_in'], nextVideoInQueue['zone_out'], nextVideoInQueue['zone_area'])
+        videoDataObj.setZoneFilterArea(nextVideoInQueue['zone_filter_area'])
+        videoDataObj.setZoneInOutArea(nextVideoInQueue['zone_in_out_area'])
         videoDataObj.setVideoSource(nextVideoInQueue['video_file_name'])
         videoDataObj.setVideoMetaInfo(nextVideoInQueue['video_file_name'].split('.')[0], nextVideoInQueue['video_date'], nextVideoInQueue['video_time'])
 

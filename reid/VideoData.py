@@ -5,7 +5,7 @@ class VideoData:
     def __init__(self):
         self.frame_rate_video = 15
         self.without_video_compression = True
-        self.filter_area = [[1154,353],[1232,353],[1230,563],[1120, 564]] # Parametrized area for filtering detections
+        # self.filter_area = [[1154,353],[1232,353],[1230,563],[1120, 564]] # Parametrized area for filtering detections
         
         
         # self.source = video_data['source']
@@ -42,10 +42,16 @@ class VideoData:
         self.store_id = store_id
         self.channel_id = channel_id
         
-    def setPolygonArea(self, _in, _out, _area):
-        self.polygons_in = np.array(_in, np.int32)
-        self.polygons_out = np.array(_out, np.int32)
-        self.polygon_area = np.array(_area, np.int32)
+    def setZoneFilterArea(self, _filter_area):
+        if _filter_area is None:
+            self.filter_area = None
+        else:
+            self.filter_area = np.array(_filter_area, np.int32)
+        
+    def setZoneInOutArea(self, zoneInOutArea):
+        self.polygons_in = np.array(zoneInOutArea[0], np.int32)
+        self.polygons_out = np.array(zoneInOutArea[1], np.int32)
+        self.polygon_area = np.array(zoneInOutArea[2], np.int32)
         
     def setVideoSource(self, video_file_name):
         if self.client_id is None:
@@ -56,11 +62,18 @@ class VideoData:
             raise Exception("Channel ID is not set")
         self.source = os.path.join(self.base_folder,str(self.client_id),str(self.store_id),str(self.channel_id), video_file_name)
     
+    
     def setVideoMetaInfo(self,video_name, video_date, video_time):
+        '''
+        video_name: `str`
+        video_date: `str` (format: 'YYYY-MM-DD')
+        video_time: `str` (format: 'HH:MM:SS')
+        '''
         self.name = video_name
         self.video_date = video_date
         self.video_time = video_time
     
 
-        
+    def setDebugVideoSourceCompletePath(self, video_file_name):
+        self.source = video_file_name
         

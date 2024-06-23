@@ -310,32 +310,34 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     
     return VideoPipeline(csv_box_name, save_path, folder_name)
 
-if __name__ == '__main__':
-    videoOptionObj = VideoOption()
-    video_dir = os.getenv('VIDEO_DIR_CONTAINER', '/app/videos')  # Always use the Docker container's video directory
-    video_file = os.getenv('VIDEO_FILE', 'video.mp4')
-    video_path = os.path.join(video_dir, video_file)
-    video_data_dict = {
-        'name': os.getenv('name'),
-        'source': video_path,
-        'description': os.getenv('description'),
-        'folder_img': os.getenv('folder_img'),
-        'polygons_in': np.array(eval(os.getenv('polygons_in')), np.int32),
-        'polygons_out': np.array(eval(os.getenv('polygons_out')), np.int32),
-        'polygon_area': np.array(eval(os.getenv('polygon_area')), np.int32),
-        'filter_area': np.array(eval(os.getenv('filter_area',[])), np.int32),
-        'client_id': int(os.getenv('CLIENT_ID')),
-        'store_id': int(os.getenv('STORE_ID')),
-        'video_date': os.getenv('VIDEO_DATE'),
-        'start_time_video': os.getenv('START_TIME_VIDEO'),
-        'frame_rate_video': int(os.getenv('FRAME_RATE_VIDEO')),
-        'without_video_compression': int(os.getenv('WITHOUT_VIDEO_COMPRESSION'), 0),
-        'db_host': os.getenv('DB_HOST'),
-        'db_user': os.getenv('DB_USER'),
-        'db_password': os.getenv('DB_PASSWORD'),
-        'db_name': os.getenv('DB_NAME'),
-    }
-    videoDataObj = VideoData(video_data_dict)
+if __name__ == '__main__':   
     with torch.no_grad():
+        videoDataObj = VideoData()
+        videoDataObj.setClientStoreChannel(1,3,1)
+        videoDataObj.setZoneFilterArea([[1154, 353],[1232, 353],[1230, 563],[1120, 564]])
+        videoDataObj.setZoneInOutArea([
+                                    [
+                                        [1265, 577],
+                                        [1285, 783],
+                                        [1220, 782],
+                                        [1195, 579]
+                                    ],
+                                    [
+                                        [1265, 577],
+                                        [1358, 574],
+                                        [1373, 773],
+                                        [1285, 783]
+                                    ],
+                                    [
+                                        [1119, 498],
+                                        [1432, 505],
+                                        [1492, 818],
+                                        [1180, 817]
+                                    ]
+                                    ]
+                                    )
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240619_0900_2min.mkv')
+        videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240619_0900_2min', '2024-06-19', '09:00:00')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True)
         videoPipeline = detect(videoDataObj, videoOptionObj)
         #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
