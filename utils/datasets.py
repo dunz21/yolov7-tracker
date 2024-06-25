@@ -170,10 +170,10 @@ class LoadImages:  # for inference
             ret_val, img0 = self.cap.read()
             
             if not ret_val and self.frame != self.nframes:
-                logger.error(f'Error reading video {path} at frame {self.frame}')
+                # logger.error(f'Error reading video {path} at frame {self.frame}')
                 valid_frame_iteration = False
                 self.frame += 1
-                print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+                # print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
                 return path, None, None, None, self.count, valid_frame_iteration
             else:
                 if not ret_val: #Something happer

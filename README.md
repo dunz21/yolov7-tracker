@@ -32,6 +32,10 @@ docker compose -f docker-compose-automatic-detect.yaml up --build
 
 ```
 ```
+# PASO 1 BUILD
+docker compose -f docker-compose-automatic-detect.yaml build 
+
+# PASO 2 Poder ejectur varias de estas instancias
 docker run --rm \
   --env-file .env \
   -e FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage \

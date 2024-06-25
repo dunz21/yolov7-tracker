@@ -1,5 +1,5 @@
 class VideoOption:
-    def __init__(self, folder_results='',view_img=False):
+    def __init__(self, folder_results='',view_img=False, noSaveVideo=False):
         self.weights = 'yolov7.pt'
         self.img_size = 640
         self.conf_thres = 0.25
@@ -17,6 +17,6 @@ class VideoOption:
         self.save_with_object_id = False
         self.download = True
         self.show_config = True # Show tracker config
-        self.nosave = False # GUARDAR VIDEO, True para NO GUARDAR
+        self.nosave = noSaveVideo # GUARDAR VIDEO, True para NO GUARDAR
         self.view_img = view_img # DEBUG IMAGE
         self.wait_for_key = False # DEBUG KEY

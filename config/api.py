@@ -63,3 +63,18 @@ class APIConfig:
                 print(f"Inserted short visit for URL {item['url']}")
             else:
                 print(f"Failed to insert short visit for URL {item['url']}. Status code: {response.status_code}, Response: {response.text}")
+                
+    @classmethod
+    def post_queue_video_result(cls, queue_video_id, model_name, results):
+        url = f"{cls.get_base_url()}/api/queue-video-results"
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'queue_video_id': queue_video_id,
+            'model_name': model_name,
+            'results': results
+        }
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            print(f"Successfully posted queue video result with ID {queue_video_id}")
+        else:
+            print(f"Failed to post queue video result. Status code: {response.status_code}, Response: {response.text}")

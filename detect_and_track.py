@@ -336,8 +336,8 @@ if __name__ == '__main__':
                                     ]
                                     ]
                                     )
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240619_0900_2min.mkv')
-        videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240619_0900_2min', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True)
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240608_0900.mkv')
+        videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240608_0900', '2024-06-19', '09:00:00')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False)
         videoPipeline = detect(videoDataObj, videoOptionObj)
         #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
