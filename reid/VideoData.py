@@ -37,10 +37,10 @@ class VideoData:
     def setBaseFolder(self, base_folder):
         self.base_folder = base_folder
         
-    def setClientStoreChannel(self, client_id, store_id, channel_id):
+    def setClientStoreChannel(self, client_id, store_id, camera_channel_id):
         self.client_id = client_id
         self.store_id = store_id
-        self.channel_id = channel_id
+        self.camera_channel_id = camera_channel_id
         
     def setZoneFilterArea(self, _filter_area):
         if _filter_area is None:
@@ -58,9 +58,9 @@ class VideoData:
             raise Exception("Client ID is not set")
         if self.store_id is None:
             raise Exception("Store ID is not set")
-        if self.channel_id is None:
+        if self.camera_channel_id is None:
             raise Exception("Channel ID is not set")
-        self.source = os.path.join(self.base_folder,str(self.client_id),str(self.store_id),str(self.channel_id), video_file_name)
+        self.source = os.path.join(self.base_folder,str(self.client_id),str(self.store_id),str(self.camera_channel_id), video_file_name)
     
     
     def setVideoMetaInfo(self,video_name, video_date, video_time):

@@ -129,7 +129,7 @@ def view_imgs_by_list_id(list_ids, img_path_folder, img_size=(50, 50), grid_colu
     plt.show()
 
 # Generate images by the CSV file
-def generate_img_by_bbox(csv_path, video_path, img_path, skip_frames=3, show_progress=True):
+def generate_img_by_bbox(csv_path='', video_path='', img_path='', skip_frames=3, show_progress=True):
     # Load CSV data
     df = pd.read_csv(csv_path)
     max_frame_number = df['frame_number'].max()
@@ -138,7 +138,7 @@ def generate_img_by_bbox(csv_path, video_path, img_path, skip_frames=3, show_pro
     cap = cv2.VideoCapture(video_path)
     
     # Create the base folder for generated images
-    img_generated_path = os.path.join(img_path, 'img_generated')
+    img_generated_path = os.path.join(img_path)
     os.makedirs(img_generated_path, exist_ok=True)
     
     current_frame = 0
@@ -181,6 +181,11 @@ def generate_img_by_bbox(csv_path, video_path, img_path, skip_frames=3, show_pro
     if show_progress:
         progress_bar.close()
     print("Image extraction completed!")
+
+
+def clean_up_pipeline(old_csv='',new_csv='',original_video='', img_path_folder='', threshold_movement=100):
+    get_new_csv_clean_up_csv_based_on_area_movement(old_csv=old_csv,new_csv=new_csv, threshold_movement=threshold_movement)
+    generate_img_by_bbox(csv_path=new_csv, video_path=original_video, img_path=img_path_folder, skip_frames=3, show_progress=False)
 
 if __name__ == '__main__':
     results = pd.read_csv('/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000_bbox.csv')

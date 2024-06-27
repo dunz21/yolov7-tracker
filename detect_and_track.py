@@ -312,32 +312,32 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
 
 if __name__ == '__main__':   
     with torch.no_grad():
-        videoDataObj = VideoData()
-        videoDataObj.setClientStoreChannel(1,3,1)
-        videoDataObj.setZoneFilterArea([[1154, 353],[1232, 353],[1230, 563],[1120, 564]])
-        videoDataObj.setZoneInOutArea([
-                                    [
-                                        [1265, 577],
-                                        [1285, 783],
-                                        [1220, 782],
-                                        [1195, 579]
-                                    ],
-                                    [
-                                        [1265, 577],
-                                        [1358, 574],
-                                        [1373, 773],
-                                        [1285, 783]
-                                    ],
-                                    [
-                                        [1119, 498],
-                                        [1432, 505],
-                                        [1492, 818],
-                                        [1180, 817]
-                                    ]
-                                    ]
-                                    )
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240608_0900.mkv')
-        videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240608_0900', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False)
-        videoPipeline = detect(videoDataObj, videoOptionObj)
-        #process_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name)
+        # videoDataObj = VideoData()
+        # videoDataObj.setClientStoreChannel(1,3,1)
+        # videoDataObj.setZoneFilterArea([[1154, 353],[1232, 353],[1230, 563],[1120, 564]])
+        # videoDataObj.setZoneInOutArea([
+        #                             [
+        #                                 [1265, 577],
+        #                                 [1285, 783],
+        #                                 [1220, 782],
+        #                                 [1195, 579]
+        #                             ],
+        #                             [
+        #                                 [1265, 577],
+        #                                 [1358, 574],
+        #                                 [1373, 773],
+        #                                 [1285, 783]
+        #                             ],
+        #                             [
+        #                                 [1119, 498],
+        #                                 [1432, 505],
+        #                                 [1492, 818],
+        #                                 [1180, 817]
+        #                             ]
+        #                             ]
+        #                             )
+        # videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240608_0900.mkv')
+        # videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240608_0900', '2024-06-19', '09:00:00')
+        # videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False)
+        # videoPipeline = detect(videoDataObj, videoOptionObj)
+        process_pipeline('/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000_bbox_cleaned.csv', '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000.mkv', '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/img_generated_1')
