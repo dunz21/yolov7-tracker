@@ -43,7 +43,7 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=30):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True):
         """
             Save the instance with the specified id to a file.
         """
@@ -65,7 +65,7 @@ class PersonImage:
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
                 if bbox_inside_any_polygon(polygons_list, bbox):
-                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS)
+                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img)
                     cls.delete_instance(id)
                     return
             return
@@ -88,7 +88,7 @@ class PersonImage:
         if final_direction == initial_direction:
             # Cruzo la linea verde pero tiene direccion indecisa.
             # Guardar igualmente como direccion indecisa
-            save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction="Cross",FPS=FPS)
+            save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction="Cross",FPS=FPS, save_img=save_img)
             cls.delete_instance(id)
             return
             # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
@@ -107,7 +107,7 @@ class PersonImage:
         else:
             direction = Direction.Undefined.value
 
-        save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=direction,FPS=FPS)
+        save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=direction,FPS=FPS, save_img=save_img)
         cls.delete_instance(id)
     
     @classmethod

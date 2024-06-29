@@ -97,7 +97,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction='',FPS=30):
+def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction='',FPS=15, save_img=True):
     file_exists = os.path.isfile(filepath)
 
     # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
@@ -110,7 +110,7 @@ def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction
 
         for index, img in enumerate(sorted(personImage.list_images, key=lambda x: x.frame_number)):
             image_name = ''
-            if img.img_frame is not None:
+            if img.img_frame is not None and save_img:
                 image_name = save_image_based_on_sub_frame(img.frame_number, img.img_frame, personImage.id, folder_name=folder_name, direction=direction, bbox=img.bbox)                
             x1, y1, x2, y2, conf_score = img.bbox
             centroid_x = (x1 + x2) // 2

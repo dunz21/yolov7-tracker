@@ -8,7 +8,7 @@ from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_vi
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
 import logging
 
-def process_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate=''):
+def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate=''):
     logger = logging.getLogger(__name__)
     
     
