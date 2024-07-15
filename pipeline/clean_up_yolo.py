@@ -4,8 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import tqdm
-
+from pipeline.images_post_yolo import generate_img_by_bbox
 
 # Clean up 1: Remove IDs with low area
 def list_ids_to_remove_based_on_area(df, plot=False,bins_number=10):
@@ -128,74 +127,28 @@ def view_imgs_by_list_id(list_ids, img_path_folder, img_size=(50, 50), grid_colu
     
     plt.show()
 
-# Generate images by the CSV file
-def generate_img_by_bbox(csv_path='', video_path='', img_path='', skip_frames=3, show_progress=True):
-    # Load CSV data
-    df = pd.read_csv(csv_path)
-    max_frame_number = df['frame_number'].max()
-    
-    # Open video file
-    cap = cv2.VideoCapture(video_path)
-    
-    # Create the base folder for generated images
-    img_generated_path = os.path.join(img_path)
-    os.makedirs(img_generated_path, exist_ok=True)
-    
-    current_frame = 0
-    if show_progress:
-        progress_bar = tqdm(total=max_frame_number, desc="Processing frames")
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        if current_frame > max_frame_number:
-            break
-        
-        if current_frame % skip_frames == 0:
-            if show_progress:
-                progress_bar.update(skip_frames)
-            
-            # Process each row in the DataFrame for the current frame
-            frame_data = df[df['frame_number'] == current_frame]
-            
-            for _, row in frame_data.iterrows():
-                img_id = row['id']
-                x1, y1, x2, y2 = int(row['x1']), int(row['y1']), int(row['x2']), int(row['y2'])
-                
-                # Extract the image using bounding box coordinates
-                cropped_img = frame[y1:y2, x1:x2]
-                
-                # Create a directory for the current id if it doesn't exist
-                id_folder = os.path.join(img_generated_path, str(img_id))
-                os.makedirs(id_folder, exist_ok=True)
-                
-                # Save the image
-                img_save_path = os.path.join(id_folder, row['img_name'])
-                cv2.imwrite(img_save_path, cropped_img)
-        
-        current_frame += 1
-    
-    cap.release()
-    if show_progress:
-        progress_bar.close()
-    print("Image extraction completed!")
-
-
-def clean_up_pipeline(old_csv='',new_csv='',original_video='', img_path_folder='', threshold_movement=100):
+def clean_up_pipeline(old_csv='',new_csv='',original_video='', new_img_path_folder='', threshold_movement=100):
     get_new_csv_clean_up_csv_based_on_area_movement(old_csv=old_csv,new_csv=new_csv, threshold_movement=threshold_movement)
-    generate_img_by_bbox(csv_path=new_csv, video_path=original_video, img_path=img_path_folder, skip_frames=3, show_progress=False)
+    generate_img_by_bbox(csv_path=new_csv, video_path=original_video, img_path=new_img_path_folder, skip_frames=3, show_progress=True)
 
+# if __name__ == '__main__':
+#     results = pd.read_csv('/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000_bbox.csv')
+
+#     initial_list_ids = results['id'].unique()
+#     print('Initial number of IDs:', len(initial_list_ids))
+
+#     df,list_ids = list_ids_to_remove_based_on_area(results, plot=False)
+#     print('Number of IDs after removing low area IDs:', len(df['id'].unique()),'and IDs were removed:', len(list_ids))
+
+#     total_movement_df,list_ids_to_remove  = list_ids_to_remove_based_on_movement(df, plot_histogram=False, threshold=100)
+
+#     print('Number of IDs after removing low movement IDs:', len(total_movement_df['id'].unique()), 'and IDs were removed:', len(list_ids_to_remove))
+    
 if __name__ == '__main__':
-    results = pd.read_csv('/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000_bbox.csv')
-
-    initial_list_ids = results['id'].unique()
-    print('Initial number of IDs:', len(initial_list_ids))
-
-    df,list_ids = list_ids_to_remove_based_on_area(results, plot=False)
-    print('Number of IDs after removing low area IDs:', len(df['id'].unique()),'and IDs were removed:', len(list_ids))
-
-    total_movement_df,list_ids_to_remove  = list_ids_to_remove_based_on_movement(df, plot_histogram=False, threshold=100)
-
-    print('Number of IDs after removing low movement IDs:', len(total_movement_df['id'].unique()), 'and IDs were removed:', len(list_ids_to_remove))
+    old_csv=  '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240603_1000/tobalaba_entrada_20240603_1000_bbox.csv'
+    new_csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240603_1000/tobalaba_entrada_20240603_1000_bbox_cleaned.csv'
+    imgs = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/imgs_cleaned'
+    video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240604_1000.mkv'
+    clean_up_pipeline(old_csv=old_csv,new_csv=new_csv,original_video=video_path, new_img_path_folder=new_img_folder, threshold_movement=100)
+    

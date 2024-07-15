@@ -29,6 +29,7 @@ def draw_boxes_on_video(csv_path='', video_path='', output_video_path='', show_p
     # Get video properties
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # cap.set(cv2.CAP_PROP_POS_FRAMES, 12)
     fps = 15  # Set the desired fps
     
     # Get the duration of the video in seconds
@@ -37,8 +38,11 @@ def draw_boxes_on_video(csv_path='', video_path='', output_video_path='', show_p
     # Calculate the total number of frames
     total_frames = int(duration_in_seconds * fps)
     
-    # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # Define the codec based on your choice
+    codec = 'mp4v'  # Change this to the codec you want to use, e.g., 'h264', 'h265'
+    print(f"Codec: {codec}")
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     
     current_frame = 0
@@ -49,6 +53,9 @@ def draw_boxes_on_video(csv_path='', video_path='', output_video_path='', show_p
         ret, frame = cap.read()
         if not ret:
             break
+        
+        # for _ in range(3):
+        #     cap.grab()  # Skip reading frames
         
         if show_progress:
             progress_bar.update(1)
@@ -75,7 +82,8 @@ def draw_boxes_on_video(csv_path='', video_path='', output_video_path='', show_p
                 print(f"Frame at {current_frame} is not a valid numpy array.")
         
         # Write the frame with drawn boxes to the output video
-        out.write(frame)
+        if current_frame > 9000: 
+            out.write(frame)
         
         current_frame += 1
     
@@ -89,5 +97,5 @@ def draw_boxes_on_video(csv_path='', video_path='', output_video_path='', show_p
 if __name__ == '__main__':
     csv = '/home/diego/Documents/yolov7-tracker/runs/detect/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST_bbox.csv'
     video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST.mkv'
-    draw_boxes_on_video(csv_path=csv, video_path=video, output_video_path='/home/diego/Documents/yolov7-tracker/runs/detect/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST_bbox.mkv', show_progress=True)
+    draw_boxes_on_video(csv_path=csv, video_path=video, output_video_path='/home/diego/Documents/yolov7-tracker/runs/detect/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST_bbox2.mkv', show_progress=True)
     

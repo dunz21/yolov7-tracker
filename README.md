@@ -40,7 +40,7 @@ docker run --rm \
   --env-file .env \
   -e FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage \
   -e RESULTS_ROOT_FOLDER_PATH=/home/diego/mydrive/results \
-  -e BASE_URL_API=http://localhost:8000 \
+  -e BASE_URL_API=http://localhost:5001 \
   --volume $(pwd)/runs/detect:/app/runs/detect \
   --volume /home/diego/mydrive/footage:/home/diego/mydrive/footage \
   --volume /home/diego/mydrive/results:/home/diego/mydrive/results \
@@ -48,5 +48,21 @@ docker run --rm \
   --gpus '"device=0"' \
   yolov7-tracker-automatic_detect_service \
   python3 automatic_detect.py
+
+  ## Paso 2 Detach
+
+  docker run -d --rm \
+  --env-file .env \
+  -e FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage \
+  -e RESULTS_ROOT_FOLDER_PATH=/home/diego/mydrive/results \
+  -e BASE_URL_API=http://localhost:5001 \
+  --volume $(pwd)/runs/detect:/app/runs/detect \
+  --volume /home/diego/mydrive/footage:/home/diego/mydrive/footage \
+  --volume /home/diego/mydrive/results:/home/diego/mydrive/results \
+  --network host \
+  --gpus '"device=0"' \
+  yolov7-tracker-automatic_detect_service \
+  python3 automatic_detect.py
+
 
 ```

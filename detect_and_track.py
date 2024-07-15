@@ -28,7 +28,7 @@ from types import SimpleNamespace
 from utils.compress_video import compress_and_replace_video
 from IPython import embed
 import ast
-from pipeline.main import process_pipeline
+from pipeline.main import process_pipeline_mini
 from reid.VideoData import VideoData
 from reid.VideoOption import VideoOption
 from reid.VideoPipeline import VideoPipeline
@@ -336,11 +336,16 @@ if __name__ == '__main__':
                                     ]
                                     ]
                                     )
+        base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
+        # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
+        csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
+        folder_imgs = os.path.join(base_folder, 'imgs')
         videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST.mkv')
         videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240606_0900_PERFORMANCE_TEST', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False, noSaveVideo=True, save_img_bbox=False)
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True)
         videoPipeline = detect(videoDataObj, videoOptionObj)
-        # process_pipeline(
-        #     '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000_bbox_cleaned.csv',
-        #     '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/tobalaba_entrada_20240604_1000.mkv',
-        #     '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000/img_generated_1')
+        
+        # process_pipeline_mini(
+        #     csv_box_name=csv_file,
+        #     img_folder_name=folder_imgs,
+        #     )
