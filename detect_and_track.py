@@ -26,12 +26,13 @@ from utils.bytetrack.byte_tracker_adaptive import BYTETrackerAdaptive
 from reid.BoundingBox import BoundingBox
 from types import SimpleNamespace
 from utils.compress_video import compress_and_replace_video
-from IPython import embed
+# from IPython import embed
 import ast
 from pipeline.main import process_pipeline_mini
 from reid.VideoData import VideoData
 from reid.VideoOption import VideoOption
 from reid.VideoPipeline import VideoPipeline
+from ultralytics import YOLOv10
 
 # from dotenv import load_dotenv
 
@@ -83,16 +84,26 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
+
+    ## YOLO V10
+    model = YOLOv10('/home/diego/Documents/MivoRepos/yolov10/runs/detect/train12/weights/best.pt')
+    # model.load(weights='/home/diego/Documents/yolov7-tracker/yolov10n.pt')
+    stride = 32  # Default stride for YOLOv10
+    imgsz = check_img_size(imgsz, s=stride)
+
+    # model = model.to(device)
+    # if half:
+        # model.half()  # to FP16
     # Load model
-    model = attempt_load(weights, map_location=device)  # load FP32 model
-    stride = int(model.stride.max())  # model stride
-    imgsz = check_img_size(imgsz, s=stride)  # check img_size
+    # model = attempt_load(weights, map_location=device)  # load FP32 model
+    # stride = int(model.stride.max())  # model stride
+    # imgsz = check_img_size(imgsz, s=stride)  # check img_size
 
-    if trace:
-        model = TracedModel(model, device, opt.img_size)
+    # if trace:
+    #     model = TracedModel(model, device, opt.img_size)
 
-    if half:
-        model.half()  # to FP16
+    # if half:
+    #     model.half()  # to FP16
 
     # Set Dataloader
     vid_path, vid_writer = None, None
@@ -103,13 +114,13 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride)
 
     # Get names and colors
-    names = model.module.names if hasattr(model, 'module') else model.names
+    names = model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
     # Run inference
-    if device.type != 'cpu':
-        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(
-            next(model.parameters())))  # run once
+    # if device.type != 'cpu':
+    #     model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(
+    #         next(model.parameters())))  # run once
     old_img_w = old_img_h = imgsz
     old_img_b = 1
 
@@ -138,20 +149,21 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
             img = img.unsqueeze(0)
 
         # Warmup
-        if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-            old_img_b = img.shape[0]
-            old_img_h = img.shape[2]
-            old_img_w = img.shape[3]
-            for i in range(3):
-                model(img, augment=opt.augment)[0]
+        # if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+        #     old_img_b = img.shape[0]
+        #     old_img_h = img.shape[2]
+        #     old_img_w = img.shape[3]
+        #     for i in range(3):
+        #         model(img, augment=opt.augment)[0]
 
         # Inference
         t1 = time_synchronized()
-        pred = model(img, augment=opt.augment)[0]
+        results = model.predict(source=img, imgsz=imgsz, device=device)
         t2 = time_synchronized()
         # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        # pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
+        pred = results[0].boxes.data  # Get detection data
 
 
         original_image = im0s.copy()
@@ -195,19 +207,23 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                         PersonImage.delete_instance(id)
             
         # Process detections
+        p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
+        p = Path(p)  # to Path
+        save_path = str(save_dir / p.name)  # img.jpg
+        
+        
         for i, det in enumerate(pred):  # detections per image
-            p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
-            p = Path(p)  # to Path
-            save_path = str(save_dir / p.name)  # img.jpg
             if len(det):
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-                det = det.cpu().detach().numpy()
-                det = filter_detections_inside_polygon(detections=det,polygon_pts=video_data.polygon_area)
-                det = filter_model_detector_output(yolo_output=det, specific_area_coords=video_data.filter_area)
-                #if len(det) == 0:
+                det_copy = det.clone()
+                det_copy = det_copy.unsqueeze(0)
+                det_copy[:, :4] = scale_coords(img.shape[2:], det_copy[:, :4], im0.shape).round()
+                det_copy = det_copy.cpu().detach().numpy()
+                det_copy = filter_detections_inside_polygon(detections=det_copy,polygon_pts=video_data.polygon_area)
+                det_copy = filter_model_detector_output(yolo_output=det_copy, specific_area_coords=video_data.filter_area)
+                #if len(det_copy) == 0:
                 #   continue #Esto no permite que el Tracker se actualice, y matar los remove
                 
-                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det]
+                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det_copy]
                 draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
                 
                 # ..................USEa TRACK FUNCTION....................
@@ -215,8 +231,8 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 dets_to_sort = np.empty((0, 6))
 
                 # NOTE: We send in detected object class too
-                # detections = det.cpu().detach().numpy()
-                for x1, y1, x2, y2, conf, detclass in det:
+                # detections = det_copy.cpu().detach().numpy()
+                for x1, y1, x2, y2, conf, detclass in det_copy:
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                     
@@ -336,12 +352,12 @@ if __name__ == '__main__':
                                     ]
                                     ]
                                     )
-        base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
+        # base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
         # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
-        csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
-        folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240606_0900_PERFORMANCE_TEST.mkv')
-        videoDataObj.setVideoMetaInfo('tobalaba_entrada_20240606_0900_PERFORMANCE_TEST', '2024-06-19', '09:00:00')
+        # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
+        # folder_imgs = os.path.join(base_folder, 'imgs')
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240701_0900.mkv')
+        videoDataObj.setVideoMetaInfo('apumanque_entrada_2_20240701_0900', '2024-06-19', '09:00:00')
         videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True)
         videoPipeline = detect(videoDataObj, videoOptionObj)
         
