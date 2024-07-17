@@ -8,6 +8,7 @@ import random
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 
 def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='slow', cq=40):
     """
@@ -212,15 +213,18 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = 15
     
+    ADJUST_FRAME = 1
     # Get the total number of frames in the video
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if cap.get(cv2.CAP_PROP_FPS) == 100:
+        ADJUST_FRAME = 0.15
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) * ADJUST_FRAME
     
     # Define the codec and create VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     
-    # if show_progress:
-        # progress_bar = tqdm(total=total_frames, desc="Processing frames")
+    if show_progress:
+        progress_bar = tqdm(total=total_frames, desc="Processing frames")
 
     current_frame = 0
     while cap.isOpened():
@@ -228,8 +232,8 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
         if not ret:
             break
         
-        # if show_progress:
-            # progress_bar.update(1)
+        if show_progress:
+            progress_bar.update(1)
         
         if current_frame in frames_to_write:
             out.write(frame)
@@ -238,8 +242,8 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     
     cap.release()
     out.release()
-    # if show_progress:
-        # progress_bar.close()
+    if show_progress:
+        progress_bar.close()
     print("Video processing completed!")
     
     

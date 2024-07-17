@@ -361,9 +361,9 @@ if __name__ == '__main__':
         # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
         # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
         # folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240712_1000_C_FPS.mkv')
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240701_0900_short1.mkv')
         videoDataObj.setVideoMetaInfo('costanera_entrada_20240712_1000_C_FPS', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov10n.pt')
         videoPipeline = detect(videoDataObj, videoOptionObj)
         
         # process_pipeline_mini(
