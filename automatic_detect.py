@@ -31,7 +31,7 @@ if __name__ == '__main__':
         videoDataObj.setVideoMetaInfo(nextVideoInQueue['video_file_name'].split('.')[0], nextVideoInQueue['video_date'], nextVideoInQueue['video_time'])
 
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
-        videoOptionObj = VideoOption(folder_results=folder_results_path,noSaveVideo=False)
+        videoOptionObj = VideoOption(folder_results=folder_results_path,noSaveVideo=False, weights='/home/diego/Documents/yolov10/runs/detect/yolo10m_finetunned_apumanque/weights/yolo10m_finetuned.pt')
         
     
         if not os.path.exists(videoDataObj.source):

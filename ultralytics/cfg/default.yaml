@@ -16,7 +16,7 @@ save: True # (bool) save train checkpoints and predict results
 save_period: -1 # (int) Save checkpoint every x epochs (disabled if < 1)
 val_period: 1 # (int) Validation every x epochs
 cache: False # (bool) True/ram, disk or False. Use cache for data loading
-device: # (int | str | list, optional) device to run on, i.e. cuda device=0 or device=0,1,2,3 or device=cpu
+device: 0 # (int | str | list, optional) device to run on, i.e. cuda device=0 or device=0,1,2,3 or device=cpu
 workers: 8 # (int) number of worker threads for data loading (per RANK if DDP)
 project: # (str, optional) project name
 name: # (str, optional) experiment name, results saved to 'project/name' directory
@@ -66,7 +66,7 @@ retina_masks: False # (bool) use high-resolution segmentation masks
 embed: # (list[int], optional) return feature vectors/embeddings from given layers
 
 # Visualize settings ---------------------------------------------------------------------------------------------------
-show: True # (bool) show predicted images and videos if environment allows
+show: False # (bool) show predicted images and videos if environment allows
 save_frames: False # (bool) save predicted individual video frames
 save_txt: False # (bool) save results as .txt file
 save_conf: False # (bool) save results with confidence scores

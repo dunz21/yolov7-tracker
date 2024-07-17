@@ -33,7 +33,7 @@ from reid.VideoData import VideoData
 from reid.VideoOption import VideoOption
 from reid.VideoPipeline import VideoPipeline
 from ultralytics import YOLOv10
-
+from ultralytics.models import YOLO
 # from dotenv import load_dotenv
 
 def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
@@ -80,14 +80,13 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     set_log(f"{save_dir}/app.log")
     logger = logging.getLogger(__name__)
     logger.info(vars(video_data))
+    logger.info(vars(opt))
     
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
 
-    ## YOLO V10
-    model = YOLOv10('/home/diego/Documents/MivoRepos/yolov10/runs/detect/train12/weights/best.pt')
-    # model.load(weights='/home/diego/Documents/yolov7-tracker/yolov10n.pt')
+    model = YOLOv10(weights)
     stride = 32  # Default stride for YOLOv10
     imgsz = check_img_size(imgsz, s=stride)
 
@@ -127,7 +126,6 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     t0 = time.time()
 
     t100 = time.time()
-    time_for_each_100_frames = []
     current_frame = 0  # Initialize current frame counter
 
     for path, img, im0s, vid_cap, frame, valid_frame_iteration in dataset:
@@ -158,7 +156,10 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
 
         # Inference
         t1 = time_synchronized()
-        results = model.predict(source=img, imgsz=imgsz, device=device)
+        with torch.no_grad():    
+            # results = model.predict(source=img, imgsz=imgsz, device=device)
+            results = model(img, verbose=False, conf=opt.conf_thres, iou=opt.iou_thres)
+            # results = model.raw_inference(img, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres)
         t2 = time_synchronized()
         # Apply NMS
         # pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
@@ -212,18 +213,17 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         save_path = str(save_dir / p.name)  # img.jpg
         
         
-        for i, det in enumerate(pred):  # detections per image
+        for i, det in enumerate(results):  # detections per image
+            det = det.boxes.data.clone()  # get box data
             if len(det):
-                det_copy = det.clone()
-                det_copy = det_copy.unsqueeze(0)
-                det_copy[:, :4] = scale_coords(img.shape[2:], det_copy[:, :4], im0.shape).round()
-                det_copy = det_copy.cpu().detach().numpy()
-                det_copy = filter_detections_inside_polygon(detections=det_copy,polygon_pts=video_data.polygon_area)
-                det_copy = filter_model_detector_output(yolo_output=det_copy, specific_area_coords=video_data.filter_area)
-                #if len(det_copy) == 0:
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0s.shape).round()
+                det_np = det.cpu().numpy()
+                det_np = filter_detections_inside_polygon(detections=det_np,polygon_pts=video_data.polygon_area)
+                det_np = filter_model_detector_output(yolo_output=det_np, specific_area_coords=video_data.filter_area)
+                #if len(det_np) == 0:
                 #   continue #Esto no permite que el Tracker se actualice, y matar los remove
                 
-                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det_copy]
+                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det_np]
                 draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
                 
                 # ..................USEa TRACK FUNCTION....................
@@ -231,8 +231,8 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 dets_to_sort = np.empty((0, 6))
 
                 # NOTE: We send in detected object class too
-                # detections = det_copy.cpu().detach().numpy()
-                for x1, y1, x2, y2, conf, detclass in det_copy:
+                # detections = det_np.cpu().detach().numpy()
+                for x1, y1, x2, y2, conf, detclass in det_np:
                     dets_to_sort = np.vstack((dets_to_sort,
                                               np.array([x1, y1, x2, y2, conf, detclass])))
                     
@@ -276,7 +276,12 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
 
             
         print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
-
+        
+        if frame % 1000 == 0:
+            logger.info(f"1000 frames took {t100 - time.time()} seconds")
+            t100 = time.time()
+            
+            
         # Stream results
         if view_img:
             cv2.imshow(str(p), im0)
@@ -356,9 +361,9 @@ if __name__ == '__main__':
         # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
         # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
         # folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240701_0900.mkv')
-        videoDataObj.setVideoMetaInfo('apumanque_entrada_2_20240701_0900', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True)
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240712_1000_C_FPS.mkv')
+        videoDataObj.setVideoMetaInfo('costanera_entrada_20240712_1000_C_FPS', '2024-06-19', '09:00:00')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt')
         videoPipeline = detect(videoDataObj, videoOptionObj)
         
         # process_pipeline_mini(

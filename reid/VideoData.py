@@ -63,7 +63,7 @@ class VideoData:
         self.source = os.path.join(self.base_folder,str(self.client_id),str(self.store_id),str(self.camera_channel_id), video_file_name)
     
     
-    def setVideoMetaInfo(self,video_name, video_date, video_time):
+    def setVideoMetaInfo(self,video_name, video_date, video_time,extra_info=None):
         '''
         video_name: `str`
         video_date: `str` (format: 'YYYY-MM-DD')
@@ -72,6 +72,7 @@ class VideoData:
         self.name = video_name
         self.video_date = video_date
         self.video_time = video_time
+        self.extra_info = extra_info
     
 
     def setDebugVideoSourceCompletePath(self, video_file_name):

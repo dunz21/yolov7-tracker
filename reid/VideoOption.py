@@ -1,6 +1,6 @@
 class VideoOption:
-    def __init__(self, folder_results='',view_img=False, noSaveVideo=False, save_img_bbox=True):
-        self.weights = 'yolov7.pt'
+    def __init__(self, folder_results='',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt'):
+        self.weights = weights
         self.img_size = 640
         self.conf_thres = 0.25
         self.iou_thres = 0.45

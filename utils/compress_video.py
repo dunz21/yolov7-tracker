@@ -2,6 +2,12 @@ import subprocess
 import os
 import time
 import logging
+import os
+import cv2
+import random
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='slow', cq=40):
     """
@@ -167,3 +173,76 @@ def process_videos_to_15_FPS(folder_path):
                 subprocess.run(command)
 
 #process_videos('/home/diego/mydrive/footage/1/12/2/')
+
+
+
+
+
+
+
+
+
+
+# from tqdm.notebook import tqdm
+
+def write_condensed_video(csv_path='', video_path='', output_video_path='', show_progress=True):
+    # Load CSV data
+    df = pd.read_csv(csv_path)
+    
+    # Preprocess the DataFrame to get frame ranges for each ID
+    id_ranges = df.groupby('id').agg({
+        'frame_number': ['min', 'max']
+    }).reset_index()
+    id_ranges.columns = ['id', 'min_frame', 'max_frame']
+    
+    # Adjust the ranges by -30 and +30 frames
+    id_ranges['min_frame'] = id_ranges['min_frame'] - 30
+    id_ranges['max_frame'] = id_ranges['max_frame'] + 30
+    
+    # Create a set of all frames that need to be written
+    frames_to_write = set()
+    for _, row in id_ranges.iterrows():
+        frames_to_write.update(range(max(0, row['min_frame']), row['max_frame'] + 1))
+    
+    # Open video file
+    cap = cv2.VideoCapture(video_path)
+    
+    # Get video properties
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = 15
+    
+    # Get the total number of frames in the video
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+    
+    # if show_progress:
+        # progress_bar = tqdm(total=total_frames, desc="Processing frames")
+
+    current_frame = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        # if show_progress:
+            # progress_bar.update(1)
+        
+        if current_frame in frames_to_write:
+            out.write(frame)
+        
+        current_frame += 1
+    
+    cap.release()
+    out.release()
+    # if show_progress:
+        # progress_bar.close()
+    print("Video processing completed!")
+    
+    
+# csv = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix_bbox.csv'
+# video = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix.mkv'
+# write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True)
