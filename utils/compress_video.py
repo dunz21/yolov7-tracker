@@ -82,8 +82,7 @@ def print_mkv_files_in_subfolders(folder_path):
     
     except Exception as e:
         print(f"An error occurred: {e}")
-        
-        
+                
 def compress_for_video_viewer_folder_root(folder_path):
     try:
         # Check if the given path is a valid directory
@@ -125,7 +124,7 @@ def compress_for_video_viewer_folder_root(folder_path):
 # print_mkv_files_in_subfolders(folder_path)
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # Example usage
     # video_path = "/home/diego/Documents/yolov7-tracker/runs/detect/2024_04_26_calper_portugal/portugal_20240424.mp4"
     # compress_and_replace_video(video_path)
@@ -134,13 +133,6 @@ if __name__ == "__main__":
     # Compres for video viewer
     folder_path = "/home/diego/mydrive/footage/1/10/8/"
     compress_for_video_viewer_folder_root(folder_path)
-
-
-
-
-
-
-
 
 def process_videos_to_15_FPS(folder_path):
     # List all files in the specified folder
@@ -173,22 +165,13 @@ def process_videos_to_15_FPS(folder_path):
                 # Execute the ffmpeg command
                 subprocess.run(command)
 
-#process_videos('/home/diego/mydrive/footage/1/12/2/')
-
-
-
-
-
-
-
-
-
-
-# from tqdm.notebook import tqdm
-
-def write_condensed_video(csv_path='', video_path='', output_video_path='', show_progress=True):
+def write_condensed_video(csv_path='', video_path='', output_video_path='', show_progress=True, filter_direction=None):
     # Load CSV data
     df = pd.read_csv(csv_path)
+    
+    # Filter the DataFrame based on the filter_direction parameter
+    if filter_direction == "In":
+        df = df[df['direction'] == 'In']
     
     # Preprocess the DataFrame to get frame ranges for each ID
     id_ranges = df.groupby('id').agg({
@@ -246,7 +229,7 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
         progress_bar.close()
     print("Video processing completed!")
     
-    
-# csv = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix_bbox.csv'
-# video = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240701_0900_YOLOn_finetunning_fix.mkv'
-# write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True)
+if __name__ == "__main__":  
+    csv = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240704_0900/apumanque_entrada_2_20240704_0900_bbox.csv'
+    video = '/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240704_0900.mkv'
+    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True)
