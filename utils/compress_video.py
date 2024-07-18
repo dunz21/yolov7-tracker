@@ -230,6 +230,6 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     print("Video processing completed!")
     
 if __name__ == "__main__":  
-    csv = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240704_0900/apumanque_entrada_2_20240704_0900_bbox.csv'
-    video = '/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240704_0900.mkv'
+    csv = '/home/diego/Documents/MivoRepos/mivo-project/results-apumanque/apumanque_entrada_2_20240704_0900_short/apumanque_entrada_2_20240704_0900_short_bbox.csv'
+    video = '/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240704_0900_short.mkv'
     write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True)

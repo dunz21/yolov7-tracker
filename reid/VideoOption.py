@@ -1,5 +1,5 @@
 class VideoOption:
-    def __init__(self, folder_results='',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt'):
+    def __init__(self, folder_results='',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt', model_version='yolov10'):
         self.weights = weights
         self.img_size = 640
         self.conf_thres = 0.25
@@ -8,6 +8,7 @@ class VideoOption:
         self.save_txt = False
         self.classes = [0]
         self.agnostic_nms = False
+        self.model_version = model_version
         self.augment = False
         self.update = False
         self.project = folder_results

@@ -85,24 +85,26 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
+    if opt.model_version == 'yolov10':
+        model = YOLOv10(weights)
+        stride = 32  # Default stride for YOLOv10
+    else:
+        model = attempt_load(weights, map_location=device)  # load FP32 model
+        stride = int(model.stride.max())  # model stride
+        model = model.to(device)
+        if half:
+            model.half()  # to FP16
+        model = attempt_load(weights, map_location=device)  # load FP32 model
+        stride = int(model.stride.max())  # model stride
+        imgsz = check_img_size(imgsz, s=stride)  # check img_size
+        if trace:
+            model = TracedModel(model, device, opt.img_size)
+        if half:
+            model.half()  # to FP16
 
-    model = YOLOv10(weights)
-    stride = 32  # Default stride for YOLOv10
+
     imgsz = check_img_size(imgsz, s=stride)
 
-    # model = model.to(device)
-    # if half:
-        # model.half()  # to FP16
-    # Load model
-    # model = attempt_load(weights, map_location=device)  # load FP32 model
-    # stride = int(model.stride.max())  # model stride
-    # imgsz = check_img_size(imgsz, s=stride)  # check img_size
-
-    # if trace:
-    #     model = TracedModel(model, device, opt.img_size)
-
-    # if half:
-    #     model.half()  # to FP16
 
     # Set Dataloader
     vid_path, vid_writer = None, None
@@ -112,14 +114,10 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     else: 
         dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride)
 
-    # Get names and colors
-    names = model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
-
     # Run inference
-    # if device.type != 'cpu':
-    #     model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(
-    #         next(model.parameters())))  # run once
+    if device.type != 'cpu':
+        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(
+            next(model.parameters())))  # run once
     old_img_w = old_img_h = imgsz
     old_img_b = 1
 
@@ -146,25 +144,30 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
 
-        # Warmup
-        # if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-        #     old_img_b = img.shape[0]
-        #     old_img_h = img.shape[2]
-        #     old_img_w = img.shape[3]
-        #     for i in range(3):
-        #         model(img, augment=opt.augment)[0]
-
-        # Inference
-        t1 = time_synchronized()
-        with torch.no_grad():    
-            # results = model.predict(source=img, imgsz=imgsz, device=device)
+        if opt.model_version == 'yolov7':
+            # Warmup
+            if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+                old_img_b = img.shape[0]
+                old_img_h = img.shape[2]
+                old_img_w = img.shape[3]
+                for i in range(3):
+                    model(img, augment=opt.augment)[0]
+            # Inference
+            t1 = time_synchronized()
+            pred = model(img, augment=opt.augment)[0]
+            t2 = time_synchronized()
+            # Apply NMS
+            results = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+            t3 = time_synchronized()
+            
+        if opt.model_version == 'yolov10':
+            # Inference
+            t1 = time_synchronized()
             results = model(img, verbose=False, conf=opt.conf_thres, iou=opt.iou_thres)
-            # results = model.raw_inference(img, conf_thres=opt.conf_thres, iou_thres=opt.iou_thres)
-        t2 = time_synchronized()
-        # Apply NMS
-        # pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-        t3 = time_synchronized()
-        pred = results[0].boxes.data  # Get detection data
+            t2 = time_synchronized()
+            t3 = time_synchronized()
+            
+
 
 
         original_image = im0s.copy()
@@ -214,7 +217,8 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         
         
         for i, det in enumerate(results):  # detections per image
-            det = det.boxes.data.clone()  # get box data
+            if opt.model_version == 'yolov10':
+                det = det.boxes.data.clone()  # get box data
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0s.shape).round()
                 det_np = det.cpu().numpy()
@@ -336,34 +340,14 @@ if __name__ == '__main__':
         videoDataObj = VideoData()
         videoDataObj.setClientStoreChannel(1,3,1)
         videoDataObj.setZoneFilterArea([[1154, 353],[1232, 353],[1230, 563],[1120, 564]])
-        videoDataObj.setZoneInOutArea([
-                                    [
-                                        [1265, 577],
-                                        [1285, 783],
-                                        [1220, 782],
-                                        [1195, 579]
-                                    ],
-                                    [
-                                        [1265, 577],
-                                        [1358, 574],
-                                        [1373, 773],
-                                        [1285, 783]
-                                    ],
-                                    [
-                                        [1119, 498],
-                                        [1432, 505],
-                                        [1492, 818],
-                                        [1180, 817]
-                                    ]
-                                    ]
-                                    )
+        videoDataObj.setZoneInOutArea([[[1376,579],[1369,979],[1289,964],[1310,572]],[[1376,579],[1445,571],[1459,957],[1369,979]],[[1260,550],[1536,548],[1555,979],[1213,986]]])
         # base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
         # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
         # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
         # folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240701_0900_short1.mkv')
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240701_0900_condensed.mkv')
         videoDataObj.setVideoMetaInfo('costanera_entrada_20240712_1000_C_FPS', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov10n.pt')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt',model_version='yolov7')
         videoPipeline = detect(videoDataObj, videoOptionObj)
         
         # process_pipeline_mini(

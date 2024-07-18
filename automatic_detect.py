@@ -11,6 +11,7 @@ from config.api import APIConfig
 if __name__ == '__main__':
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
+    weights_folder = '/home/diego/Documents/MivoRepos/yolov10/runs/train/yolo10n_freeze_lr_version_2/weights/best.pt'
     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
     
     APIConfig.initialize(base_url_api)
@@ -31,7 +32,7 @@ if __name__ == '__main__':
         videoDataObj.setVideoMetaInfo(nextVideoInQueue['video_file_name'].split('.')[0], nextVideoInQueue['video_date'], nextVideoInQueue['video_time'])
 
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
-        videoOptionObj = VideoOption(folder_results=folder_results_path,noSaveVideo=False, weights='/home/diego/Documents/MivoRepos/mivo-project/weigts-yolov10/yolo10n_finetune_apumanque/weights/yolo10n_finetuned.pt')
+        videoOptionObj = VideoOption(folder_results=folder_results_path,noSaveVideo=False, weights=weights_folder)
         
     
         if not os.path.exists(videoDataObj.source):
