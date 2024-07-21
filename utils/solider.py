@@ -143,25 +143,6 @@ def solider_result(folder_path="", weight=''):
     features_array = features_list.cpu().numpy()
     return features_array, image_names
 
-def in_out_status(values, number_img_different_permited=2):
-    """
-        Determines if the values in a list are all the same, different, or mixed.
-        number_img_different_permited: number of images that can be different
-    """
-    in_count = values.count(Direction.In.value)
-    out_count = values.count(Direction.Out.value)
-
-    # If all values are the same, return that value
-    if in_count == len(values) or out_count == len(values):
-        return values[0]
-
-    # si existe 10 In y 2 Out entonces que sea In, pero si hay 3 Out ya no
-    if abs(in_count - out_count) >= len(values) - (2 * number_img_different_permited):
-        return Direction.In.value if in_count > out_count else Direction.Out.value
-
-    # If there are two or more elements that differ, return 'InOut'
-    return 'InOut'
-
 def custom_threshold_analysis(arr, threshold=75):
 
     sorted_arr = np.sort(arr)

@@ -133,3 +133,7 @@ def process_pipeline_mini(csv_box_name='', img_folder_name=''):
 
 
 
+if __name__ == '__main__':
+    img_folder_name = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240705_0900_short_condensed_03_46_15_yolo10m_pc/imgs'
+    db_base_path = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240705_0900_short_condensed_03_46_15_yolo10m_pc/apumanque_entrada_2_20240705_0900_short_condensed_03:46:15_bbox.db'
+    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)  

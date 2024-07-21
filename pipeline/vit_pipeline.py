@@ -18,7 +18,7 @@ from sklearn.cluster import KMeans
 # For clustering and evaluation
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import base64
-from utils.solider import in_out_status,model_selection,custom_threshold_analysis
+from utils.solider import model_selection,custom_threshold_analysis
 from utils.time import seconds_to_time
 from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import cosine as cosine_distance
@@ -177,33 +177,36 @@ def get_folders(parent_folder, limit=None):
  # 1.- Analisis pureza 
 def folder_analysis(folders):
     result = {
-    Direction.In.value: [],
-    Direction.Out.value: [],
-    'InOut': []
+        Direction.In.value: [],
+        Direction.Out.value: [],
+        Direction.Undefined.value: [],
+        Direction.Cross.value: [],
     }
-    count = 0
-
+    
     for folder in folders:
         list_images = os.listdir(folder)
         if len(list_images) == 0:
             print(f"Folder {folder} is empty")
-        images_status = [img.split('_')[3] for img in list_images]
-        image_statuses = in_out_status(images_status,1)
-        if Direction.In.value == image_statuses:
-            result[Direction.In.value].append(folder.split('/')[-1])
-        elif Direction.Out.value == image_statuses:
-            result[Direction.Out.value].append(folder.split('/')[-1])
-        else:
-            result['InOut'].append(folder.split('/')[-1])
+            continue
         
-        count += 1
+        for img in list_images:
+            img_parts = img.split('_')
+            img_id = img_parts[1]
+            direction = img_parts[3]
+            
+            if direction == Direction.In.value:
+                result[Direction.In.value].append(img_id)
+            elif direction == Direction.Out.value:
+                result[Direction.Out.value].append(img_id)
+            elif direction == Direction.Undefined.value:
+                result[Direction.Undefined.value].append(img_id)
+            elif direction == Direction.Cross.value:
+                result[Direction.Cross.value].append(img_id)
+            else:
+                print(f"Unknown direction {direction} in image {img}")
+                
 
-    total_folders = count
-    total_in = len(result[Direction.In.value])
-    total_out = len(result[Direction.Out.value])
-    total_in_out = len(result['InOut'])
-
-    return total_folders,total_in,total_out,total_in_out,result
+    return 0,0,0,0,result
 
 # 2.- Generate Feature Solider and save to csv
 def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='',  optional_save_csv=None, db_path=None):
@@ -496,7 +499,7 @@ def get_features_from_model(model_name='', folder_path='',optional_save_csv='fea
     list_folders = get_folders(folder_path)
     _,_,_,_,result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
-    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]]
+    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Undefined.value]]
     features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
     return features
 
