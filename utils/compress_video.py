@@ -165,7 +165,8 @@ def process_videos_to_15_FPS(folder_path):
                 # Execute the ffmpeg command
                 subprocess.run(command)
 
-def write_condensed_video(csv_path='', video_path='', output_video_path='', show_progress=True, filter_direction=None):
+def write_condensed_video(csv_path='', video_path='', output_video_path='', show_progress=True, filter_direction=None, margin_seconds = 2):
+    fps = 15
     # Load CSV data
     df = pd.read_csv(csv_path)
     
@@ -180,8 +181,8 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     id_ranges.columns = ['id', 'min_frame', 'max_frame']
     
     # Adjust the ranges by -30 and +30 frames
-    id_ranges['min_frame'] = id_ranges['min_frame'] - 30
-    id_ranges['max_frame'] = id_ranges['max_frame'] + 30
+    id_ranges['min_frame'] = id_ranges['min_frame'] - margin_seconds * fps
+    id_ranges['max_frame'] = id_ranges['max_frame'] + margin_seconds * fps
     
     # Create a set of all frames that need to be written
     frames_to_write = set()
@@ -194,7 +195,6 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     # Get video properties
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = 15
     
     ADJUST_FRAME = 1
     # Get the total number of frames in the video
@@ -230,6 +230,15 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     print("Video processing completed!")
     
 if __name__ == "__main__":  
-    csv = '/home/diego/Documents/MivoRepos/mivo-project/results-apumanque/apumanque_entrada_2_20240704_0900_short/apumanque_entrada_2_20240704_0900_short_bbox.csv'
-    video = '/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240704_0900_short.mkv'
-    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True)
+    csv = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240712_0900/apumanque_entrada_2_20240712_0900_bbox.csv'
+    video = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-footage/apumanque_entrada_2_20240712_0900.mkv'
+    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    
+    # csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240609_0900/tobalaba_entrada_20240609_0900_bbox.csv'
+    # video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240609_0900.mkv'
+    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    
+    # csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_0900/tobalaba_entrada_20240604_0900_bbox.csv'
+    # video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240604_0900.mkv'
+    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    

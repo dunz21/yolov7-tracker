@@ -35,13 +35,18 @@ def set_logging(rank=-1):
         format="%(message)s",
         level=logging.INFO if rank in [-1, 0] else logging.WARN)
     
-def set_log(filename='app.log'):
+def set_log(filename):
+    # Remove all handlers associated with the root logger object
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
+    # Configure logging to write to the specified file
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(filename),
-            # logging.StreamHandler() #Si es que quiero que los priint se muestren en consola
+            # logging.StreamHandler()  # Uncomment if you want to print logs to console
         ]
     )
 

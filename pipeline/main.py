@@ -6,6 +6,7 @@ from pipeline.vit_pipeline import get_features_from_model
 from pipeline.re_ranking import complete_re_ranking
 from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_visits_to_api
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
+from utils.debug_yolo import debug_results_yolo
 import logging
 
 def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate=''):
@@ -126,6 +127,9 @@ def process_pipeline_mini(csv_box_name='', img_folder_name=''):
     complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
     logger.info(f"Step 7 completed: Completed re-ranking")
     
+    category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_box_name)
+    logger.info(f"Category summary: {category_summary}")
+    logger.info(f"Unique ID counts: {unique_id_counts}")
 
 
 

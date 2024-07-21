@@ -6,7 +6,7 @@ class VideoOption:
         self.iou_thres = 0.45
         self.device = '0'
         self.save_txt = False
-        self.classes = [0]
+        self.classes = None
         self.agnostic_nms = False
         self.model_version = model_version
         self.augment = False
