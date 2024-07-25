@@ -91,6 +91,10 @@ def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name=''
 def process_pipeline_mini(csv_box_name='', img_folder_name=''):
     logger = logging.getLogger(__name__)
     
+    category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_box_name)
+    logger.info(f"Category summary: {category_summary}")
+    logger.info(f"Unique ID counts: {unique_id_counts}")
+    
     # Step 1: Convert CSV to SQLite
     logger.info("Step 1: Convert CSV to SQLite")
     db_base_path = csv_box_name.replace('.csv', '.db')
@@ -98,9 +102,9 @@ def process_pipeline_mini(csv_box_name='', img_folder_name=''):
     logger.info(f"Step 1 completed: Converted {csv_box_name}.csv to SQLite database at {db_base_path}")
     
     # Step 2: Correct IDs in the database using the switch ID corrector pipeline
-    logger.info("Step 2: Correct IDs in the database using the switch ID corrector pipeline")
-    switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=img_folder_name, weights='model_weights.pth', model_name='solider')
-    logger.info(f"Step 2 completed: Corrected IDs using switch ID corrector pipeline")
+    # logger.info("Step 2: Correct IDs in the database using the switch ID corrector pipeline")
+    # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=img_folder_name, weights='model_weights.pth', model_name='solider')
+    # logger.info(f"Step 2 completed: Corrected IDs using switch ID corrector pipeline")
     
     # Step 3: Prepare data for image selection
     logger.info("Step 3: Prepare data for image selection")
@@ -119,7 +123,7 @@ def process_pipeline_mini(csv_box_name='', img_folder_name=''):
     
     # Step 6: Extract features from model
     logger.info("Step 6: Extract features from model")
-    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)
+    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}", weights='model_weights.pth', db_path=db_base_path)
     logger.info(f"Step 6 completed: Extracted features from model")
     
     # Step 7: Complete re-ranking using the extracted features
@@ -127,13 +131,11 @@ def process_pipeline_mini(csv_box_name='', img_folder_name=''):
     complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
     logger.info(f"Step 7 completed: Completed re-ranking")
     
-    category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_box_name)
-    logger.info(f"Category summary: {category_summary}")
-    logger.info(f"Unique ID counts: {unique_id_counts}")
-
-
 
 if __name__ == '__main__':
-    img_folder_name = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240705_0900_short_condensed_03_46_15_yolo10m_pc/imgs'
-    db_base_path = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240705_0900_short_condensed_03_46_15_yolo10m_pc/apumanque_entrada_2_20240705_0900_short_condensed_03:46:15_bbox.db'
-    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights='model_weights.pth', db_path=db_base_path)  
+    features = process_pipeline_mini(csv_box_name='/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240720_1000/apumanque_entrada_2_20240720_1000_bbox.csv',img_folder_name='/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240720_1000/imgs')
+    
+    
+    # category_summary, unique_id_counts = debug_results_yolo(csv_path='/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240712_09003/apumanque_entrada_2_20240712_0900_bbox.csv')
+    # print(f"Category summary: {category_summary}")
+    # print(f"Unique ID counts: {unique_id_counts}")

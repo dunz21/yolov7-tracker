@@ -211,6 +211,9 @@ class LoadImages:  # for inference
         self.frame = 0
         self.cap = cv2.VideoCapture(path)
         self.nframes = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # TODO: Check if this is necessary
+        # fps = self.cap.get(cv2.CAP_PROP_FPS)
+        # self.nframes = int(self.nframes * 0.15) if fps == 100 else self.nframes
 
     def __len__(self):
         return self.nf  # number of files

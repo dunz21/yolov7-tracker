@@ -49,6 +49,19 @@ class APIConfig:
                 print(f"Failed to insert {item['count']} visits at {item['time_calculated']}. Status code: {response.status_code}, Response: {response.text}")
 
     @classmethod
+    def save_event_timestamps(cls, list_event_timestamps):
+        url = f"{cls.get_base_url()}/api/save-event-timestamps"
+        headers = {'Content-Type': 'application/json'}
+        
+        # Data should be a list of dictionaries
+        response = requests.post(url, headers=headers, json=list_event_timestamps)
+        
+        if response.status_code == 201:
+            print("Data inserted successfully")
+        else:
+            print(f"Failed to insert data. Status code: {response.status_code}, Response: {response.text}")
+    
+    @classmethod
     def save_short_visits(cls, short_video_clips_urls, date, store_id):
         url = f"{cls.get_base_url()}/api/save-short-visits"
         headers = {'Content-Type': 'application/json'}

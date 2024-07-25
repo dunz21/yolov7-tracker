@@ -59,3 +59,11 @@ def generate_img_by_bbox(csv_path='', video_path='', img_path='', skip_frames=3,
     if show_progress:
         progress_bar.close()
     print("Image extraction completed!")
+    
+if __name__ == '__main__':
+    csv_path = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240719_1000/'
+    video_path = 'data/raw/processed_video.mp4'
+    img_path = 'data/processed/generated_images'
+    generate_img_by_bbox(csv_path='', video_path='', img_path='', skip_frames=3, show_progress=True)
+    
+    

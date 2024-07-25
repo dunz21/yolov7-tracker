@@ -188,22 +188,21 @@ def folder_analysis(folders):
         if len(list_images) == 0:
             print(f"Folder {folder} is empty")
             continue
+        img = list_images[0]
+        img_parts = img.split('_')
+        img_id = img_parts[1]
+        direction = img_parts[3]
         
-        for img in list_images:
-            img_parts = img.split('_')
-            img_id = img_parts[1]
-            direction = img_parts[3]
-            
-            if direction == Direction.In.value:
-                result[Direction.In.value].append(img_id)
-            elif direction == Direction.Out.value:
-                result[Direction.Out.value].append(img_id)
-            elif direction == Direction.Undefined.value:
-                result[Direction.Undefined.value].append(img_id)
-            elif direction == Direction.Cross.value:
-                result[Direction.Cross.value].append(img_id)
-            else:
-                print(f"Unknown direction {direction} in image {img}")
+        if direction == Direction.In.value:
+            result[Direction.In.value].append(img_id)
+        elif direction == Direction.Out.value:
+            result[Direction.Out.value].append(img_id)
+        elif direction == Direction.Undefined.value:
+            result[Direction.Undefined.value].append(img_id)
+        elif direction == Direction.Cross.value:
+            result[Direction.Cross.value].append(img_id)
+        else:
+            print(f"Unknown direction {direction} in image {img}")
                 
 
     return 0,0,0,0,result
@@ -216,7 +215,7 @@ def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='
         if len(entries) == 0:
             continue
         full_path.append(folder)
-    chunks = _chunk_array(full_path, 10)
+    chunks = _chunk_array(full_path, 5)
 
     # all_data = []
     temp_csv = 'features_temp.csv'
@@ -499,7 +498,7 @@ def get_features_from_model(model_name='', folder_path='',optional_save_csv='fea
     list_folders = get_folders(folder_path)
     _,_,_,_,result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
-    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Undefined.value]]
+    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Undefined.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Cross.value]]
     features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
     return features
 

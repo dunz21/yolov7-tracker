@@ -171,8 +171,8 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     df = pd.read_csv(csv_path)
     
     # Filter the DataFrame based on the filter_direction parameter
-    if filter_direction == "In":
-        df = df[df['direction'] == 'In']
+    if filter_direction:
+        df = df[df['direction'].isin(filter_direction)]
     
     # Preprocess the DataFrame to get frame ranges for each ID
     id_ranges = df.groupby('id').agg({
@@ -230,9 +230,9 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     print("Video processing completed!")
     
 if __name__ == "__main__":  
-    csv = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240712_0900/apumanque_entrada_2_20240712_0900_bbox.csv'
-    video = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-footage/apumanque_entrada_2_20240712_0900.mkv'
-    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    csv = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240719_1000/apumanque_entrada_2_20240719_1000_bbox.csv'
+    video = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240712_0900.mkv'
+    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed_undefined_cross_sapi.mkv')}", show_progress=True, margin_seconds=4)
     
     # csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240609_0900/tobalaba_entrada_20240609_0900_bbox.csv'
     # video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240609_0900.mkv'
