@@ -43,7 +43,7 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True, save_all=False):
         """
             Save the instance with the specified id to a file.
         """
@@ -64,7 +64,7 @@ class PersonImage:
             # No cruzo la linea verde, pero toque alguno de los polygonos
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
-                if bbox_inside_any_polygon(polygons_list, bbox):
+                if bbox_inside_any_polygon(polygons_list, bbox) or save_all:
                     save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img)
                     cls.delete_instance(id)
                     return

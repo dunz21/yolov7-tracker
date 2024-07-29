@@ -47,7 +47,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     
     obj = SimpleNamespace()
     obj.track_thresh = 0.5 ### BYTETRACK Default 0.5
-    obj.match_thresh = 0.8 ### BYTETRACK Default 0.8
+    obj.match_thresh = 0.6 ### BYTETRACK Default 0.8
     obj.track_high_thresh = 0.2 ### SMILE TRACK ONLY Default 0.6
     obj.track_low_thresh = 0.1 ### SMILE TRACK ONLY Default 0.1
     obj.new_track_thresh = 0.2 ### SMILE TRACK ONLY Default 0.7
@@ -62,11 +62,17 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     ### SORT TRACKER###
     obj.sort_iou_thresh = sort_iou_thresh
     
-    
-    # tracker_reid = SMILEtrack(obj, frame_rate=15)
-    tracker_reid = BYTETracker(obj, frame_rate=15)
-    # tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
-    # tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
+    if opt.tracker_selection == 'sort':
+        tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
+    elif opt.tracker_selection == 'smiletrack':
+        tracker_reid = SMILEtrack(obj, frame_rate=15)
+    elif opt.tracker_selection == 'bytetrack':
+        tracker_reid = BYTETracker(obj, frame_rate=15)
+    elif opt.tracker_selection == 'bytetrack_adaptive':
+        tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
+    else:
+        raise ValueError(f"Tracker selection {opt.tracker_selection} not recognized")
+        
     # .........................
     PersonImage.clear_instances()
 
@@ -199,7 +205,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 for tracker in trackers:
                     if tracker.history.__len__() == sort_max_age:
                         id = tracker.id + 1
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox)
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
                         PersonImage.delete_instance(id)
         else :
             if tracker_reid.removed_stracks:
@@ -207,7 +213,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 for id in unique_ids:
                     remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                     if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox)
+                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
                         PersonImage.delete_instance(id)
             
         # Process detections
@@ -263,6 +269,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                     
                     
                     objBbox = BoundingBox(
+                        # img_frame=None, #for ram saving
                         img_frame=sub_frame if frame % 3 == 0 else None, #for ram saving
                         frame_number=getattr(dataset, 'total_frame_videos', 0) + frame,
                         bbox=[*box[:4].astype(int),score],
@@ -302,8 +309,8 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 continue
             # Add your other key handling here...
         
-        if not wait_for_key or key != ord('b'):  # Increment current frame unless 'b' is pressed or not waiting for key
-            current_frame += 1
+        # if not wait_for_key or key != ord('b'):  # Increment current frame unless 'b' is pressed or not waiting for key
+        #     current_frame += 1
 
 
         # Save results (image with detections)
@@ -339,15 +346,17 @@ if __name__ == '__main__':
     with torch.no_grad():
         videoDataObj = VideoData()
         videoDataObj.setClientStoreChannel(1,3,1)
-        videoDataObj.setZoneFilterArea([[1154, 353],[1232, 353],[1230, 563],[1120, 564]])
-        videoDataObj.setZoneInOutArea([[[1376,579],[1369,979],[1289,964],[1310,572]],[[1376,579],[1445,571],[1459,957],[1369,979]],[[1260,550],[1536,548],[1555,979],[1213,986]]])
+        videoDataObj.setZoneInOutArea([[[634,229],[643,424],[591,424],[591,229]],[[634,229], [678,222],[684,424],[643,424]],[[526,229],[726,225],[724,424],[525,424]]])
+        videoDataObj.setZoneFilterArea([])
+        
+        
         # base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
         # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
         # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
         # folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/Documents/MivoRepos/mivo-project/footage-apumanque/apumanque_entrada_2_20240701_0900_condensed.mkv')
+        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/10/2/apumanque_entrada_1_20240716_1100_short.mkv')
         videoDataObj.setVideoMetaInfo('costanera_entrada_20240712_1000_C_FPS', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=True, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt',model_version='yolov7')
+        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt',model_version='yolov7')
         videoPipeline = detect(videoDataObj, videoOptionObj)
         
         # process_pipeline_mini(

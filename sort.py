@@ -106,7 +106,11 @@ class KalmanBoxTracker(object):
 
         # If we want to store bbox
         self.bbox_history = [bbox] # X1, Y1, X2, Y2 TLBR
-        
+    
+    @staticmethod
+    def clear_count():
+        KalmanBoxTracker.count = 0
+    
     def update(self, bbox):
         """
         Updates the state vector with observed bbox
@@ -220,6 +224,8 @@ class Sort(object):
         self.iou_threshold = iou_threshold
         self.trackers = []
         self.frame_count = 0
+        KalmanBoxTracker.clear_count()
+        
     def getTrackers(self,):
         return self.trackers
         
