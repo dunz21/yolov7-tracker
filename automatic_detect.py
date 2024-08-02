@@ -2,10 +2,11 @@ from detect_and_track import detect
 from reid.VideoData import VideoData
 from reid.VideoOption import VideoOption
 from reid.VideoPipeline import VideoPipeline
+from reid.InferenceParams import InferenceParams
 import torch
 import requests
 import os
-from pipeline.main import process_complete_pipeline,process_pipeline_mini
+from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
 from config.api import APIConfig
 
 if __name__ == '__main__':
@@ -13,10 +14,10 @@ if __name__ == '__main__':
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
     
     # Para los videos de entrada
-    weights_folder = '/home/diego/Documents/MivoRepos/yolov10/runs/train/yolo_persons.v5i.yolov9_yolov10m-pc/weights/yolo_persons.v5_f012_yolov10m-pc.pt'
-    yolo_model_version = 'yolov10'
-    tracker = 'bytetrack'
-    save_all_images = False
+    # weights_folder = 'yolo_persons.v5_f012_yolov10m-pc.pt'
+    # yolo_model_version = 'yolov10'
+    # tracker = 'bytetrack'
+    # save_all_images = False
     
     # Para los videos de puerta en apumanque
     # weights_folder = 'yolov7.pt'
@@ -25,15 +26,28 @@ if __name__ == '__main__':
     # save_all_images = True
     
     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    SOLIDER_WEIGHTS ='model_weights.pth'
+    SOLIDER_WEIGHTS ='transformer_120.pth'
     APIConfig.initialize(base_url_api)
 
     while True:
         nextVideoInQueue = APIConfig.queue_videos()
-        
+
         if not nextVideoInQueue:
             print("No more videos in the queue. Exiting.")
             break
+        
+        if not nextVideoInQueue['inference_params_name']:
+            print("No inference params name. Exiting.")
+            break
+        
+        
+        inferenceParams = InferenceParams(
+            weights_folder=nextVideoInQueue['inference_params_values']['weights_folder'],
+            yolo_model_version=nextVideoInQueue['inference_params_values']['yolo_model_version'],
+            tracker=nextVideoInQueue['inference_params_values']['tracker'],
+            save_all_images=nextVideoInQueue['inference_params_values']['save_all_images']
+        )
+            
         
         videoDataObj = VideoData()
         videoDataObj.setBaseFolder(footage_root_folder_path)
@@ -47,11 +61,11 @@ if __name__ == '__main__':
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
             noSaveVideo=False,
-            weights=weights_folder,
-            model_version=yolo_model_version,
+            weights=inferenceParams.weights_folder,
+            model_version=inferenceParams.yolo_model_version,
             view_img=False,
-            save_all_images=save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes
-            tracker_selection=tracker
+            save_all_images=inferenceParams.save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes
+            tracker_selection=inferenceParams.tracker
             )
         
     
@@ -65,8 +79,19 @@ if __name__ == '__main__':
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 videoPipeline = detect(videoDataObj, videoOptionObj)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
-                # process_complete_pipeline(videoPipeline.csv_box_name, videoPipeline.save_path, videoPipeline.folder_name, videoDataObj.client_id, videoDataObj.store_id, videoDataObj.video_date, videoDataObj.video_time, videoDataObj.frame_rate_video)
-                process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS)
+                # process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS)
+                process_complete_pipeline(
+                    csv_box_name=videoPipeline.csv_box_name,
+                    img_folder_name=videoPipeline.folder_name,
+                    video_path=videoPipeline.video_path,
+                    client_id=videoDataObj.client_id,
+                    store_id=videoDataObj.store_id,
+                    video_date=videoDataObj.video_date,
+                    start_time_video=videoDataObj.video_time,
+                    frame_rate=videoPipeline.frame_rate,
+                    solider_weights=SOLIDER_WEIGHTS,
+                    visit_type_id=1
+                )
                 results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
             except Exception as e:

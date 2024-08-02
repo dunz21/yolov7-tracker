@@ -32,7 +32,7 @@ class APIConfig:
         return response
 
     @classmethod
-    def save_visits_per_hour(cls, list_visits_group_by_hour, store_id, date):
+    def save_visits_per_hour(cls, list_visits_group_by_hour, store_id, date, visit_type_id=''):
         url = f"{cls.get_base_url()}/api/save-visits-per-hour"
         headers = {'Content-Type': 'application/json'}
         for item in list_visits_group_by_hour:
@@ -41,6 +41,7 @@ class APIConfig:
                 'time': item['time_calculated'],
                 'store_id': store_id,
                 'date': date,
+                'visit_type_id': visit_type_id,
             }
             response = requests.post(url, headers=headers, json=data)
             if response.status_code == 201:
@@ -48,6 +49,25 @@ class APIConfig:
             else:
                 print(f"Failed to insert {item['count']} visits at {item['time_calculated']}. Status code: {response.status_code}, Response: {response.text}")
 
+    @classmethod
+    def get_unique_sales(cls, store_id, date):
+        url = f"{cls.get_base_url()}/api/unique-sales"
+        headers = {'Content-Type': 'application/json'}
+        params = {
+            'store_id': store_id,
+            'date': date
+        }
+        
+        response = requests.get(url, headers=headers, params=params)
+        
+        if response.status_code == 200:
+            unique_sales = response.json().get('unique_sales')
+            print(f"Unique sales for store {store_id} on {date}: {unique_sales}")
+            return unique_sales
+        else:
+            print(f"Failed to retrieve unique sales. Status code: {response.status_code}, Response: {response.text}")
+            return 0
+    
     @classmethod
     def save_event_timestamps(cls, list_event_timestamps):
         url = f"{cls.get_base_url()}/api/save-event-timestamps"
@@ -76,6 +96,24 @@ class APIConfig:
                 print(f"Inserted short visit for URL {item['url']}")
             else:
                 print(f"Failed to insert short visit for URL {item['url']}. Status code: {response.status_code}, Response: {response.text}")
+                
+    @classmethod
+    def save_sankey_diagram(cls,store_id, date, exterior=None, interior=None, pos=None, short_visit=None):
+        url = f"{cls.get_base_url()}/api/sankey"
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'store_id': store_id,
+            'date': date,
+            'exterior': exterior,
+            'interior': interior,
+            'pos': pos,
+            'short_visit': short_visit,
+        }
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            print(f"Inserted sankey diagram for store {store_id} on date {date}")
+        else:
+            print(f"Failed to insert sankey diagram. Status code: {response.status_code}, Response: {response.text}")
                 
     @classmethod
     def post_queue_video_result(cls, queue_video_id, model_name, results):

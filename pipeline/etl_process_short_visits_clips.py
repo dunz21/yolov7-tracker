@@ -2,7 +2,7 @@ import os
 import sqlite3
 import pandas as pd
 import subprocess
-# import boto3
+import boto3
 import pymysql
 from utils.types import Direction
 from pipeline.vit_pipeline import get_files
@@ -56,7 +56,7 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
         WHERE max_distance < ?
           AND time_diff >= ?
           AND time_diff <= ?
-        ORDER BY time_diff, max_distance ASC limit 20;
+        ORDER BY time_diff, max_distance ASC limit 10;
     """
     
     params = (fps, max_distance, min_time_diff, max_time_diff)
@@ -105,8 +105,8 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
     return clip_paths
 
 def upload_to_s3(file_path, bucket_name, s3_path):
-    # s3_client = boto3.client('s3')
-    # s3_client.upload_file(file_path, bucket_name, s3_path)
+    s3_client = boto3.client('s3')
+    s3_client.upload_file(file_path, bucket_name, s3_path)
     print(f"Uploaded {file_path} to s3://{bucket_name}/{s3_path}")
 
 def save_short_visits_to_api(short_video_clips_urls=[], date='', store_id=''):

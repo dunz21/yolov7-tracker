@@ -6,12 +6,14 @@ from pipeline.vit_pipeline import get_features_from_model
 from pipeline.re_ranking import complete_re_ranking
 from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_visits_to_api
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
+from pipeline.video_viewer_post_yolo import prepare_event_timestamps_data,save_event_timestamps_to_api
+from pipeline.sankey_post_yolo import save_or_update_sankey
 from utils.debug_yolo import debug_results_yolo
 import logging
 from config.api import APIConfig
 
 
-def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth'):
+def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', visit_type_id=1):
     logger = logging.getLogger(__name__)
     
     
@@ -62,30 +64,88 @@ def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name=''
     complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
     logger.info(f"Step 7 completed: Completed re-ranking")
     
-    # Step 8: Extract visits per hour
-    logger.info("Step 8: Extract visits per hour")
-    visits_per_hour = extract_visits_per_hour(db_path=db_base_path, start_time=start_time_video, frame_rate=frame_rate)
-    logger.info(f"Step 8 completed: Extracted visits per hour")
-    
-    # Step 9: Save visits per hour to MySQL
-    logger.info("Step 9: Save visits per hour to MySQL")
-    save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date)
-    logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
+    if visit_type_id==1:
+        # Step 8: Extract visits per hour
+        logger.info("Step 8: Extract visits per hour")
+        visits_per_hour = extract_visits_per_hour(db_path=db_base_path, start_time=start_time_video, frame_rate=frame_rate)
+        logger.info(f"Step 8 completed: Extracted visits per hour")
+        
+        # Step 9: Save visits per hour to MySQL
+        logger.info("Step 9: Save visits per hour to MySQL")
+        save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date, visit_type_id=visit_type_id)
+        logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
 
-    # Step 10: Extract short visits
-    logger.info("Step 10.1: Extract short visits")
-    short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
-    logger.info(f"Step 10.1 completed: Extracted short visits")
+        # Step 10: Extract short visits
+        logger.info("Step 10.1: Extract short visits")
+        short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
+        logger.info(f"Step 10.1 completed: Extracted short visits")
+        
+        # Step 11: Process clips to S3
+        logger.info("Step 10.2: Process clips to S3")
+        clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
+        logger.info(f"Step 10.2 completed: Processed clips to S3")
+        
+        # Step 12: Save short visits to MySQL
+        logger.info("Step 10.3: Save short visits to MySQL")
+        save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
+        logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
+        
+        
+        logger.info("Step 10.4: Prepare event timestamps data")
+        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video)
+        save_event_timestamps_to_api(data)
+        logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
+        
+        
+        
+    logger.info("Step 10.5 Prepare event timestamps data")
+    save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, visit_type_id=visit_type_id)
+    logger.info(f"Step 10.5 ompleted: Saved event timestamps to MySQL")
     
-    # Step 11: Process clips to S3
-    logger.info("Step 10.2: Process clips to S3")
-    clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
-    logger.info(f"Step 10.2 completed: Processed clips to S3")
     
-    # Step 12: Save short visits to MySQL
-    logger.info("Step 10.3: Save short visits to MySQL")
-    save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
-    logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
+    
+    logger.info("Process pipeline completed successfully")
+    
+    
+def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',visit_type_id=1):
+    logger = logging.getLogger(__name__)
+    
+    
+    pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
+    bucket_name='videos-mivo'
+
+    if visit_type_id==1:
+        # Step 8: Extract visits per hour
+        logger.info("Step 8: Extract visits per hour")
+        visits_per_hour = extract_visits_per_hour(db_path=db_base_path, start_time=start_time_video, frame_rate=frame_rate)
+        logger.info(f"Step 8 completed: Extracted visits per hour")
+        
+        # Step 9: Save visits per hour to MySQL
+        logger.info("Step 9: Save visits per hour to MySQL")
+        save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date, visit_type_id=visit_type_id)
+        logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
+
+        # Step 10: Extract short visits
+        logger.info("Step 10.1: Extract short visits")
+        short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
+        logger.info(f"Step 10.1 completed: Extracted short visits")
+        
+        # Step 11: Process clips to S3
+        logger.info("Step 10.2: Process clips to S3")
+        clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
+        logger.info(f"Step 10.2 completed: Processed clips to S3")
+        
+        # Step 12: Save short visits to MySQL
+        logger.info("Step 10.3: Save short visits to MySQL")
+        save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
+        logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
+        
+        
+        logger.info("Step 10.4: Prepare event timestamps data")
+        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video)
+        save_event_timestamps_to_api(data)
+        logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
+
     
     logger.info("Process pipeline completed successfully")
 
@@ -136,47 +196,72 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
     logger.info(f"Step 7 completed: Completed re-ranking")
     
-#### PIPIELINE MINI
+### SANKEY
+if __name__ == '__main__':
+    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+    APIConfig.initialize(base_url_api)
+    save_or_update_sankey(
+        db_path='/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240728_1000/apumanque_entrada_2_20240728_1000_bbox.db', 
+        # db_path='/home/diego/mydrive/results/1/10/2/apumanque_puerta_1_20240728_1000/apumanque_puerta_1_20240728_1000_bbox.db', 
+        store_id=10, 
+        date='2024-07-28',
+        visit_type_id=1
+        )
+
+### PIPIELINE MINI
 # if __name__ == '__main__':
-#     solider_weights = '/home/diego/Documents/solider-reid/log/mivo/test2_complete/transformer_120.pth'
-#     base_result_folder = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240720_1000'
-#     csv_file_name = os.path.join(base_result_folder, 'apumanque_entrada_2_20240720_1000_bbox.csv')
+#     solider_weights = 'transformer_120.pth'
+#     base_result_folder = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240728_1000/'
+#     csv_file_name = os.path.join(base_result_folder, 'apumanque_entrada_2_20240728_1000_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
 #         img_folder_name=img_folder_name,
 #         solider_weights=solider_weights,
-#         override_db_name=os.path.join(base_result_folder, f"apumanque_entrada_2_20240720_1000_bbox_SOLIDER_ESPECIAL_120_{solider_weights.split('/')[-1].replace('.pth', '')}.db")
+#         )
+    
+
+    
+    
+### CORRER PARA VISITAS CORTAS 
+# if __name__ == '__main__':
+#     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+#     SOLIDER_WEIGHTS ='model_weights.pth'
+#     APIConfig.initialize(base_url_api)
+#     solider_weights = '/home/diego/Documents/solider-reid/log/mivo/test2_complete/transformer_120.pth'
+#     # base_result_folder = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240720_1000'
+#     base_result_folder = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240723_1000/'
+#     csv_file_name = os.path.join(base_result_folder, 'apumanque_entrada_2_20240723_1000_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_complete_pipeline(
+#         csv_box_name=csv_file_name,
+#         video_path='/home/diego/Documents/MivoRepos/mivo-project/apumanque-footage/apumanque_entrada_2_20240723_1000.mkv',
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         client_id=1,
+#         store_id=10,
+#         video_date='2024-07-23',
+#         start_time_video='09:00:00',
+#         frame_rate=15
 #         )
     
     
     
-### CORRER PARA VISITAS CORTAS 
-if __name__ == '__main__':
+# SAVE TO BD VISITS
+# if __name__ == '__main__':
+#     # base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+#     base_url_api = 'https://api-v1.mivo.cl/'
+#     APIConfig.initialize(base_url_api)
+#     client_id = 1
+#     store_id = 10
+#     frame_rate = 15
+
+
+#     visit_type_id=1
     
-    
-    
-    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    SOLIDER_WEIGHTS ='model_weights.pth'
-    APIConfig.initialize(base_url_api)
-    solider_weights = '/home/diego/Documents/solider-reid/log/mivo/test2_complete/transformer_120.pth'
-    # base_result_folder = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240720_1000'
-    base_result_folder = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240723_1000/'
-    csv_file_name = os.path.join(base_result_folder, 'apumanque_entrada_2_20240723_1000_bbox.csv')
-    img_folder_name = os.path.join(base_result_folder, 'imgs')
-    features = process_complete_pipeline(
-        csv_box_name=csv_file_name,
-        video_path='/home/diego/Documents/MivoRepos/mivo-project/apumanque-footage/apumanque_entrada_2_20240723_1000.mkv',
-        img_folder_name=img_folder_name,
-        solider_weights=solider_weights,
-        client_id=1,
-        store_id=10,
-        video_date='2024-07-23',
-        start_time_video='09:00:00',
-        frame_rate=15
-        )
-    
-    
-    # category_summary, unique_id_counts = debug_results_yolo(csv_path='/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240712_09003/apumanque_entrada_2_20240712_0900_bbox.csv')
-    # print(f"Category summary: {category_summary}")
-    # print(f"Unique ID counts: {unique_id_counts}")
+#     base_result_folder = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240731_1000'
+#     db_base_path = os.path.join(base_result_folder, 'apumanque_entrada_2_20240731_1000_bbox.db')
+#     video_path = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240731_1000.mkv'
+#     video_date = '2024-07-31'
+#     start_time_video = '10:00:00'
+#     features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
