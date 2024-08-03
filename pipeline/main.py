@@ -199,13 +199,14 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
 ### SANKEY
 if __name__ == '__main__':
     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+    base_url_api = 'https://api-v1.mivo.cl'
     APIConfig.initialize(base_url_api)
     save_or_update_sankey(
-        db_path='/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240728_1000/apumanque_entrada_2_20240728_1000_bbox.db', 
-        # db_path='/home/diego/mydrive/results/1/10/2/apumanque_puerta_1_20240728_1000/apumanque_puerta_1_20240728_1000_bbox.db', 
+        # db_path='/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240731_1000/apumanque_entrada_2_20240731_1000_bbox.db', 
+        db_path='/home/diego/mydrive/results/1/10/2/apumanque_puerta_1_20240730_1000/apumanque_puerta_1_20240730_1000_bbox.db', 
         store_id=10, 
-        date='2024-07-28',
-        visit_type_id=1
+        date='2024-07-30',
+        visit_type_id=2
         )
 
 ### PIPIELINE MINI

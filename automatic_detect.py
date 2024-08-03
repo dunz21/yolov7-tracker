@@ -26,12 +26,13 @@ if __name__ == '__main__':
     # save_all_images = True
     
     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+    base_url_api = 'https://api-v1.mivo.cl'
     SOLIDER_WEIGHTS ='transformer_120.pth'
     APIConfig.initialize(base_url_api)
 
     while True:
         nextVideoInQueue = APIConfig.queue_videos()
-
+        visit_type_id = 1
         if not nextVideoInQueue:
             print("No more videos in the queue. Exiting.")
             break
@@ -39,6 +40,12 @@ if __name__ == '__main__':
         if not nextVideoInQueue['inference_params_name']:
             print("No inference params name. Exiting.")
             break
+        
+        if nextVideoInQueue['channel_name'] == 'entrada':
+            visit_type_id = 1
+        elif nextVideoInQueue['channel_name'] == 'puerta':
+            visit_type_id = 2
+            
         
         
         inferenceParams = InferenceParams(
@@ -60,7 +67,7 @@ if __name__ == '__main__':
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
-            noSaveVideo=False,
+            noSaveVideo=True,
             weights=inferenceParams.weights_folder,
             model_version=inferenceParams.yolo_model_version,
             view_img=False,
@@ -83,14 +90,14 @@ if __name__ == '__main__':
                 process_complete_pipeline(
                     csv_box_name=videoPipeline.csv_box_name,
                     img_folder_name=videoPipeline.folder_name,
-                    video_path=videoPipeline.video_path,
+                    video_path=videoDataObj.source,
                     client_id=videoDataObj.client_id,
                     store_id=videoDataObj.store_id,
                     video_date=videoDataObj.video_date,
                     start_time_video=videoDataObj.video_time,
-                    frame_rate=videoPipeline.frame_rate,
+                    frame_rate=videoDataObj.frame_rate_video,
                     solider_weights=SOLIDER_WEIGHTS,
-                    visit_type_id=1
+                    visit_type_id=visit_type_id
                 )
                 results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
