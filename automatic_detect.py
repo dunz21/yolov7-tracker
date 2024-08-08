@@ -9,6 +9,12 @@ import os
 from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
 from config.api import APIConfig
 
+#PARA PROD
+# API + COMPLETE PIPELINE + NO SAVE VIDEO
+
+#PARA DEBUG
+# API + MINI PIPELINE + SAVE VIDEO
+
 if __name__ == '__main__':
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
@@ -41,9 +47,9 @@ if __name__ == '__main__':
             print("No inference params name. Exiting.")
             break
         
-        if nextVideoInQueue['channel_name'] == 'entrada':
+        if nextVideoInQueue['zone_type_id'] == 1:
             visit_type_id = 1
-        elif nextVideoInQueue['channel_name'] == 'puerta':
+        elif nextVideoInQueue['zone_type_id'] == 3:
             visit_type_id = 2
             
         
@@ -86,7 +92,7 @@ if __name__ == '__main__':
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 videoPipeline = detect(videoDataObj, videoOptionObj)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
-                # process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS)
+                # process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS) #DEBUG
                 process_complete_pipeline(
                     csv_box_name=videoPipeline.csv_box_name,
                     img_folder_name=videoPipeline.folder_name,

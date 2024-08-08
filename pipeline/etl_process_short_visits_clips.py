@@ -10,17 +10,7 @@ from utils.time import convert_time_to_seconds
 from pipeline.mysql_config import get_connection
 from config.api import APIConfig
 
-def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15):
-    # Create the 'clips' directory if it doesn't exist
-    clips_dir = os.path.join(os.path.dirname(video_path), 'clips')
-    if not os.path.exists(clips_dir):
-        os.makedirs(clips_dir)
-        print(f"Created directory for clips: {clips_dir}")
-    else:
-        print(f"Using existing directory for clips: {clips_dir}")
-    
-    # Connect to the database
-    print(f"Connecting to database at {db_path}...")
+def get_list_short_visits(db_path, max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15, limit=10):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
@@ -56,12 +46,29 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
         WHERE max_distance < ?
           AND time_diff >= ?
           AND time_diff <= ?
-        ORDER BY time_diff, max_distance ASC limit 10;
+        ORDER BY time_diff, max_distance ASC limit ?;
     """
     
-    params = (fps, max_distance, min_time_diff, max_time_diff)
+    params = (fps, max_distance, min_time_diff, max_time_diff, limit)
     print("Running query with parameters:", params)
     list_visits = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return list_visits
+
+
+def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15, limit_vistits=10):
+    # Create the 'clips' directory if it doesn't exist
+    clips_dir = os.path.join(os.path.dirname(video_path), 'clips')
+    if not os.path.exists(clips_dir):
+        os.makedirs(clips_dir)
+        print(f"Created directory for clips: {clips_dir}")
+    else:
+        print(f"Using existing directory for clips: {clips_dir}")
+    
+    # Connect to the database
+    print(f"Connecting to database at {db_path}...")
+    
+    list_visits = get_list_short_visits(db_path, max_distance, min_time_diff, max_time_diff, direction_param, fps, limit_vistits)
     
     print(f"Found {len(list_visits)} visits matching criteria.")
 
@@ -98,8 +105,6 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
         
         print(f"Clip saved to: {clip_path}")
         clip_paths.append(clip_path)
-    
-    conn.close()
     print("Database connection closed.")
     print("All clips extracted successfully.")
     return clip_paths

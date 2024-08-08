@@ -54,17 +54,17 @@ def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name=''
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=img_folder_name, dest_folder_results=f"{img_folder_name}_top4", k_fold=4, threshold=0.9)
     logger.info(f"Step 5 completed: Cleaned image folder and selected top-k images")
     
-    # Step 6: Extract features from model
-    logger.info("Step 6: Extract features from model")
-    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights=solider_weights, db_path=db_base_path)
-    logger.info(f"Step 6 completed: Extracted features from model")
-    
-    # Step 7: Complete re-ranking using the extracted features
-    logger.info("Step 7: Complete re-ranking using the extracted features")
-    complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
-    logger.info(f"Step 7 completed: Completed re-ranking")
-    
     if visit_type_id==1:
+        # Step 6: Extract features from model
+        logger.info("Step 6: Extract features from model")
+        features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights=solider_weights, db_path=db_base_path)
+        logger.info(f"Step 6 completed: Extracted features from model")
+        
+        # Step 7: Complete re-ranking using the extracted features
+        logger.info("Step 7: Complete re-ranking using the extracted features")
+        complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
+        logger.info(f"Step 7 completed: Completed re-ranking")
+    
         # Step 8: Extract visits per hour
         logger.info("Step 8: Extract visits per hour")
         visits_per_hour = extract_visits_per_hour(db_path=db_base_path, start_time=start_time_video, frame_rate=frame_rate)
@@ -92,7 +92,7 @@ def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name=''
         
         
         logger.info("Step 10.4: Prepare event timestamps data")
-        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video)
+        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video, store_id)
         save_event_timestamps_to_api(data)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
         
@@ -142,9 +142,13 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
         
         
         logger.info("Step 10.4: Prepare event timestamps data")
-        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video)
+        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video,store_id)
         save_event_timestamps_to_api(data)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
+    
+    logger.info("Step 10.5 Prepare event timestamps data")
+    save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, visit_type_id=visit_type_id)
+    logger.info(f"Step 10.5 completed: Saved event timestamps to MySQL")
 
     
     logger.info("Process pipeline completed successfully")
@@ -197,23 +201,63 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     logger.info(f"Step 7 completed: Completed re-ranking")
     
 ### SANKEY
-if __name__ == '__main__':
-    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    base_url_api = 'https://api-v1.mivo.cl'
-    APIConfig.initialize(base_url_api)
-    save_or_update_sankey(
-        # db_path='/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240731_1000/apumanque_entrada_2_20240731_1000_bbox.db', 
-        db_path='/home/diego/mydrive/results/1/10/2/apumanque_puerta_1_20240730_1000/apumanque_puerta_1_20240730_1000_bbox.db', 
-        store_id=10, 
-        date='2024-07-30',
-        visit_type_id=2
-        )
+# if __name__ == '__main__':
+#     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+#     base_url_api = 'https://api-v1.mivo.cl'
+#     APIConfig.initialize(base_url_api)
+#     save_or_update_sankey(
+#         # db_path='/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240731_1000/apumanque_entrada_2_20240731_1000_bbox.db', 
+#         db_path='/home/diego/mydrive/results/1/10/2/apumanque_puerta_1_20240730_1000/apumanque_puerta_1_20240730_1000_bbox.db', 
+#         store_id=10, 
+#         date='2024-07-30',
+#         visit_type_id=2
+#         )
 
 ### PIPIELINE MINI
 # if __name__ == '__main__':
 #     solider_weights = 'transformer_120.pth'
-#     base_result_folder = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240728_1000/'
-#     csv_file_name = os.path.join(base_result_folder, 'apumanque_entrada_2_20240728_1000_bbox.csv')
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240722_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240722_1000_CFPS_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_pipeline_mini(
+#         csv_box_name=csv_file_name,
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         )
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240723_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240723_1000_CFPS_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_pipeline_mini(
+#         csv_box_name=csv_file_name,
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         )
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240724_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240724_1000_CFPS_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_pipeline_mini(
+#         csv_box_name=csv_file_name,
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         )
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240725_1012_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240725_1012_CFPS_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_pipeline_mini(
+#         csv_box_name=csv_file_name,
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         )
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240726_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240726_1000_CFPS_bbox.csv')
+#     img_folder_name = os.path.join(base_result_folder, 'imgs')
+#     features = process_pipeline_mini(
+#         csv_box_name=csv_file_name,
+#         img_folder_name=img_folder_name,
+#         solider_weights=solider_weights,
+#         )
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240727_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240727_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
@@ -249,20 +293,67 @@ if __name__ == '__main__':
     
     
 # SAVE TO BD VISITS
-# if __name__ == '__main__':
-#     # base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-#     base_url_api = 'https://api-v1.mivo.cl/'
-#     APIConfig.initialize(base_url_api)
-#     client_id = 1
-#     store_id = 10
-#     frame_rate = 15
+if __name__ == '__main__':
+    # base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+    base_url_api = 'https://api-v1.mivo.cl/'
+    APIConfig.initialize(base_url_api)
+    client_id = 3
+    store_id = 16
+    frame_rate = 15
 
-
-#     visit_type_id=1
+    visit_type_id=1
     
-#     base_result_folder = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240731_1000'
-#     db_base_path = os.path.join(base_result_folder, 'apumanque_entrada_2_20240731_1000_bbox.db')
-#     video_path = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240731_1000.mkv'
-#     video_date = '2024-07-31'
-#     start_time_video = '10:00:00'
-#     features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240722_1000_CFPS'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240722_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240722_1000_CFPS.mkv'
+    # video_date = '2024-07-22'
+    # start_time_video = '10:00:00'
+    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240723_1000_CFPS'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240723_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240723_1000_CFPS.mkv'
+    # video_date = '2024-07-23'
+    # start_time_video = '10:00:00'
+    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240724_1000_CFPS'
+    db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240724_1000_CFPS_bbox.db')
+    video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240724_1000_CFPS.mkv'
+    video_date = '2024-07-24'
+    start_time_video = '10:00:00'
+    features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240725_1012_CFPS'
+    db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240725_1012_CFPS_bbox.db')
+    video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240725_1012_CFPS.mkv'
+    video_date = '2024-07-25'
+    start_time_video = '10:00:00'
+    features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240726_1000_CFPS'
+    db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240726_1000_CFPS_bbox.db')
+    video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240726_1000_CFPS.mkv'
+    video_date = '2024-07-26'
+    start_time_video = '10:00:00'
+    features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240727_1000_CFPS'
+    db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240727_1000_CFPS_bbox.db')
+    video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240727_1000_CFPS.mkv'
+    video_date = '2024-07-27'
+    start_time_video = '10:00:00'
+    features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240719_1000_CFPS'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240719_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240719_1000_CFPS.mkv'
+    # video_date = '2024-07-19'
+    # start_time_video = '10:00:00'
+    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240720_1000_CFPS'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240720_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240720_1000_CFPS.mkv'
+    # video_date = '2024-07-20'
+    # start_time_video = '10:00:00'
+    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240721_1000_CFPS'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240721_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240721_1000_CFPS.mkv'
+    # video_date = '2024-07-21'
+    # start_time_video = '10:00:00'
+    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,visit_type_id=visit_type_id)

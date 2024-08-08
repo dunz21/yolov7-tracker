@@ -196,18 +196,15 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
-    ADJUST_FRAME = 1
-    # Get the total number of frames in the video
-    if cap.get(cv2.CAP_PROP_FPS) == 100:
-        ADJUST_FRAME = 0.15
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) * ADJUST_FRAME
+    
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) * 15 / cap.get(cv2.CAP_PROP_FPS)
     
     # Define the codec and create VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
     
     if show_progress:
-        progress_bar = tqdm(total=total_frames, desc="Processing frames")
+        progress_bar = tqdm(total=total_frames, desc=f"Writing condensed video to {output_video_path.split('/')[-1]}", unit="frames")
 
     current_frame = 0
     while cap.isOpened():
@@ -230,15 +227,21 @@ def write_condensed_video(csv_path='', video_path='', output_video_path='', show
     print("Video processing completed!")
     
 if __name__ == "__main__":  
-    csv = '/home/diego/Documents/MivoRepos/mivo-project/apumanque-results/apumanque_entrada_2_20240719_1000/apumanque_entrada_2_20240719_1000_bbox.csv'
-    video = '/home/diego/mydrive/footage/1/10/8/apumanque_entrada_2_20240712_0900.mkv'
-    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed_undefined_cross_sapi.mkv')}", show_progress=True, margin_seconds=4)
+    # csv = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240713_1000_CFPS/costanera_entrada_20240713_1000_CFPS_bbox.csv'
+    # video = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240713_1000_CFPS.mkv'
+    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4, filter_direction=['In', 'Out'])
     
-    # csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240609_0900/tobalaba_entrada_20240609_0900_bbox.csv'
-    # video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240609_0900.mkv'
-    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    # csv = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240714_1000_CFPS/costanera_entrada_20240714_1000_CFPS_bbox.csv'
+    # video = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240714_1000_CFPS.mkv'
+    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4, filter_direction=['In', 'Out'])
     
-    # csv = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_0900/tobalaba_entrada_20240604_0900_bbox.csv'
-    # video = '/home/diego/mydrive/footage/1/3/1/tobalaba_entrada_20240604_0900.mkv'
-    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4)
+    csv = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240716_1000_CFPS/costanera_entrada_20240716_1000_CFPS_bbox.csv'
+    video = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240716_1000_CFPS.mkv'
+    write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4, filter_direction=['In', 'Out'])
+    
+    # csv = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240716_1000_CFPS/costanera_entrada_20240716_1000_CFPS_bbox.csv'
+    # video = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240716_1000_CFPS.mkv'
+    # write_condensed_video(csv_path=csv, video_path=video, output_video_path=f"{video.replace('.mkv', '_condensed.mkv')}", show_progress=True, margin_seconds=4, filter_direction=['In', 'Out'])
+    
+    
     

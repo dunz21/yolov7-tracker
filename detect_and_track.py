@@ -194,7 +194,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 "tracker" : tracker_reid.__class__.__name__,
                 "weights":weights.split("/")[-1],
                 }
-            draw_configs(im0s,info,scale=im0s.shape[0])
+            # draw_configs(im0s,info,scale=im0s.shape[0])
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data.polygon_area)
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data.polygons_in,polygon_out=video_data.polygons_out)
 
