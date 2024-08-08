@@ -16,29 +16,17 @@ from config.api import APIConfig
 # API + MINI PIPELINE + SAVE VIDEO
 
 if __name__ == '__main__':
+    PRODUCTION_MODE = False
+    
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
     
-    # Para los videos de entrada
-    # weights_folder = 'yolo_persons.v5_f012_yolov10m-pc.pt'
-    # yolo_model_version = 'yolov10'
-    # tracker = 'bytetrack'
-    # save_all_images = False
-    
-    # Para los videos de puerta en apumanque
-    # weights_folder = 'yolov7.pt'
-    # yolo_model_version = 'yolov7'
-    # tracker = 'sort'
-    # save_all_images = True
-    
-    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    base_url_api = 'https://api-v1.mivo.cl'
+    base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     SOLIDER_WEIGHTS ='transformer_120.pth'
     APIConfig.initialize(base_url_api)
 
     while True:
         nextVideoInQueue = APIConfig.queue_videos()
-        visit_type_id = 1
         if not nextVideoInQueue:
             print("No more videos in the queue. Exiting.")
             break
@@ -47,20 +35,13 @@ if __name__ == '__main__':
             print("No inference params name. Exiting.")
             break
         
-        if nextVideoInQueue['zone_type_id'] == 1:
-            visit_type_id = 1
-        elif nextVideoInQueue['zone_type_id'] == 3:
-            visit_type_id = 2
             
-        
-        
         inferenceParams = InferenceParams(
             weights_folder=nextVideoInQueue['inference_params_values']['weights_folder'],
             yolo_model_version=nextVideoInQueue['inference_params_values']['yolo_model_version'],
             tracker=nextVideoInQueue['inference_params_values']['tracker'],
             save_all_images=nextVideoInQueue['inference_params_values']['save_all_images']
         )
-            
         
         videoDataObj = VideoData()
         videoDataObj.setBaseFolder(footage_root_folder_path)
@@ -92,19 +73,24 @@ if __name__ == '__main__':
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 videoPipeline = detect(videoDataObj, videoOptionObj)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
-                # process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS) #DEBUG
-                process_complete_pipeline(
-                    csv_box_name=videoPipeline.csv_box_name,
-                    img_folder_name=videoPipeline.folder_name,
-                    video_path=videoDataObj.source,
-                    client_id=videoDataObj.client_id,
-                    store_id=videoDataObj.store_id,
-                    video_date=videoDataObj.video_date,
-                    start_time_video=videoDataObj.video_time,
-                    frame_rate=videoDataObj.frame_rate_video,
-                    solider_weights=SOLIDER_WEIGHTS,
-                    visit_type_id=visit_type_id
-                )
+                if PRODUCTION_MODE:
+                    process_complete_pipeline(
+                        csv_box_name=videoPipeline.csv_box_name,
+                        img_folder_name=videoPipeline.folder_name,
+                        video_path=videoDataObj.source,
+                        client_id=videoDataObj.client_id,
+                        store_id=videoDataObj.store_id,
+                        video_date=videoDataObj.video_date,
+                        start_time_video=videoDataObj.video_time,
+                        frame_rate=videoDataObj.frame_rate_video,
+                        solider_weights=SOLIDER_WEIGHTS,
+                        zone_type_id=nextVideoInQueue['zone_type_id']
+                    )
+                else:
+                    process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS)
+                    
+                    
+                    
                 results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
             except Exception as e:

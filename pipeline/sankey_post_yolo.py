@@ -4,6 +4,20 @@ from datetime import datetime, timedelta
 import os
 from config.api import APIConfig
 
+ZONE_TYPES = [
+    {
+        'id': 1,
+        'name': 'in_out_area',
+    },
+    {
+        'id': 2,
+        'name': 'filter_area',
+    },
+    {
+        'id': 3,
+        'name': 'exterior',
+    },
+]
 
 def _get_direction_counts(conn):
         query = '''
@@ -111,13 +125,13 @@ def get_exterior_data(db_path=''):
 
 
     
-def save_or_update_sankey(db_path ,store_id=0, date='',visit_type_id=1):
-    if visit_type_id == 1:
+def save_or_update_sankey(db_path ,store_id=0, date='',zone_type_id=1):
+    if zone_type_id == ZONE_TYPES[0]['id']:
         # Entrance
         total_short_visits, total_entrance = extract_total_short_visits_and_entraces(db_path)
         total_sales = get_sales_by_date(store_id, date)
         APIConfig.save_sankey_diagram(store_id, date, short_visit=total_short_visits, interior=total_entrance, pos=total_sales)
-    elif visit_type_id == 2:
+    elif zone_type_id == ZONE_TYPES[2]['id']:
         # Exterior
         total_exterior = get_exterior_data(db_path)
         APIConfig.save_sankey_diagram(store_id, date, exterior=total_exterior)

@@ -51,7 +51,7 @@ def extract_visits_per_hour(db_path,start_time,frame_rate):
     
     return grouped_data.to_dict(orient='records')
     
-def save_visits_to_api(list_visits_group_by_hour=[], store_id='', date='',visit_type_id=''):
+def save_visits_to_api(list_visits_group_by_hour=[], store_id='', date='',visit_type_id=1):
     try:
         APIConfig.save_visits_per_hour(list_visits_group_by_hour, store_id, date,visit_type_id=visit_type_id)
     finally:
