@@ -114,6 +114,21 @@ class APIConfig:
             print(f"Inserted sankey diagram for store {store_id} on date {date}")
         else:
             print(f"Failed to insert sankey diagram. Status code: {response.status_code}, Response: {response.text}")
+            
+    @classmethod
+    def save_reid_matches(cls,store_id, date, reid_matches=[]):
+        url = f"{cls.get_base_url()}/api/reid-matches"
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'store_id': store_id,
+            'date': date,
+            'reid_matches': reid_matches,
+        }
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            print(f"Inserted reid matches for store {store_id} on date {date}")
+        else:
+            print(f"Failed to insert reid matches. Status code: {response.status_code}, Response: {response.text}")
                 
     @classmethod
     def post_queue_video_result(cls, queue_video_id, model_name, results):

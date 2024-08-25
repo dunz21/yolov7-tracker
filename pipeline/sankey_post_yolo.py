@@ -125,7 +125,7 @@ def get_exterior_data(db_path=''):
 
 
     
-def save_or_update_sankey(db_path ,store_id=0, date='',zone_type_id=1):
+def save_or_update_sankey(db_path='' ,store_id=0, date='',zone_type_id=1):
     if zone_type_id == ZONE_TYPES[0]['id']:
         # Entrance
         total_short_visits, total_entrance = extract_total_short_visits_and_entraces(db_path)

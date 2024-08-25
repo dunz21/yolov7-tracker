@@ -8,6 +8,8 @@ import requests
 import os
 from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
 from config.api import APIConfig
+import time
+from tqdm import tqdm
 
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
@@ -16,7 +18,14 @@ from config.api import APIConfig
 # API + MINI PIPELINE + SAVE VIDEO
 
 if __name__ == '__main__':
-    PRODUCTION_MODE = False
+    # Total sleep time in seconds
+    total_time = 1 * 60 * 60 + 40 * 60  # 1 hour and 20 minutes
+
+    # Create a progress bar that lasts for total_time seconds
+    # for _ in tqdm(range(total_time), desc="Waiting", ncols=100):
+    #     time.sleep(1)  # Sleep for 1 second at a time
+    PRODUCTION_MODE = True
+    NO_SAVE_VIDEO = True
     
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
@@ -54,7 +63,7 @@ if __name__ == '__main__':
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
-            noSaveVideo=True,
+            noSaveVideo=NO_SAVE_VIDEO,
             weights=inferenceParams.weights_folder,
             model_version=inferenceParams.yolo_model_version,
             view_img=False,

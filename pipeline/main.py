@@ -6,8 +6,9 @@ from pipeline.vit_pipeline import get_features_from_model
 from pipeline.re_ranking import complete_re_ranking
 from pipeline.etl_process_visits_per_time import extract_visits_per_hour,save_visits_to_api
 from pipeline.etl_process_short_visits_clips import extract_short_visits,process_clips_to_s3,save_short_visits_to_api
-from pipeline.video_viewer_post_yolo import prepare_event_timestamps_data,save_event_timestamps_to_api
+from pipeline.event_timestamp_post_yolo import save_event_timestamps
 from pipeline.sankey_post_yolo import save_or_update_sankey
+from pipeline.reid_matches_post_yolo import save_or_update_reid_matches
 from utils.debug_yolo import debug_results_yolo
 import logging
 from datetime import datetime
@@ -235,17 +236,36 @@ def process_pipeline_by_dates(base_result_path, client_id, store_id, camera_chan
         # Check if the folder date is within the date range
         if start_date <= folder_date <= end_date:
             folder_path = os.path.join(base_path, folder_name)
-            start_time_video = folder_name.split('_')[-1]
-            # print(f"Processing folder: {folder_name} at {folder_path}")
-            print(f"Date: {folder_date.strftime('%Y-%m-%d')}, Start Time Video: {start_time_video}, folder name: {folder_name}, folder path: {folder_path}")
+            video_date = folder_date.strftime('%Y-%m-%d')
+            start_time_video = datetime.strptime(folder_name.split('_')[-1], '%H%M').strftime('%H:%M:%S')
+            csv_box_name = os.path.join(folder_path, f'{folder_name}_bbox.csv')
+            img_folder = os.path.join(folder_path, 'imgs')
+            
+            print(f"Processing folder: {folder_name}")
+            
             # Add your processing logic here
+            db_path = os.path.join(folder_path, f'{folder_name}_bbox.db')
+            if not os.path.exists(db_path):
+                print(f"DB path {db_path} does not exist for folder {folder_name}. Skipping.")
+                continue
+            
+            save_or_update_reid_matches(db_path=db_path, store_id=store_id, date=video_date)
+            save_event_timestamps(db_path=db_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
+            save_or_update_sankey(db_path=db_path, store_id=store_id, date=video_date)
+            
+            
+            
 
             
 if __name__ == '__main__':
+    
+    PRODUCTION_MODE = False
+    
     # base_url_api = 'https://api-v1.mivo.cl'
-    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')  
+    base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
+    zone_type_id=1 #### TODO: Change this to the correct zone type id
     client_id = 1
     store_id = 10
     camera_channel_id = 8

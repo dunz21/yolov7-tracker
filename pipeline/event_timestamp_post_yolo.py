@@ -30,6 +30,7 @@ def prepare_event_timestamps_data(db, date, start_video_time, store_id):
         record['event_type'] = EVENT_TYPE_IN
         record['date'] = date
         record['store_id'] = store_id
+        record['time_diff'] = None
         record['adjusted_time_video'] = adjusted_time_video.strftime('%H:%M:%S')  # Convert time object to string
         record['created_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Convert datetime object to string
         record['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Convert datetime object to string
@@ -43,6 +44,7 @@ def prepare_event_timestamps_data(db, date, start_video_time, store_id):
         record['event_type'] = EVENT_TYPE_SHORT_VISIT
         record['date'] = date
         record['store_id'] = store_id
+        record['time_diff'] = record['time_diff']
         record['time_video'] = record['start_in']
         record['adjusted_time_video'] = adjusted_time_video.strftime('%H:%M:%S')
         record['created_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Convert datetime object to string
@@ -51,21 +53,22 @@ def prepare_event_timestamps_data(db, date, start_video_time, store_id):
 
     return result_list
     
-def save_event_timestamps_to_api(event_timestamps=[]):
+def save_event_timestamps(db_path='', date='', start_video_time='', store_id=''):
     try:
+        event_timestamps = prepare_event_timestamps_data(db_path, date, start_video_time,store_id)
         APIConfig.save_event_timestamps(event_timestamps)
     finally:
         print("Event timestamps processed")
 
 
 
-if __name__ == '__main__':    
-    db_path = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240710_0900/apumanque_entrada_2_20240710_0900_bbox.db'
-    date = '2024-07-10'
-    start_video_time = '09:00:00'
-    store_id = 10
+# if __name__ == '__main__':    
+#     db_path = '/home/diego/mydrive/results/1/10/8/apumanque_entrada_2_20240818_1000/apumanque_entrada_2_20240818_1000_bbox.db'
+#     date = '2024-08-18'
+#     start_video_time = '10:00:00'
+#     store_id = 10
     
-    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    APIConfig.initialize(base_url_api)
-    data = prepare_event_timestamps_data(db_path, date, start_video_time,store_id)
-    save_event_timestamps_to_api(data)
+#     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+#     APIConfig.initialize(base_url_api)
+#     data = prepare_event_timestamps_data(db_path, date, start_video_time,store_id)
+#     save_event_timestamps(data)

@@ -10,7 +10,7 @@ from utils.time import convert_time_to_seconds
 from pipeline.mysql_config import get_connection
 from config.api import APIConfig
 
-def get_list_short_visits(db_path, max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15, limit=10):
+def get_list_short_visits(db_path, max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:01:00', direction_param='In', fps=15, limit=10):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
