@@ -10,6 +10,7 @@ from pipeline.video_viewer_post_yolo import prepare_event_timestamps_data,save_e
 from pipeline.sankey_post_yolo import save_or_update_sankey
 from utils.debug_yolo import debug_results_yolo
 import logging
+from datetime import datetime
 from config.api import APIConfig
 
 
@@ -146,9 +147,9 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
         save_event_timestamps_to_api(data)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
     
-    logger.info("Step 10.5 Prepare event timestamps data")
+    logger.info("Step 10.5 Prepare sankey data")
     save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
-    logger.info(f"Step 10.5 completed: Saved event timestamps to MySQL")
+    logger.info(f"Step 10.5 completed: Saved sankey to MySQL")
 
     
     logger.info("Process pipeline completed successfully")
@@ -200,6 +201,65 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
     logger.info(f"Step 7 completed: Completed re-ranking")
     
+### DIEGO TEST ###
+
+
+def process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date):
+    # Build the base path
+    base_path = os.path.join(base_result_path, str(client_id), str(store_id), str(camera_channel_id))
+    
+    # Convert the dates to datetime objects for comparison
+    start_date = datetime.strptime(start_date, '%Y%m%d')
+    end_date = datetime.strptime(end_date, '%Y%m%d')
+    
+    # Check if the base path exists
+    if not os.path.exists(base_path):
+        print(f"Path {base_path} does not exist.")
+        return
+    
+    # Retrieve and sort the folders by date
+    folders = []
+    for folder_name in os.listdir(base_path):
+        parts = folder_name.split('_')
+        try:
+            folder_date = datetime.strptime(parts[-2], '%Y%m%d')
+            folders.append((folder_name, folder_date))
+        except (ValueError, IndexError):
+            continue
+
+    # Sort folders by the extracted folder date
+    folders = sorted(folders, key=lambda x: x[1])
+    
+    # Iterate through the sorted folders
+    for folder_name, folder_date in folders:
+        # Check if the folder date is within the date range
+        if start_date <= folder_date <= end_date:
+            folder_path = os.path.join(base_path, folder_name)
+            start_time_video = folder_name.split('_')[-1]
+            # print(f"Processing folder: {folder_name} at {folder_path}")
+            print(f"Date: {folder_date.strftime('%Y-%m-%d')}, Start Time Video: {start_time_video}, folder name: {folder_name}, folder path: {folder_path}")
+            # Add your processing logic here
+
+            
+if __name__ == '__main__':
+    # base_url_api = 'https://api-v1.mivo.cl'
+    base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')  
+    APIConfig.initialize(base_url_api)
+    base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
+    client_id = 1
+    store_id = 10
+    camera_channel_id = 8
+    start_date = '20240818'
+    end_date = '20240818'
+    
+    process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date)
+
+    
+### DIEGO TEST ###    
+    
+    
+    
+    
 ### SANKEY
 # if __name__ == '__main__':
 #     base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
@@ -216,48 +276,42 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
 ### PIPIELINE MINI
 # if __name__ == '__main__':
 #     solider_weights = 'transformer_120.pth'
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240722_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240722_1000_CFPS_bbox.csv')
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240820_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240820_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
 #         img_folder_name=img_folder_name,
 #         solider_weights=solider_weights,
 #         )
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240723_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240723_1000_CFPS_bbox.csv')
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240705_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240705_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
 #         img_folder_name=img_folder_name,
 #         solider_weights=solider_weights,
 #         )
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240724_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240724_1000_CFPS_bbox.csv')
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240706_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240706_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
 #         img_folder_name=img_folder_name,
 #         solider_weights=solider_weights,
 #         )
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240725_1012_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240725_1012_CFPS_bbox.csv')
+    
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240701_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240701_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
 #         img_folder_name=img_folder_name,
 #         solider_weights=solider_weights,
 #         )
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240726_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240726_1000_CFPS_bbox.csv')
-#     img_folder_name = os.path.join(base_result_folder, 'imgs')
-#     features = process_pipeline_mini(
-#         csv_box_name=csv_file_name,
-#         img_folder_name=img_folder_name,
-#         solider_weights=solider_weights,
-#         )
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240727_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240727_1000_CFPS_bbox.csv')
+    
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240702_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240702_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
@@ -293,26 +347,46 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     
     
 # SAVE TO BD VISITS
-if __name__ == '__main__':
-    # base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
-    base_url_api = 'https://api-v1.mivo.cl/'
-    APIConfig.initialize(base_url_api)
-    client_id = 3
-    store_id = 16
-    frame_rate = 15
+# if __name__ == '__main__':
+#     # base_url_api = os.getenv('BASE_URL_API', 'http://localhost:1001')
+#     base_url_api = 'https://api-v1.mivo.cl/'
+#     APIConfig.initialize(base_url_api)
+#     client_id = 3
+#     store_id = 16
+#     frame_rate = 15
 
-    zone_type_id=1
+#     zone_type_id=1
     
-    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240722_1000_CFPS'
-    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240722_1000_CFPS_bbox.db')
-    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240722_1000_CFPS.mkv'
-    # video_date = '2024-07-22'
-    # start_time_video = '10:00:00'
-    # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,zone_type_id=zone_type_id)
-    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240723_1000_CFPS'
-    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240723_1000_CFPS_bbox.db')
-    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240723_1000_CFPS.mkv'
-    # video_date = '2024-07-23'
+    
+    ##### ALL THE FOLDER ####
+    # base_path = f'/home/diego/mydrive/results/{client_id}/{store_id}/8/'
+    # footage_path = f'/home/diego/mydrive/footage/{client_id}/{store_id}/8'
+    # for folder_name in os.listdir(base_path):
+    #     folder_path = os.path.join(base_path, folder_name)
+    #     if os.path.isdir(folder_path) and folder_name not in ['OTROS', 'OLD']:
+    #         parts = folder_name.split('_')
+    #         date_str = parts[3]  # The date part
+    #         time_str = parts[4]  # The time part
+    #         video_date = datetime.strptime(date_str, '%Y%m%d').strftime('%Y-%m-%d')
+    #         start_time_video = datetime.strptime(time_str, '%H%M').strftime('%H:%M:%S')
+    #         db_base_path = os.path.join(base_path, folder_name, f'{folder_name}_bbox.db')
+    #         video_path = os.path.join(footage_path, f'{folder_name}.mkv')
+            
+    #         print(f"\n Processing {folder_name}")
+    #         print(f"DB path: {db_base_path}")
+    #         print(f"Video path: {video_path}")
+    #         print(f"Video date: {video_date}")
+    #         print(f"Start time video: {start_time_video}")
+    #         data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video,store_id)
+    #         save_event_timestamps_to_api(data)
+    
+    
+    
+    
+    # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240820_1000_CFPS/'
+    # db_base_path = os.path.join(base_result_folder, 'costanera_entrada_20240820_1000_CFPS_bbox.db')
+    # video_path = '/home/diego/mydrive/footage/3/16/3/costanera_entrada_20240820_1000_CFPS.mkv'
+    # video_date = '2024-08-20'
     # start_time_video = '10:00:00'
     # features = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id, store_id=store_id, video_date=video_date, start_time_video=start_time_video, frame_rate=frame_rate,zone_type_id=zone_type_id)
     # base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240724_1000_CFPS'
