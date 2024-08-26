@@ -1,4 +1,5 @@
 import os
+import re
 from pipeline.convert_csv_to_sqlite import convert_csv_to_sqlite
 from pipeline.switch_id_fixer import switch_id_corrector_pipeline
 from pipeline.image_selection import prepare_data_img_selection, predict_img_selection, clean_img_folder_top_k
@@ -94,15 +95,17 @@ def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name=''
         
         
         logger.info("Step 10.4: Prepare event timestamps data")
-        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video, store_id)
-        save_event_timestamps_to_api(data)
+        save_event_timestamps(db_path=db_base_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
         
+        logger.info("Step 10.5: Prepare reid matches data")
+        save_or_update_reid_matches(db_path=db_base_path,store_id=store_id, date=video_date)
+        logger.info(f"Step 10.5 completed: Saved reid matches to MySQL")
         
         
-    logger.info("Step 10.5 Prepare event timestamps data")
+    logger.info("Step 10.6 Prepare event timestamps data")
     save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
-    logger.info(f"Step 10.5 ompleted: Saved event timestamps to MySQL")
+    logger.info(f"Step 10.6 ompleted: Saved event timestamps to MySQL")
     
     
     
@@ -144,13 +147,16 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
         
         
         logger.info("Step 10.4: Prepare event timestamps data")
-        data = prepare_event_timestamps_data(db_base_path, video_date, start_time_video,store_id)
-        save_event_timestamps_to_api(data)
+        save_event_timestamps(db_path=db_base_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
+        
+        logger.info("Step 10.5: Prepare reid matches data")
+        save_or_update_reid_matches(db_path=db_base_path,store_id=store_id, date=video_date)
+        logger.info(f"Step 10.5 completed: Saved reid matches to MySQL")
     
-    logger.info("Step 10.5 Prepare sankey data")
+    logger.info("Step 10.6 Prepare event timestamps data")
     save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
-    logger.info(f"Step 10.5 completed: Saved sankey to MySQL")
+    logger.info(f"Step 10.6 ompleted: Saved event timestamps to MySQL")
 
     
     logger.info("Process pipeline completed successfully")
@@ -205,7 +211,7 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
 ### DIEGO TEST ###
 
 
-def process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date):
+def process_pipeline_by_dates(base_result_path='', client_id='', store_id='', camera_channel_id='', start_date='', end_date='', zone_type_id=1, processes_to_execute=[]):
     # Build the base path
     base_path = os.path.join(base_result_path, str(client_id), str(store_id), str(camera_channel_id))
     
@@ -218,26 +224,34 @@ def process_pipeline_by_dates(base_result_path, client_id, store_id, camera_chan
         print(f"Path {base_path} does not exist.")
         return
     
-    # Retrieve and sort the folders by date
+    # Retrieve and store the folders that match the pattern
+    pattern = re.compile(r'(\d{8})_(\d{4})')
     folders = []
     for folder_name in os.listdir(base_path):
-        parts = folder_name.split('_')
-        try:
-            folder_date = datetime.strptime(parts[-2], '%Y%m%d')
-            folders.append((folder_name, folder_date))
-        except (ValueError, IndexError):
-            continue
+        match = pattern.search(folder_name)
+        if match:
+            try:
+                folder_date_str = match.group(1)  # Extract the date part (first group)
+                folder_time_str = match.group(2)  # Extract the time part (second group)
+                
+                # Convert the folder_date_str to a datetime object
+                folder_date = datetime.strptime(folder_date_str, '%Y%m%d')
+                folder_time_str = datetime.strptime(folder_time_str, '%H%M').strftime('%H:%M:%S')
+                
+                # Append the folder name, date, and time to the list
+                folders.append((folder_name, folder_date, folder_time_str))
+            except (ValueError, IndexError):
+                continue
 
     # Sort folders by the extracted folder date
     folders = sorted(folders, key=lambda x: x[1])
     
     # Iterate through the sorted folders
-    for folder_name, folder_date in folders:
+    for folder_name, folder_date,start_time_video in folders:
         # Check if the folder date is within the date range
         if start_date <= folder_date <= end_date:
             folder_path = os.path.join(base_path, folder_name)
             video_date = folder_date.strftime('%Y-%m-%d')
-            start_time_video = datetime.strptime(folder_name.split('_')[-1], '%H%M').strftime('%H:%M:%S')
             csv_box_name = os.path.join(folder_path, f'{folder_name}_bbox.csv')
             img_folder = os.path.join(folder_path, 'imgs')
             
@@ -249,9 +263,14 @@ def process_pipeline_by_dates(base_result_path, client_id, store_id, camera_chan
                 print(f"DB path {db_path} does not exist for folder {folder_name}. Skipping.")
                 continue
             
-            save_or_update_reid_matches(db_path=db_path, store_id=store_id, date=video_date)
-            save_event_timestamps(db_path=db_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
-            save_or_update_sankey(db_path=db_path, store_id=store_id, date=video_date)
+            
+            if 'reid_matches' in processes_to_execute: # tiempo en tienda para el exponential chart
+                save_or_update_reid_matches(db_path=db_path, store_id=store_id, date=video_date)
+            if 'event_timestamps' in processes_to_execute:
+                save_event_timestamps(db_path=db_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
+            if 'sankey' in processes_to_execute:
+                save_or_update_sankey(db_path=db_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
+
             
             
             
@@ -261,18 +280,32 @@ if __name__ == '__main__':
     
     PRODUCTION_MODE = False
     
-    # base_url_api = 'https://api-v1.mivo.cl'
     base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
-    zone_type_id=1 #### TODO: Change this to the correct zone type id
-    client_id = 1
-    store_id = 10
-    camera_channel_id = 8
-    start_date = '20240818'
-    end_date = '20240818'
+    start_date = '20240801'
+    end_date = '20240801'
     
-    process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date)
+    
+    # Para sacar la data del sankey, primero procesar KUNA con el channel correcto y eso videos moverlo a otra carpeta de channel_camera_id
+    # Para sacar la data del sankey de diponti dejar zone_type_id=3 y apuntar a la camara 2
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 8, 1,['reid_matches','event_timestamps','sankey'] #LDP
+    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 2, 3, ['sankey'] #LDP Exterior
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 3, 16, 3, 1,['reid_matches','event_timestamps','sankey'] # KUNA
+    # client_id, store_id, camera_channel_id, zone_type_id,processes_to_execute = 3, 16, 999, 1, ['sankey']# KUNA Exterior
+    
+    # client_id = 1
+    # store_id = 10
+    # camera_channel_id = 8
+    # zone_type_id=1 #### TODO: SELECT 3 for sankey and change folder name 
+    
+    # processes_to_execute = [
+    #     'reid_matches',
+    #     'event_timestamps',
+    #     'sankey'
+    # ]
+    
+    process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date, zone_type_id, processes_to_execute)
 
     
 ### DIEGO TEST ###    

@@ -5,58 +5,13 @@ import subprocess
 import boto3
 import pymysql
 from utils.types import Direction
-from pipeline.vit_pipeline import get_files
+from reid.matches import extract_reid_matches
 from utils.time import convert_time_to_seconds
 from pipeline.mysql_config import get_connection
 from config.api import APIConfig
 
-def get_list_short_visits(db_path, max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:01:00', direction_param='In', fps=15, limit=10):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    
-    # Query the database with parameterized values
-    query = """
-        WITH bboxraw AS (
-            SELECT r.id, strftime('%H:%M:%S', '2000-01-01 00:00:00', (r.frame_number / ?) || ' seconds') AS start
-            FROM bbox_raw r 
-            GROUP BY id 
-        ),
-        intermediate AS (
-            SELECT 
-                r.id_out,
-                CAST(MAX(r.distance) AS REAL) AS max_distance,
-                r.id_in,
-                r.time_diff,
-                br_in.start AS start_in,
-                br_out.start AS start_out
-            FROM reranking_matches rm
-            JOIN reranking r ON rm.id_out = r.id_out AND rm.id_in = r.id_in
-            JOIN bboxraw br_out ON br_out.id = r.id_out 
-            JOIN bboxraw br_in ON br_in.id = r.id_in 
-            GROUP BY r.id_out, r.id_in, r.time_diff, br_in.start, br_out.start
-        )
-        SELECT
-            id_out,
-            max_distance,
-            id_in,
-            time_diff,
-            start_in,
-            start_out
-        FROM intermediate
-        WHERE max_distance < ?
-          AND time_diff >= ?
-          AND time_diff <= ?
-        ORDER BY time_diff, max_distance ASC limit ?;
-    """
-    
-    params = (fps, max_distance, min_time_diff, max_time_diff, limit)
-    print("Running query with parameters:", params)
-    list_visits = pd.read_sql_query(query, conn, params=params)
-    conn.close()
-    return list_visits
 
-
-def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:02:00', direction_param='In', fps=15, limit_vistits=10):
+def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_diff='00:00:10', max_time_diff='00:01:00', direction_param='In', fps=15, limit_vistits=10):
     # Create the 'clips' directory if it doesn't exist
     clips_dir = os.path.join(os.path.dirname(video_path), 'clips')
     if not os.path.exists(clips_dir):
@@ -68,14 +23,14 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
     # Connect to the database
     print(f"Connecting to database at {db_path}...")
     
-    list_visits = get_list_short_visits(db_path, max_distance, min_time_diff, max_time_diff, direction_param, fps, limit_vistits)
+    list_visits = extract_reid_matches(db_path, max_distance, min_time_diff, max_time_diff, fps, limit=limit_vistits)
     
     print(f"Found {len(list_visits)} visits matching criteria.")
 
     clip_paths = []
 
     # Process each row in the result set and create clips
-    for index, row in list_visits.iterrows():
+    for index, row in list_visits.to_dict(orient='records'):
         start_in_seconds = convert_time_to_seconds(row['start_in'])
         start_out_seconds = convert_time_to_seconds(row['start_out'])
         duration = start_out_seconds - start_in_seconds + 3 # Add 3 seconds to the duration
