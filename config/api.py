@@ -35,19 +35,23 @@ class APIConfig:
     def save_visits_per_hour(cls, list_visits_group_by_hour, store_id, date, visit_type_id=''):
         url = f"{cls.get_base_url()}/api/save-visits-per-hour"
         headers = {'Content-Type': 'application/json'}
+        
+        data = []
         for item in list_visits_group_by_hour:
-            data = {
+            data.append({
                 'count': item['count'],
                 'time': item['time_calculated'],
                 'store_id': store_id,
                 'date': date,
                 'visit_type_id': visit_type_id,
-            }
-            response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 201:
-                print(f"Inserted {item['count']} visits at {item['time_calculated']}")
-            else:
-                print(f"Failed to insert {item['count']} visits at {item['time_calculated']}. Status code: {response.status_code}, Response: {response.text}")
+            })
+        
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            print(f"Inserted {len(list_visits_group_by_hour)} visits successfully")
+        else:
+            print(f"Failed to insert visits. Status code: {response.status_code}, Response: {response.text}")
+
 
     @classmethod
     def get_unique_sales(cls, store_id, date):
@@ -85,17 +89,21 @@ class APIConfig:
     def save_short_visits(cls, short_video_clips_urls, date, store_id):
         url = f"{cls.get_base_url()}/api/save-short-visits"
         headers = {'Content-Type': 'application/json'}
+        
+        data = []
         for item in short_video_clips_urls:
-            data = {
+            data.append({
                 'url': item['url'],
                 'date': date,
                 'store_id': store_id,
-            }
-            response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 201:
-                print(f"Inserted short visit for URL {item['url']}")
-            else:
-                print(f"Failed to insert short visit for URL {item['url']}. Status code: {response.status_code}, Response: {response.text}")
+            })
+        
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 201:
+            print(f"Inserted {len(short_video_clips_urls)} short visits successfully")
+        else:
+            print(f"Failed to insert short visits. Status code: {response.status_code}, Response: {response.text}")
+
                 
     @classmethod
     def save_sankey_diagram(cls,store_id, date, exterior=None, interior=None, pos=None, short_visit=None):

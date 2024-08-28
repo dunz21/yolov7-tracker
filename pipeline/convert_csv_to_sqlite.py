@@ -39,4 +39,4 @@ def convert_csv_to_sqlite(csv_file_path, db_file_path, table_name='bbox_raw'):
         fetched_data = pd.read_sql(f'SELECT * FROM {table_name}', conn)
     
     # Return the fetched data
-    return fetched_data
+    return fetched_data 

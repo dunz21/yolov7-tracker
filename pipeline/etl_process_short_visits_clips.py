@@ -30,7 +30,7 @@ def extract_short_visits(video_path='', db_path='', max_distance=0.4, min_time_d
     clip_paths = []
 
     # Process each row in the result set and create clips
-    for index, row in list_visits.to_dict(orient='records'):
+    for index, row in enumerate(list_visits.to_dict(orient='records')):
         start_in_seconds = convert_time_to_seconds(row['start_in'])
         start_out_seconds = convert_time_to_seconds(row['start_out'])
         duration = start_out_seconds - start_in_seconds + 3 # Add 3 seconds to the duration

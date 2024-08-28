@@ -18,103 +18,13 @@ from config.api import APIConfig
 
 def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', zone_type_id=1):
     logger = logging.getLogger(__name__)
-    
-    
-    pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
-    # client_id = 1
-    # store_id = 3
-    # video_date = "2021-06-01"
-    # start_time_video = "10:00:00"
-    # frame_rate = 15
-    bucket_name='videos-mivo'
-    
-    # connection_mysql = get_connection(HOST, ADMIN, PASS, DB)
-    # logger.info(f"Connected to MySQL database at {HOST}")
-    
-    # Step 1: Convert CSV to SQLite
-    logger.info("Step 1: Convert CSV to SQLite")
-    db_base_path = csv_box_name.replace('.csv', '.db')
-    convert_csv_to_sqlite(csv_file_path=csv_box_name, db_file_path=db_base_path, table_name='bbox_raw')
-    logger.info(f"Step 1 completed: Converted {csv_box_name}.csv to SQLite database at {db_base_path}")
-    
-    # Step 2: Correct IDs in the database using the switch ID corrector pipeline
-    # logger.info("Step 2: Correct IDs in the database using the switch ID corrector pipeline")
-    # switch_id_corrector_pipeline(db_path=db_base_path, base_folder_path=img_folder_name, weights=solider_weights, model_name='solider')
-    # logger.info(f"Step 2 completed: Corrected IDs using switch ID corrector pipeline")
-    
-    # Step 3: Prepare data for image selection
-    logger.info("Step 3: Prepare data for image selection")
-    prepare_data_img_selection(db_path=db_base_path, origin_table="bbox_raw", k_folds=4, n_images=5, new_table_name="bbox_img_selection")
-    logger.info(f"Step 3 completed: Prepared data for image selection")
-    
-    # Step 4: Predict image selection
-    logger.info("Step 4: Predict image selection")
-    predict_img_selection(db_file_path=db_base_path, model_weights_path='mini_models/results/image_selection_model.pkl')
-    logger.info(f"Step 4 completed: Predicted image selection")
-    
-    # Step 5: Clean image folder by selecting top-k images
-    logger.info("Step 5: Clean image folder by selecting top-k images")
-    clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=img_folder_name, dest_folder_results=f"{img_folder_name}_top4", k_fold=4, threshold=0.9)
-    logger.info(f"Step 5 completed: Cleaned image folder and selected top-k images")
-    
-    if zone_type_id == 1:
-        # Step 6: Extract features from model
-        logger.info("Step 6: Extract features from model")
-        features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}_top4", weights=solider_weights, db_path=db_base_path)
-        logger.info(f"Step 6 completed: Extracted features from model")
-        
-        # Step 7: Complete re-ranking using the extracted features
-        logger.info("Step 7: Complete re-ranking using the extracted features")
-        complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
-        logger.info(f"Step 7 completed: Completed re-ranking")
-    
-        # Step 8: Extract visits per hour
-        logger.info("Step 8: Extract visits per hour")
-        visits_per_hour = extract_visits_per_hour(db_path=db_base_path, start_time=start_time_video, frame_rate=frame_rate)
-        logger.info(f"Step 8 completed: Extracted visits per hour")
-        
-        # Step 9: Save visits per hour to MySQL
-        logger.info("Step 9: Save visits per hour to MySQL")
-        save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date)
-        logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
-
-        # Step 10: Extract short visits
-        logger.info("Step 10.1: Extract short visits")
-        short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
-        logger.info(f"Step 10.1 completed: Extracted short visits")
-        
-        # Step 11: Process clips to S3
-        logger.info("Step 10.2: Process clips to S3")
-        clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
-        logger.info(f"Step 10.2 completed: Processed clips to S3")
-        
-        # Step 12: Save short visits to MySQL
-        logger.info("Step 10.3: Save short visits to MySQL")
-        save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
-        logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
-        
-        
-        logger.info("Step 10.4: Prepare event timestamps data")
-        save_event_timestamps(db_path=db_base_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
-        logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
-        
-        logger.info("Step 10.5: Prepare reid matches data")
-        save_or_update_reid_matches(db_path=db_base_path,store_id=store_id, date=video_date)
-        logger.info(f"Step 10.5 completed: Saved reid matches to MySQL")
-        
-        
-    logger.info("Step 10.6 Prepare event timestamps data")
-    save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
-    logger.info(f"Step 10.6 ompleted: Saved event timestamps to MySQL")
-    
-    
-    
+    db_base_path = process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder_name,solider_weights=solider_weights,zone_type_id=zone_type_id)
+    process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=frame_rate,zone_type_id=zone_type_id)
     logger.info("Process pipeline completed successfully")
     
     
 def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',zone_type_id=1):
     logger = logging.getLogger(__name__)
-    
     
     pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
     bucket_name='videos-mivo'
@@ -162,7 +72,7 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
     logger.info("Process pipeline completed successfully")
 
 
-def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='model_weights.pth',override_db_name=None):
+def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='model_weights.pth',override_db_name=None, zone_type_id=1):
     logger = logging.getLogger(__name__)
     
     category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_box_name)
@@ -198,36 +108,40 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     clean_img_folder_top_k(db_file_path=db_base_path, base_folder_images=img_folder_name, dest_folder_results=f"{img_folder_name}_top4", k_fold=4, threshold=0.9)
     logger.info(f"Step 5 completed: Cleaned image folder and selected top-k images")
     
-    # Step 6: Extract features from model
-    logger.info("Step 6: Extract features from model")
-    features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}", weights=solider_weights, db_path=db_base_path)
-    logger.info(f"Step 6 completed: Extracted features from model")
-    
-    # Step 7: Complete re-ranking using the extracted features
-    logger.info("Step 7: Complete re-ranking using the extracted features")
-    complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
-    logger.info(f"Step 7 completed: Completed re-ranking")
+    if zone_type_id == 1: # Only for entrance, prevent to run for exterior
+        # Step 6: Extract features from model
+        logger.info("Step 6: Extract features from model")
+        features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}", weights=solider_weights, db_path=db_base_path)
+        logger.info(f"Step 6 completed: Extracted features from model")
+        
+        # Step 7: Complete re-ranking using the extracted features
+        logger.info("Step 7: Complete re-ranking using the extracted features")
+        complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
+        logger.info(f"Step 7 completed: Completed re-ranking")
+        
+    return db_base_path
     
 ### DIEGO TEST ###
 
 
-def process_pipeline_by_dates(base_result_path='', client_id='', store_id='', camera_channel_id='', start_date='', end_date='', zone_type_id=1, processes_to_execute=[]):
+def process_pipeline_by_dates(base_result_path='',base_footage_path='', client_id='', store_id='', camera_channel_id='', start_date='', end_date='', zone_type_id=1, processes_to_execute=[]):
     # Build the base path
-    base_path = os.path.join(base_result_path, str(client_id), str(store_id), str(camera_channel_id))
+    base_path_results = os.path.join(base_result_path, str(client_id), str(store_id), str(camera_channel_id))
+    base_footage_raw_path = os.path.join(base_footage_path, str(client_id), str(store_id), str(camera_channel_id))
     
     # Convert the dates to datetime objects for comparison
     start_date = datetime.strptime(start_date, '%Y%m%d')
     end_date = datetime.strptime(end_date, '%Y%m%d')
     
     # Check if the base path exists
-    if not os.path.exists(base_path):
-        print(f"Path {base_path} does not exist.")
+    if not os.path.exists(base_path_results):
+        print(f"Path {base_path_results} does not exist.")
         return
     
     # Retrieve and store the folders that match the pattern
     pattern = re.compile(r'(\d{8})_(\d{4})')
     folders = []
-    for folder_name in os.listdir(base_path):
+    for folder_name in os.listdir(base_path_results):
         match = pattern.search(folder_name)
         if match:
             try:
@@ -250,11 +164,12 @@ def process_pipeline_by_dates(base_result_path='', client_id='', store_id='', ca
     for folder_name, folder_date,start_time_video in folders:
         # Check if the folder date is within the date range
         if start_date <= folder_date <= end_date:
-            folder_path = os.path.join(base_path, folder_name)
+            folder_path = os.path.join(base_path_results, folder_name)
+            folder_footage_raw_path = os.path.join(base_footage_raw_path, folder_name)
             video_date = folder_date.strftime('%Y-%m-%d')
             csv_box_name = os.path.join(folder_path, f'{folder_name}_bbox.csv')
             img_folder = os.path.join(folder_path, 'imgs')
-            
+            video_file = os.path.join(f'{folder_footage_raw_path}.mkv')
             print(f"Processing folder: {folder_name}")
             
             # Add your processing logic here
@@ -270,6 +185,10 @@ def process_pipeline_by_dates(base_result_path='', client_id='', store_id='', ca
                 save_event_timestamps(db_path=db_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
             if 'sankey' in processes_to_execute:
                 save_or_update_sankey(db_path=db_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
+            if 'process_pipeline_mini' in processes_to_execute:
+                process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder,override_db_name=os.path.join(folder_path, 'prueba_1.db'))
+            if 'process_save_bd_pipeline' in processes_to_execute:
+                process_save_bd_pipeline(db_base_path=db_path, video_path=video_file, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=15,zone_type_id=zone_type_id)
 
             
             
@@ -278,21 +197,30 @@ def process_pipeline_by_dates(base_result_path='', client_id='', store_id='', ca
             
 if __name__ == '__main__':
     
-    PRODUCTION_MODE = False
+    PRODUCTION_MODE = True
     
     base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
-    start_date = '20240801'
-    end_date = '20240801'
+    base_footage_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '')
+    start_date = '20240824'
+    end_date = '20240827'
     
     
     # Para sacar la data del sankey, primero procesar KUNA con el channel correcto y eso videos moverlo a otra carpeta de channel_camera_id
     # Para sacar la data del sankey de diponti dejar zone_type_id=3 y apuntar a la camara 2
+    
+    
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 8, 1,['reid_matches','event_timestamps','sankey'] #LDP
-    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 2, 3, ['sankey'] #LDP Exterior
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 2, 3, ['sankey'] #LDP Exterior
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 3, 16, 3, 1,['reid_matches','event_timestamps','sankey'] # KUNA
-    # client_id, store_id, camera_channel_id, zone_type_id,processes_to_execute = 3, 16, 999, 1, ['sankey']# KUNA Exterior
+    # client_id, store_id, camera_channel_id, zone_type_id,processes_to_execute = 3, 16, 999, 1, ['process_pipeline_mini']# KUNA Exterior
+    
+    
+    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 8, 1,['process_save_bd_pipeline'] #LDP
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 3, 16, 3, 1,['process_save_bd_pipeline'] # KUNA
+    
+    
     
     # client_id = 1
     # store_id = 10
@@ -305,7 +233,7 @@ if __name__ == '__main__':
     #     'sankey'
     # ]
     
-    process_pipeline_by_dates(base_result_path, client_id, store_id, camera_channel_id, start_date, end_date, zone_type_id, processes_to_execute)
+    process_pipeline_by_dates(base_result_path,base_footage_path, client_id, store_id, camera_channel_id, start_date, end_date, zone_type_id, processes_to_execute)
 
     
 ### DIEGO TEST ###    
@@ -326,11 +254,11 @@ if __name__ == '__main__':
 #         zone_type_id=2
 #         )
 
-### PIPIELINE MINI
+## PIPIELINE MINI
 # if __name__ == '__main__':
 #     solider_weights = 'transformer_120.pth'
-#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240820_1000_CFPS/'
-#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240820_1000_CFPS_bbox.csv')
+#     base_result_folder = '/home/diego/mydrive/results/3/16/3/costanera_entrada_20240825_1000_CFPS/'
+#     csv_file_name = os.path.join(base_result_folder, 'costanera_entrada_20240825_1000_CFPS_bbox.csv')
 #     img_folder_name = os.path.join(base_result_folder, 'imgs')
 #     features = process_pipeline_mini(
 #         csv_box_name=csv_file_name,
