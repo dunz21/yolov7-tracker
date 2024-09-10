@@ -16,7 +16,7 @@ lapx
 tqdm
 requests
 yacs
-botocore
+boto3
 pymysql
 
 torch==2.0.1

@@ -8,7 +8,7 @@ services:
     environment:
       - FOOTAGE_ROOT_FOLDER_PATH=/home/diego/mydrive/footage
       - RESULTS_ROOT_FOLDER_PATH=/home/diego/mydrive/results
-      - BASE_URL_API=http://localhost:8000
+      - BASE_URL_API=http://localhost:5001
     command: ["python3", "automatic_detect.py"]
     volumes:
       - ./runs/detect:/app/runs/detect
