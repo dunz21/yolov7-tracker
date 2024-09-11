@@ -7,7 +7,10 @@ import torch
 import requests
 import os
 from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
+from pipeline.compress_results_upload import pipeline_compress_results_upload,delete_local_results_folder
 from config.api import APIConfig
+from utils.print_prod_or_dev_mode import print_mode
+from utils.download_video import find_video_in_s3,download_video_from_s3,delete_local_file
 import time
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -21,17 +24,15 @@ from distutils.util import strtobool
 
 if __name__ == '__main__':
     load_dotenv()
-    # Total sleep time in seconds
-    total_time = 1 * 60 * 60 + 40 * 60  # 1 hour and 20 minutes
-
-    # Create a progress bar that lasts for total_time seconds
-    # for _ in tqdm(range(total_time), desc="Waiting", ncols=100):
-    #     time.sleep(1)  # Sleep for 1 second at a time
     PRODUCTION_MODE = strtobool(os.getenv('PRODUCTION_MODE', False))
     NO_SAVE_VIDEO = strtobool(os.getenv('NO_SAVE_VIDEO', True))
-    
+    CLOUD_MACHINE = strtobool(os.getenv('CLOUD_MACHINE', True))
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
+    results_bucket = os.getenv('RESULTS_BUCKET_NAME')
+    footage_bucket = os.getenv('FOOTAGE_BUCKET_NAME')
+    
+    print_mode(PRODUCTION_MODE)
     
     base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     SOLIDER_WEIGHTS ='transformer_120.pth'
@@ -76,8 +77,12 @@ if __name__ == '__main__':
         
     
         if not os.path.exists(videoDataObj.source):
-            print(f"Video file {videoDataObj.source} does not exist. Skipping.")
-            APIConfig.update_video_status(nextVideoInQueue['id'], 'not_found')
+            exists_video_s3, video_s3_path = find_video_in_s3(footage_bucket, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/", videoDataObj.video_date.replace('-', ''))
+            if exists_video_s3:
+                download_video_from_s3(footage_bucket,videoDataObj.source,video_s3_path)
+            else:    
+                print(f"Video file {videoDataObj.source} does not exist. Skipping.")
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'not_found')
             continue
         
         with torch.no_grad():
@@ -89,7 +94,7 @@ if __name__ == '__main__':
                 if PRODUCTION_MODE:
                     process_complete_pipeline(
                         csv_box_name=videoPipeline.csv_box_name,
-                        img_folder_name=videoPipeline.folder_name,
+                        img_folder_name=videoPipeline.img_folder_name,
                         video_path=videoDataObj.source,
                         client_id=videoDataObj.client_id,
                         store_id=videoDataObj.store_id,
@@ -100,9 +105,11 @@ if __name__ == '__main__':
                         zone_type_id=nextVideoInQueue['zone_type_id']
                     )
                 else:
-                    process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.folder_name,solider_weights=SOLIDER_WEIGHTS)
-                    
-                    
+                    process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.img_folder_name,solider_weights=SOLIDER_WEIGHTS)
+                pipeline_compress_results_upload(videoPipeline.base_results_folder, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_date']}", results_bucket)
+                if CLOUD_MACHINE:
+                    delete_local_file(videoDataObj.source)
+                    delete_local_results_folder(videoPipeline.base_results_folder)
                     
                 results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)

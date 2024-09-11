@@ -1,5 +1,6 @@
 class VideoPipeline:
-    def __init__(self, csv_box_name, save_path, folder_name):
+    def __init__(self, csv_box_name, save_path, img_folder_name,base_results_folder):
         self.csv_box_name = csv_box_name
         self.save_path = save_path
-        self.folder_name = folder_name
+        self.img_folder_name = img_folder_name
+        self.base_results_folder = base_results_folder

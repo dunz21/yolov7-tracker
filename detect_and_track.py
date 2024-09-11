@@ -78,8 +78,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
 
     # opt.name = video_data['folder_img']
     # Directories
-    folder_name = f"{video_data.name}"
-    save_dir = Path(increment_path(Path(opt.project) / folder_name, exist_ok=opt.exist_ok))  # increment run
+    save_dir = Path(increment_path(Path(opt.project) / video_data.name, exist_ok=opt.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
     os.chmod(save_dir, 0o775)
     # Initialize
@@ -146,7 +145,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
         if not valid_frame_iteration:
             continue
         save_dir_str = str(save_dir)
-        folder_name = f"{save_dir_str}/imgs"
+        folder_name_imgs = f"{save_dir_str}/imgs"
         csv_box_name = f"{save_dir_str}/{video_data.name}_bbox.csv"
         # FPS = vid_cap.get(cv2.CAP_PROP_FPS)
         FPS = 15
@@ -215,7 +214,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
                 for tracker in trackers:
                     if tracker.history.__len__() == sort_max_age:
                         id = tracker.id + 1
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
                         PersonImage.delete_instance(id)
         else :
             if tracker_reid.removed_stracks:
@@ -223,7 +222,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
                 for id in unique_ids:
                     remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                     if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                        PersonImage.save(id=id, folder_name=folder_name, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
                         PersonImage.delete_instance(id)
             
         # Process detections
@@ -356,7 +355,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
         if video_data.without_video_compression == 0:
             compress_and_replace_video(save_path)
     
-    return VideoPipeline(csv_box_name, save_path, folder_name)
+    return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str)
 
 if __name__ == '__main__':   
     with torch.no_grad():
