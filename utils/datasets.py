@@ -189,7 +189,7 @@ class LoadImages:  # for inference
                         ret_val, img0 = self.cap.read()
 
             self.frame += 1
-            print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+            # print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
         # For images
         else:
             # Read image

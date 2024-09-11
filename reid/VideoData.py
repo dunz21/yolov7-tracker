@@ -4,7 +4,7 @@ class VideoData:
     
     def __init__(self):
         self.frame_rate_video = 15
-        self.without_video_compression = True
+        self.without_video_compression = False
         # self.filter_area = [[1154,353],[1232,353],[1230,563],[1120, 564]] # Parametrized area for filtering detections
         
         

@@ -36,7 +36,7 @@ from ultralytics import YOLOv10
 from ultralytics.models import YOLO
 # from dotenv import load_dotenv
 
-def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
+def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, progress_interval=2) -> VideoPipeline:
     weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
     save_img = not opt.nosave
 
@@ -119,6 +119,16 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
         dataset = LoadWebcam(pipe=video_data.source)
     else: 
         dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride)
+        
+    # Check if the first file is a video or image
+    vid_cap = None
+    if dataset.video_flag[0]:
+        vid_cap = dataset.cap
+        total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    else:
+        total_frames = dataset.nf  # number of images if no videos
+
+    progress_step = total_frames * (progress_interval / 100)  # Calculate frames per progress update
 
     # Run inference
     if device.type != 'cpu':
@@ -132,7 +142,7 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
     t100 = time.time()
     current_frame = 0  # Initialize current frame counter
 
-    for path, img, im0s, vid_cap, frame, valid_frame_iteration in dataset:
+    for frame_index, (path, img, im0s, vid_cap, frame, valid_frame_iteration) in enumerate(dataset):
         if not valid_frame_iteration:
             continue
         save_dir_str = str(save_dir)
@@ -285,8 +295,14 @@ def detect(video_data: VideoData, opt: VideoOption) -> VideoPipeline:
                 
                 draw_boxes(img=im0, bbox=bbox_id, extra_info=extra_info,color=(0,0,255),position='Top')
 
+        if progress_callback and frame_index % progress_step == 0:
+            progress_callback(frame_index / total_frames * 100)
+            logger.info(f"Progress: {frame_index / total_frames * 100:.2f}%")
+        # Conditional print
+        if not progress_callback:
+            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
             
-        print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
+        
         
         if frame % 1000 == 0:
             logger.info(f"1000 frames took {t100 - time.time()} seconds")

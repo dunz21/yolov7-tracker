@@ -30,6 +30,7 @@ def compress_and_replace_video(video_path, encoder='h264_nvenc', preset='slow', 
     ffmpeg_command = [
         "ffmpeg",
         "-i", video_path,
+        "-vf", "scale=1280:720",
         "-c:v", encoder,
         "-preset", preset,
         "-cq:v", str(cq),

@@ -10,6 +10,8 @@ from pipeline.main import process_complete_pipeline,process_pipeline_mini,proces
 from config.api import APIConfig
 import time
 from tqdm import tqdm
+from dotenv import load_dotenv
+from distutils.util import strtobool
 
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
@@ -18,14 +20,15 @@ from tqdm import tqdm
 # API + MINI PIPELINE + SAVE VIDEO
 
 if __name__ == '__main__':
+    load_dotenv()
     # Total sleep time in seconds
     total_time = 1 * 60 * 60 + 40 * 60  # 1 hour and 20 minutes
 
     # Create a progress bar that lasts for total_time seconds
     # for _ in tqdm(range(total_time), desc="Waiting", ncols=100):
     #     time.sleep(1)  # Sleep for 1 second at a time
-    PRODUCTION_MODE = True
-    NO_SAVE_VIDEO = True
+    PRODUCTION_MODE = strtobool(os.getenv('PRODUCTION_MODE', False))
+    NO_SAVE_VIDEO = strtobool(os.getenv('NO_SAVE_VIDEO', True))
     
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
@@ -78,9 +81,10 @@ if __name__ == '__main__':
             continue
         
         with torch.no_grad():
-            try:
+            try:    
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
-                videoPipeline = detect(videoDataObj, videoOptionObj)
+                print(f"Processing video {videoDataObj.source}")
+                videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=lambda progress: APIConfig.update_video_process_status(nextVideoInQueue['id'], progress))
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
                 if PRODUCTION_MODE:
                     process_complete_pipeline(

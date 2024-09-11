@@ -30,6 +30,12 @@ class APIConfig:
         url = f"{cls.get_base_url()}/api/queue-videos/{video_id}/status"
         response = requests.put(url, data={'status': status})
         return response
+    
+    @classmethod
+    def update_video_process_status(cls, video_id, progress):
+        url = f"{cls.get_base_url()}/api/queue-videos/{video_id}/progress"
+        response = requests.put(url, data={'progress': progress})
+        return response
 
     @classmethod
     def save_visits_per_hour(cls, list_visits_group_by_hour, store_id, date, visit_type_id=''):
