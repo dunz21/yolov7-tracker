@@ -127,7 +127,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
     else:
         total_frames = dataset.nf  # number of images if no videos
 
-    progress_step = total_frames * (progress_interval / 100)  # Calculate frames per progress update
+    progress_step = int(total_frames * (progress_interval / 100))  # Calculate frames per progress update
 
     # Run inference
     if device.type != 'cpu':
