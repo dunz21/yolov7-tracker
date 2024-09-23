@@ -43,7 +43,7 @@ class PersonImage:
 
 
     @classmethod
-    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True, save_all=False):
+    def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True, save_all=False,bbox_centroid=None):
         """
             Save the instance with the specified id to a file.
         """
@@ -56,8 +56,12 @@ class PersonImage:
         #### Si soy FALSO IN, y comparo con CENTER CENTROID y es OUT, entonces es OUT
         #### Si soy FALSO OUT, y comparo con CENTER CENTROID y es IN, entonces es IN
         
-        centroids = [(cls.calculate_centroid_bottom_tlbr(bbox), cls.calculate_centroid(bbox)) for bbox in instance.history_deque]
-        centroid_bottom, centroid_center = zip(*centroids) if centroids else ([], [])
+        centroids = [(cls.calculate_centroid_bottom_tlbr(bbox), cls.calculate_centroid_top(bbox)) for bbox in instance.history_deque]
+        centroid_bottom, centroid_top = zip(*centroids) if centroids else ([], [])
+        
+        if bbox_centroid is not None and bbox_centroid.lower() == 'top':
+            centroid_bottom = centroid_top
+        
         cross_green_line = path_intersects_line(centroid_bottom, LineString(polygons_list[0][:2]))
         
         if instance is None or cross_green_line is False:
@@ -138,10 +142,10 @@ class PersonImage:
         return cls._instances.get(id)
     
     @classmethod
-    def calculate_centroid(cls,tlbr):
+    def calculate_centroid_top(cls, tlbr):
         x1, y1, x2, y2 = tlbr
         midpoint_x = (x1 + x2) // 2
-        midpoint_y = (y1 + y2) // 2
+        midpoint_y = y1
         midpoint = (midpoint_x, midpoint_y)
         return midpoint
 
@@ -233,26 +237,4 @@ class PersonImage:
             if cls.is_point_in_polygon(centroid, polygon):
                 inside_any_polygon = True
         return inside_any_polygon
-    
-    def find_polygons_for_centroids(cls, polygons_list):
-        if len(cls.history_deque) < 2:
-            return None
-        if not cls.polygons:
-            shapely_polygons = [Polygon(polygon.reshape(-1, 2)) for polygon in polygons_list]
-            cls.polygons = [Polygon(polygon) for polygon in shapely_polygons]
-        
-        centroids = [cls.calculate_centroid(bbox) for bbox in cls.history_deque]
-        bottom_centroids = [cls.calculate_centroid_bottom_tlbr(bbox) for bbox in cls.history_deque]
-        
-        cls.polygon_indices = []
-        
-        for centroid_index, centroid in enumerate(centroids):
-            line = LineString([centroid, bottom_centroids[centroid_index]])
-            for i, polygon in enumerate(cls.polygons):
-                if cls.is_line_in_polygon(line, polygon):  # Checks if the line enters the polygon
-                    cls.polygon_indices.append(i)
-
-        return cls.polygon_indices
-
-
         

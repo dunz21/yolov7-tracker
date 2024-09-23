@@ -36,9 +36,9 @@ from ultralytics import YOLOv10
 from ultralytics.models import YOLO
 # from dotenv import load_dotenv
 
-def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, progress_interval=2) -> VideoPipeline:
-    weights, view_img, show_config, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = opt.weights, opt.view_img, opt.show_config, opt.save_txt, opt.img_size, not opt.no_trace, opt.wait_for_key, opt.save_bbox_dim, opt.save_with_object_id
-    save_img = not opt.nosave
+def detect(video_data: VideoData, video_option: VideoOption, progress_callback=None, progress_interval=2) -> VideoPipeline:
+    weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = video_option.weights, video_option.view_img, video_option.save_txt, video_option.img_size, not video_option.no_trace, video_option.wait_for_key, video_option.save_bbox_dim, video_option.save_with_object_id
+    # save_img = not video_option.nosave
 
     # .... Initialize SORT ....
     sort_max_age = 50
@@ -62,35 +62,35 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
     ### SORT TRACKER###
     obj.sort_iou_thresh = sort_iou_thresh
     
-    if opt.tracker_selection == 'sort':
+    if video_option.tracker_selection == 'sort':
         tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
-    elif opt.tracker_selection == 'smiletrack':
+    elif video_option.tracker_selection == 'smiletrack':
         tracker_reid = SMILEtrack(obj, frame_rate=15)
-    elif opt.tracker_selection == 'bytetrack':
+    elif video_option.tracker_selection == 'bytetrack':
         tracker_reid = BYTETracker(obj, frame_rate=15)
-    elif opt.tracker_selection == 'bytetrack_adaptive':
+    elif video_option.tracker_selection == 'bytetrack_adaptive':
         tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     else:
-        raise ValueError(f"Tracker selection {opt.tracker_selection} not recognized")
+        raise ValueError(f"Tracker selection {video_option.tracker_selection} not recognized")
         
     # .........................
     PersonImage.clear_instances()
 
-    # opt.name = video_data['folder_img']
+    # video_option.name = video_data['folder_img']
     # Directories
-    save_dir = Path(increment_path(Path(opt.project) / video_data.name, exist_ok=opt.exist_ok))  # increment run
+    save_dir = Path(increment_path(Path(video_option.project) / video_data.name, exist_ok=video_option.exist_ok))  # increment run
     (save_dir / 'labels' if save_txt or save_with_object_id else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
     os.chmod(save_dir, 0o775)
     # Initialize
     set_log(f"{save_dir}/app.log")
     logger = logging.getLogger(__name__)
     logger.info(vars(video_data))
-    logger.info(vars(opt))
+    logger.info(vars(video_option))
     
-    device = select_device(opt.device)
+    device = select_device(video_option.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
-    if opt.model_version == 'yolov10':
+    if video_option.model_version == 'yolov10':
         model = YOLOv10(weights)
         stride = 32  # Default stride for YOLOv10
     else:
@@ -103,7 +103,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
         stride = int(model.stride.max())  # model stride
         imgsz = check_img_size(imgsz, s=stride)  # check img_size
         if trace:
-            model = TracedModel(model, device, opt.img_size)
+            model = TracedModel(model, device, video_option.img_size)
         if half:
             model.half()  # to FP16
 
@@ -117,7 +117,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
     if 'rtsp' in video_data.source:
         dataset = LoadWebcam(pipe=video_data.source)
     else: 
-        dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride)
+        dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride, print_info=True)
         
     # Check if the first file is a video or image
     vid_cap = None
@@ -159,26 +159,26 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
 
-        if opt.model_version == 'yolov7':
+        if video_option.model_version == 'yolov7':
             # Warmup
             if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
                 old_img_b = img.shape[0]
                 old_img_h = img.shape[2]
                 old_img_w = img.shape[3]
                 for i in range(3):
-                    model(img, augment=opt.augment)[0]
+                    model(img, augment=video_option.augment)[0]
             # Inference
             t1 = time_synchronized()
-            pred = model(img, augment=opt.augment)[0]
+            pred = model(img, augment=video_option.augment)[0]
             t2 = time_synchronized()
             # Apply NMS
-            results = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+            results = non_max_suppression(pred, video_option.conf_thres, video_option.iou_thres, classes=video_option.classes, agnostic=video_option.agnostic_nms)
             t3 = time_synchronized()
             
-        if opt.model_version == 'yolov10':
+        if video_option.model_version == 'yolov10':
             # Inference
             t1 = time_synchronized()
-            results = model(img, verbose=False, conf=opt.conf_thres, iou=opt.iou_thres)
+            results = model(img, verbose=False, conf=video_option.conf_thres, iou=video_option.iou_thres)
             t2 = time_synchronized()
             t3 = time_synchronized()
             
@@ -186,7 +186,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
 
 
         original_image = im0s.copy()
-        if show_config:
+        if video_option.show_config:
             info = {
                 "sort_iou_thresh":obj.sort_iou_thresh,
                 "track_thresh":obj.track_thresh,
@@ -202,8 +202,9 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
                 "min_box_area":obj.min_box_area,
                 "tracker" : tracker_reid.__class__.__name__,
                 "weights":weights.split("/")[-1],
+                "bbox_centroid":video_option.bbox_centroid,
                 }
-            # draw_configs(im0s,info,scale=im0s.shape[0])
+            draw_configs(im0s,info,scale=im0s.shape[0])
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data.polygon_area)
         draw_boxes_entrance_exit(image=im0s,polygon_in=video_data.polygons_in,polygon_out=video_data.polygons_out)
 
@@ -214,7 +215,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
                 for tracker in trackers:
                     if tracker.history.__len__() == sort_max_age:
                         id = tracker.id + 1
-                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.save_all_images,bbox_centroid=video_option.bbox_centroid)
                         PersonImage.delete_instance(id)
         else :
             if tracker_reid.removed_stracks:
@@ -222,7 +223,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
                 for id in unique_ids:
                     remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                     if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=opt.save_img_bbox,save_all=opt.save_all_images)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.save_all_images,bbox_centroid=video_option.bbox_centroid)
                         PersonImage.delete_instance(id)
             
         # Process detections
@@ -232,7 +233,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
         
         
         for i, det in enumerate(results):  # detections per image
-            if opt.model_version == 'yolov10':
+            if video_option.model_version == 'yolov10':
                 det = det.boxes.data.clone()  # get box data
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0s.shape).round()
@@ -329,7 +330,7 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
 
 
         # Save results (image with detections)
-        if save_img:
+        if video_option.keep_resulting_video:
             if vid_path != save_path:  # new video
                 vid_path = save_path
                 if isinstance(vid_writer, cv2.VideoWriter):
@@ -350,31 +351,9 @@ def detect(video_data: VideoData, opt: VideoOption, progress_callback=None, prog
     print(f'Done. ({time.time() - t0:.3f}s)')
     logger.info(f'Done. ({time.time() - t0:.3f}s)')
     
-    if save_img:
+    if video_option.keep_resulting_video:
         vid_writer.release()
-        if video_data.without_video_compression == 0:
+        if video_option.compress_video:
             compress_and_replace_video(save_path)
     
     return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str)
-
-if __name__ == '__main__':   
-    with torch.no_grad():
-        videoDataObj = VideoData()
-        videoDataObj.setClientStoreChannel(1,3,1)
-        videoDataObj.setZoneInOutArea([[[634,229],[643,424],[591,424],[591,229]],[[634,229], [678,222],[684,424],[643,424]],[[526,229],[726,225],[724,424],[525,424]]])
-        videoDataObj.setZoneFilterArea([])
-        
-        
-        # base_folder = '/home/diego/mydrive/results/1/3/1/tobalaba_entrada_20240604_1000'
-        # video = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000.mkv')
-        # csv_file = os.path.join(base_folder, 'tobalaba_entrada_20240604_1000_bbox.csv')
-        # folder_imgs = os.path.join(base_folder, 'imgs')
-        videoDataObj.setDebugVideoSourceCompletePath('/home/diego/mydrive/footage/1/10/2/apumanque_entrada_1_20240716_1100_short.mkv')
-        videoDataObj.setVideoMetaInfo('costanera_entrada_20240712_1000_C_FPS', '2024-06-19', '09:00:00')
-        videoOptionObj = VideoOption(folder_results='runs/detect',view_img=False, noSaveVideo=False, save_img_bbox=True, weights='yolov7.pt',model_version='yolov7')
-        videoPipeline = detect(videoDataObj, videoOptionObj)
-        
-        # process_pipeline_mini(
-        #     csv_box_name=csv_file,
-        #     img_folder_name=folder_imgs,
-        #     )

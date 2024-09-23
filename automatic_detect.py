@@ -25,8 +25,9 @@ from distutils.util import strtobool
 if __name__ == '__main__':
     load_dotenv()
     PRODUCTION_MODE = strtobool(os.getenv('PRODUCTION_MODE', False))
-    NO_SAVE_VIDEO = strtobool(os.getenv('NO_SAVE_VIDEO', True))
+    KEEP_RESULTING_VIDEO = strtobool(os.getenv('KEEP_RESULTING_VIDEO', False))
     CLOUD_MACHINE = strtobool(os.getenv('CLOUD_MACHINE', True))
+    DEBUG_MODE = strtobool(os.getenv('DEBUG_MODE', False))
     footage_root_folder_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '/home/diego/mydrive/footage')
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
     results_bucket = os.getenv('RESULTS_BUCKET_NAME')
@@ -50,10 +51,11 @@ if __name__ == '__main__':
         
             
         inferenceParams = InferenceParams(
-            weights_folder=nextVideoInQueue['inference_params_values']['weights_folder'],
-            yolo_model_version=nextVideoInQueue['inference_params_values']['yolo_model_version'],
-            tracker=nextVideoInQueue['inference_params_values']['tracker'],
-            save_all_images=nextVideoInQueue['inference_params_values']['save_all_images']
+            weights_folder=nextVideoInQueue.get('inference_params_values', {}).get('weights_folder', 'yolov7.pt'),
+            yolo_model_version=nextVideoInQueue.get('inference_params_values', {}).get('yolo_model_version', 'yolov7'),
+            tracker=nextVideoInQueue.get('inference_params_values', {}).get('tracker', 'sort'),
+            save_all_images=nextVideoInQueue.get('inference_params_values', {}).get('save_all_images', False),
+            bbox_centroid=nextVideoInQueue.get('inference_params_values', {}).get('bbox_centroid', None),
         )
         
         videoDataObj = VideoData()
@@ -67,12 +69,14 @@ if __name__ == '__main__':
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
-            noSaveVideo=NO_SAVE_VIDEO,
+            keep_resulting_video=KEEP_RESULTING_VIDEO,
             weights=inferenceParams.weights_folder,
             model_version=inferenceParams.yolo_model_version,
-            view_img=False,
-            save_all_images=inferenceParams.save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes
-            tracker_selection=inferenceParams.tracker
+            compress_video=False, #DEBUG MODE
+            view_img=True, #DEBUG MODE
+            save_all_images=inferenceParams.save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes, y no es necesario
+            tracker_selection=inferenceParams.tracker,
+            bbox_centroid=inferenceParams.bbox_centroid,
             )
         
     
@@ -89,7 +93,7 @@ if __name__ == '__main__':
             try:    
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 print(f"Processing video {videoDataObj.source}")
-                videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=lambda progress: APIConfig.update_video_process_status(nextVideoInQueue['id'], progress))
+                videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=None)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
                 if PRODUCTION_MODE:
                     process_complete_pipeline(
@@ -106,6 +110,8 @@ if __name__ == '__main__':
                     )
                 else:
                     process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.img_folder_name,solider_weights=SOLIDER_WEIGHTS)
+                if DEBUG_MODE:
+                    continue
                 pipeline_compress_results_upload(videoPipeline.base_results_folder, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_date']}", results_bucket)
                 if CLOUD_MACHINE:
                     delete_local_file(videoDataObj.source)
