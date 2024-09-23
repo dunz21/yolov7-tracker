@@ -33,14 +33,16 @@ def draw_boxes_entrance_exit(image=None,polygon_in=np.array([[265, 866],[583, 63
         cv2.polylines(image, [pts_exit], isClosed=True, color=RED, thickness=2)
     return [pts_entrance,pts_exit]
 
-def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32)):
+
+def filter_detections_inside_polygon(detections, polygon_pts=np.array([[0,1080],[0,600],[510,500],[593,523],[603,635],[632,653],[738,588],[756,860],[587,1080]], np.int32), bbox_complete_match=False):
     """
     Filters detections based on whether the midpoint of the bottom edge of their bounding box
-    is inside a specified polygon.
+    or any part of the bounding box if bbox_complete_match=True, is touching or inside a specified polygon.
 
     :param detections: A numpy array of detections with shape (N, 6), where the first four columns
                        represent the bounding box coordinates (x1, y1, x2, y2).
     :param polygon_pts: A numpy array of points defining the polygon, shape (M, 2).
+    :param bbox_complete_match: A boolean that if True, checks if any part of the bbox touches the polygon.
     :return: A numpy array of filtered detections.
     """
 
@@ -51,19 +53,38 @@ def filter_detections_inside_polygon(detections,polygon_pts=np.array([[0,1080],[
     def is_point_inside_polygon(point, poly):
         return cv2.pointPolygonTest(poly, point, False) >= 0
 
+    # Function to check if a bounding box intersects the polygon
+    def does_bbox_touch_polygon(bbox, poly_pts):
+        # Convert bbox to a polygon (list of four points)
+        x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+        bbox_polygon = np.array([[x1, y1], [x1, y2], [x2, y2], [x2, y1]], np.int32).reshape((-1, 1, 2))
+        
+        # Use cv2 to check if the convex hull of the bbox intersects the polygon
+        intersect_area, _ = cv2.intersectConvexConvex(bbox_polygon, poly_pts)
+        
+        return intersect_area > 0
+
     # Filter detections
     filtered_detections = []
     for det in detections:
-        # Calculate the midpoint at the bottom of the bounding box
-        midpoint_x = (det[0] + det[2]) / 2
-        midpoint_y = det[3]
-        midpoint = (midpoint_x, midpoint_y)
+        x1, y1, x2, y2 = det[0], det[1], det[2], det[3]
 
-        # Check if the midpoint is inside the polygon
-        if is_point_inside_polygon(midpoint, polygon):
-            filtered_detections.append(det)
+        if bbox_complete_match:
+            # Check if the bounding box intersects or touches the polygon
+            if does_bbox_touch_polygon([x1, y1, x2, y2], polygon):
+                filtered_detections.append(det)
+        else:
+            # Calculate the midpoint at the bottom of the bounding box
+            midpoint_x = (x1 + x2) / 2
+            midpoint_y = y2
+            midpoint = (midpoint_x, midpoint_y)
+
+            # Check if the midpoint is inside the polygon
+            if is_point_inside_polygon(midpoint, polygon):
+                filtered_detections.append(det)
 
     return np.array(filtered_detections)
+
 
 def filter_model_detector_output(yolo_output, min_area=10000, specific_area_coords=[], overlap_threshold=0.5):
     """

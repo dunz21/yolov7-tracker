@@ -69,11 +69,11 @@ if __name__ == '__main__':
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
-            keep_resulting_video=KEEP_RESULTING_VIDEO,
             weights=inferenceParams.weights_folder,
             model_version=inferenceParams.yolo_model_version,
+            keep_resulting_video=KEEP_RESULTING_VIDEO, #DEBUG MODE
             compress_video=False, #DEBUG MODE
-            view_img=True, #DEBUG MODE
+            view_img=False, #DEBUG MODE
             save_all_images=inferenceParams.save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes, y no es necesario
             tracker_selection=inferenceParams.tracker,
             bbox_centroid=inferenceParams.bbox_centroid,

@@ -238,7 +238,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0s.shape).round()
                 det_np = det.cpu().numpy()
-                det_np = filter_detections_inside_polygon(detections=det_np,polygon_pts=video_data.polygon_area)
+                det_np = filter_detections_inside_polygon(detections=det_np,polygon_pts=video_data.polygon_area, bbox_complete_match=video_option.bbox_centroid is not None)
                 det_np = filter_model_detector_output(yolo_output=det_np, specific_area_coords=video_data.filter_area)
                 #if len(det_np) == 0:
                 #   continue #Esto no permite que el Tracker se actualice, y matar los remove
@@ -341,7 +341,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                     w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 else:  # stream
-                    fps, w, h = 30, im0.shape[1], im0.shape[0]
+                    fps, w, h = 15, im0.shape[1], im0.shape[0]
                     save_path += '.mp4'
                 vid_writer = cv2.VideoWriter(
                     save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
