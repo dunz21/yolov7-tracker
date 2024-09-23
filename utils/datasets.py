@@ -126,7 +126,7 @@ class _RepeatSampler(object):
 
 
 class LoadImages:  # for inference
-    def __init__(self, path, img_size=640, stride=32):
+    def __init__(self, path, img_size=640, stride=32, print_info=False):
         p = str(Path(path).absolute())  # os-agnostic absolute path
         if '*' in p:
             files = sorted(glob.glob(p, recursive=True))  # glob
@@ -143,6 +143,7 @@ class LoadImages:  # for inference
 
         self.img_size = img_size
         self.stride = stride
+        self.print_info = print_info
         self.files = images + videos
         self.nf = ni + nv  # number of files
         self.video_flag = [False] * ni + [True] * nv
@@ -173,7 +174,8 @@ class LoadImages:  # for inference
                 # logger.error(f'Error reading video {path} at frame {self.frame}')
                 valid_frame_iteration = False
                 self.frame += 1
-                # print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+                if self.print_info:
+                    print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
                 return path, None, None, None, self.count, valid_frame_iteration
             else:
                 if not ret_val: #Something happer
@@ -189,14 +191,16 @@ class LoadImages:  # for inference
                         ret_val, img0 = self.cap.read()
 
             self.frame += 1
-            # print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+            if self.print_info:
+                print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
         # For images
         else:
             # Read image
             self.count += 1
             img0 = cv2.imread(path)  # BGR
             assert img0 is not None, 'Image Not Found ' + path
-            #print(f'image {self.count}/{self.nf} {path}: ', end='')
+            if self.print_info:
+                print(f'image {self.count}/{self.nf} {path}: ', end='')
 
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride)[0]
