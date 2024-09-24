@@ -164,43 +164,41 @@ class LoadImages:  # for inference
         if self.count == self.nf:
             raise StopIteration
         path = self.files[self.count]
-        valid_frame_iteration = True # For videos
+        valid_frame_iteration = True  # For videos
         if self.video_flag[self.count]:
             # Read video
             self.mode = 'video'
             ret_val, img0 = self.cap.read()
-            
+
             if not ret_val and self.frame != self.nframes:
-                # logger.error(f'Error reading video {path} at frame {self.frame}')
+                # Handle invalid frame (e.g., frame skipping, error reading)
                 valid_frame_iteration = False
                 self.frame += 1
                 if self.print_info:
-                    print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
+                    print(f'Error reading video frame {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
                 return path, None, None, None, self.count, valid_frame_iteration
-            else:
-                if not ret_val: #Something happer
-                    self.count += 1
-                    # Update total_frame_videos when a video ends
-                    self.total_frame_videos += self.frame
-                    self.cap.release()
-                    if self.count == self.nf:  # last video
-                        raise StopIteration
-                    else:
-                        path = self.files[self.count]
-                        self.new_video(path)
-                        ret_val, img0 = self.cap.read()
+            elif not ret_val:
+                # If the end of the video is reached, move to the next file
+                self.count += 1
+                self.total_frame_videos += self.frame
+                self.cap.release()
+                if self.count == self.nf:  # If last video, stop iteration
+                    raise StopIteration
+                else:
+                    path = self.files[self.count]
+                    self.new_video(path)
+                    ret_val, img0 = self.cap.read()
 
             self.frame += 1
             if self.print_info:
-                print(f'video {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
-        # For images
+                print(f'Processing video frame {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
         else:
             # Read image
             self.count += 1
             img0 = cv2.imread(path)  # BGR
             assert img0 is not None, 'Image Not Found ' + path
             if self.print_info:
-                print(f'image {self.count}/{self.nf} {path}: ', end='')
+                print(f'Processing image {self.count + 1}/{self.nf} ({self.total_frame_videos}/{self.frame}/{self.nframes}) {path}: ', end='')
 
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride)[0]
@@ -212,15 +210,16 @@ class LoadImages:  # for inference
         return path, img, img0, self.cap, self.count, valid_frame_iteration
 
     def new_video(self, path):
+        """Initialize a new video for processing."""
         self.frame = 0
         self.cap = cv2.VideoCapture(path)
         self.nframes = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        # TODO: Check if this is necessary
-        # fps = self.cap.get(cv2.CAP_PROP_FPS)
-        # self.nframes = int(self.nframes * 0.15) if fps == 100 else self.nframes
+        if self.print_info:
+            print(f"Opening video: {path} with {self.nframes} frames.")
 
     def __len__(self):
         return self.nf  # number of files
+
 
 
 class LoadWebcam:  # for inference

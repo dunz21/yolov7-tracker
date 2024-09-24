@@ -339,8 +339,9 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                 if isinstance(vid_writer, cv2.VideoWriter):
                     vid_writer.release()  # release previous video writer
                 if vid_cap:  # video
-                    # fps = vid_cap.get(cv2.CAP_PROP_FPS) #TODO: Check this 
-                    fps = 15
+                    fps = vid_cap.get(cv2.CAP_PROP_FPS) #TODO: Check this
+                    if fps > 60:
+                        fps = 15    
                     w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 else:  # stream
