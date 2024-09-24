@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import os
 from config.api import APIConfig
 from reid.matches import extract_reid_matches
+import numpy as np
 
 ZONE_TYPES = [
     {
@@ -62,7 +63,7 @@ def save_or_update_sankey(db_path='' ,store_id=0, date='',zone_type_id=1):
         # Entrance
         reid_matches_df = extract_reid_matches(db_path, max_distance=0.4, min_time_diff='00:00:10', max_time_diff='01:00:00', fps=15)
         reid_matches_df['time_diff_minutes'] = pd.to_timedelta(reid_matches_df['time_diff']).dt.total_seconds() / 60
-        less_than_1_min_percentage = (reid_matches_df['time_diff_minutes'] < 1).mean()
+        less_than_1_min_percentage = 0 if np.isnan((reid_matches_df['time_diff_minutes'] < 1).mean()) else (reid_matches_df['time_diff_minutes'] < 1).mean()
         directions_entrance = _get_direction_counts(db_path)
         total_entrance = directions_entrance.get('Out', 0)
         total_short_visits = int(total_entrance * less_than_1_min_percentage)

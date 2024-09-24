@@ -117,7 +117,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
     if 'rtsp' in video_data.source:
         dataset = LoadWebcam(pipe=video_data.source)
     else: 
-        dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride, print_info=True)
+        dataset = LoadImages(video_data.source, img_size=imgsz, stride=stride, print_info=video_option.debug_mode)
         
     # Check if the first file is a video or image
     vid_cap = None

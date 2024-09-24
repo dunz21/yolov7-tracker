@@ -15,6 +15,7 @@ import time
 from tqdm import tqdm
 from dotenv import load_dotenv
 from distutils.util import strtobool
+import traceback
 
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
@@ -120,8 +121,20 @@ if __name__ == '__main__':
                 results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
             except Exception as e:
-                print(e)
                 print("Error in detect")
+                print(f"Error: {e}")
+                traceback.print_exc()  # This will print the full traceback, including the line number
+                
+                results_example = {
+                    'status': 'error',
+                    'error_message': str(e),
+                    'traceback': traceback.format_exc()
+                }
+                APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
+
+                
+                
+                
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'failed')
             
             
