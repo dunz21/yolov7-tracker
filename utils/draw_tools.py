@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 from shapely.geometry import LineString, Point, Polygon, box
 from reid.utils import point_side_of_line
+import pandas as pd
 
 COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0),(210,105, 30),(220, 20, 60),
             (192,192,192),(255,228,196),( 50,205, 50),(139,  0,139),(100,149,237),(138, 43,226),(238,130,238),
@@ -206,6 +207,55 @@ def draw_configs(frame, configs, scale=1920):
 
     return frame
 
+def process_video_afterwards_for_debug(video_path, csv_path):
+    # Read the CSV file
+    df = pd.read_csv(csv_path)
+    
+    # Open the video
+    vid_cap = cv2.VideoCapture(video_path)
+    fps = vid_cap.get(cv2.CAP_PROP_FPS)
+    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # Output video path (append '_debug' before the file extension)
+    video_dir, video_name = os.path.split(video_path)
+    video_name_no_ext, video_ext = os.path.splitext(video_name)
+    output_video_path = os.path.join(video_dir, f"{video_name_no_ext}_debug{video_ext}")
+    
+    # Create a video writer
+    vid_writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+    
+    frame_number = 0
+    
+    while True:
+        ret, frame = vid_cap.read()
+        if not ret:
+            break  # End of video
+        print(f'Processing frame {frame_number}')
+        # Get all bounding boxes for the current frame
+        boxes_in_frame = df[df['frame_number'] == frame_number]
+        
+        # Overlay bounding boxes and direction on the frame
+        for _, row in boxes_in_frame.iterrows():
+            # Get bounding box coordinates
+            x1, y1, x2, y2 = int(row['x1']), int(row['y1']), int(row['x2']), int(row['y2'])
+            direction = row['direction']
+            
+            # Put the direction on top of the bounding box
+            text_position = (x1+15, y1 - 5 if y1 - 5 > 5 else y1 + 5)  # Ensure the text is within bounds
+            cv2.putText(frame, f'{direction}', text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
+        
+        # Write the modified frame to the output video
+        vid_writer.write(frame)
+        
+        # Move to the next frame
+        frame_number += 1
+    
+    # Release resources
+    vid_cap.release()
+    vid_writer.release()
+    print(f'Debug video saved at: {output_video_path}')
+
 def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='Top'):
     for box in bbox:
         x1, y1, x2, y2,id,score = box
@@ -220,23 +270,23 @@ def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='To
         y2 += offset[1]
         # id = int(identities[i]) if identities is not None else 0
 
-        label = str(id) + ":" + "person"
+        label = f"{str(round(id, 2))}"
         if extra_info is not None:
             label += str(f"s:{score:.2f}")
             label += str(f"oc:{extra_info[id]['overlap']:.2f}")
             label += str(f"di:{extra_info[id]['distance']:.2f}")
 
-        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)
         if color is None:
             color = (255, 0, 20)
             # color_rect_text = (255, 144, 30)
 
-        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
         if position == 'Top':
-            cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
-            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+            cv2.rectangle(img, (x1, y1 - 10), (x1 + w, y1), color, -1)
+            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, [255, 255, 255], 1)
         else:
-            cv2.rectangle(img, (x1, y2 - 20), (x1 + w, y2), color, -1)
-            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
+            cv2.rectangle(img, (x1, y2 - 10), (x1 + w, y2), color, -1)
+            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, [255, 255, 255], 1)
 
     return img

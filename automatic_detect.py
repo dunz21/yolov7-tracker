@@ -48,9 +48,10 @@ if __name__ == '__main__':
         if not nextVideoInQueue['inference_params_name']:
             print("No inference params name. Exiting.")
             break
-        
             
         inferenceParams = InferenceParams(
+            inference_params_id=nextVideoInQueue.get('inference_params_id'),
+            inference_params_name=nextVideoInQueue.get('inference_params_name'),
             weights_folder=nextVideoInQueue.get('inference_params_values', {}).get('weights_folder', 'yolov7.pt'),
             yolo_model_version=nextVideoInQueue.get('inference_params_values', {}).get('yolo_model_version', 'yolov7'),
             tracker=nextVideoInQueue.get('inference_params_values', {}).get('tracker', 'sort'),
@@ -69,14 +70,13 @@ if __name__ == '__main__':
         folder_results_path = os.path.join(results_root_folder_path, str(videoDataObj.client_id), str(videoDataObj.store_id), str(videoDataObj.camera_channel_id))
         videoOptionObj = VideoOption(
             folder_results=folder_results_path,
-            weights=inferenceParams.weights_folder,
-            model_version=inferenceParams.yolo_model_version,
+            inferenceParams=inferenceParams,
+            debug_mode=DEBUG_MODE, #DEBUG MODE
+            show_config=True, #DEBUG MODE
             keep_resulting_video=KEEP_RESULTING_VIDEO, #DEBUG MODE
             compress_video=False, #DEBUG MODE
             view_img=False, #DEBUG MODE
-            save_all_images=inferenceParams.save_all_images, #Es util solo en el video de la puerta, donde se requiere guardar todas las imagenes, y no es necesario
-            tracker_selection=inferenceParams.tracker,
-            bbox_centroid=inferenceParams.bbox_centroid,
+            wait_for_key=False, #DEBUG MODE
             )
         
     
@@ -93,7 +93,7 @@ if __name__ == '__main__':
             try:    
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
                 print(f"Processing video {videoDataObj.source}")
-                videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=None)
+                videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=lambda progress: APIConfig.update_video_process_status(nextVideoInQueue['id'], progress))
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
                 if PRODUCTION_MODE:
                     process_complete_pipeline(

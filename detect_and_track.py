@@ -18,7 +18,7 @@ from intersect_ import *
 # For SORT tracking
 from sort import *
 import time
-from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs,draw_boxes,distance_to_bbox_bottom_line,calculate_overlap,filter_model_detector_output
+from utils.draw_tools import filter_detections_inside_polygon,draw_polygon_interested_area,draw_boxes_entrance_exit,draw_configs,draw_boxes,distance_to_bbox_bottom_line,calculate_overlap,filter_model_detector_output,process_video_afterwards_for_debug
 from utils.PersonImage import PersonImage
 from utils.bytetrack.byte_tracker import BYTETracker
 from utils.smile_track.mc_SMILEtrack import SMILEtrack
@@ -37,7 +37,7 @@ from ultralytics.models import YOLO
 # from dotenv import load_dotenv
 
 def detect(video_data: VideoData, video_option: VideoOption, progress_callback=None, progress_interval=2) -> VideoPipeline:
-    weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = video_option.weights, video_option.view_img, video_option.save_txt, video_option.img_size, not video_option.no_trace, video_option.wait_for_key, video_option.save_bbox_dim, video_option.save_with_object_id
+    weights, view_img, save_txt, imgsz, trace, wait_for_key, save_bbox_dim, save_with_object_id = video_option.inferenceParams.weights_folder , video_option.view_img, video_option.save_txt, video_option.img_size, not video_option.no_trace, video_option.wait_for_key, video_option.save_bbox_dim, video_option.save_with_object_id
     # save_img = not video_option.nosave
 
     # .... Initialize SORT ....
@@ -62,16 +62,16 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
     ### SORT TRACKER###
     obj.sort_iou_thresh = sort_iou_thresh
     
-    if video_option.tracker_selection == 'sort':
+    if video_option.inferenceParams.tracker == 'sort':
         tracker_reid = Sort(max_age=sort_max_age,min_hits=sort_min_hits,iou_threshold=sort_iou_thresh)
-    elif video_option.tracker_selection == 'smiletrack':
+    elif video_option.inferenceParams.tracker == 'smiletrack':
         tracker_reid = SMILEtrack(obj, frame_rate=15)
-    elif video_option.tracker_selection == 'bytetrack':
+    elif video_option.inferenceParams.tracker == 'bytetrack':
         tracker_reid = BYTETracker(obj, frame_rate=15)
-    elif video_option.tracker_selection == 'bytetrack_adaptive':
+    elif video_option.inferenceParams.tracker == 'bytetrack_adaptive':
         tracker_reid = BYTETrackerAdaptive(obj, frame_rate=15)
     else:
-        raise ValueError(f"Tracker selection {video_option.tracker_selection} not recognized")
+        raise ValueError(f"Tracker selection {video_option.inferenceParams.tracker} not recognized")
         
     # .........................
     PersonImage.clear_instances()
@@ -90,7 +90,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
     device = select_device(video_option.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
-    if video_option.model_version == 'yolov10':
+    if video_option.inferenceParams.yolo_model_version == 'yolov10':
         model = YOLOv10(weights)
         stride = 32  # Default stride for YOLOv10
     else:
@@ -159,7 +159,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
         if img.ndimension() == 3:
             img = img.unsqueeze(0)
 
-        if video_option.model_version == 'yolov7':
+        if video_option.inferenceParams.yolo_model_version == 'yolov7':
             # Warmup
             if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
                 old_img_b = img.shape[0]
@@ -175,7 +175,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
             results = non_max_suppression(pred, video_option.conf_thres, video_option.iou_thres, classes=video_option.classes, agnostic=video_option.agnostic_nms)
             t3 = time_synchronized()
             
-        if video_option.model_version == 'yolov10':
+        if video_option.inferenceParams.yolo_model_version == 'yolov10':
             # Inference
             t1 = time_synchronized()
             results = model(img, verbose=False, conf=video_option.conf_thres, iou=video_option.iou_thres)
@@ -202,7 +202,9 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                 "min_box_area":obj.min_box_area,
                 "tracker" : tracker_reid.__class__.__name__,
                 "weights":weights.split("/")[-1],
-                "bbox_centroid":video_option.bbox_centroid,
+                "id_inference": video_option.inferenceParams.inference_params_id,
+                "inference_name": video_option.inferenceParams.inference_params_name,
+                "bbox_centroid":video_option.inferenceParams.bbox_centroid,
                 }
             draw_configs(im0s,info,scale=im0s.shape[0])
         draw_polygon_interested_area(frame=im0s,polygon_pts=video_data.polygon_area)
@@ -215,7 +217,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                 for tracker in trackers:
                     if tracker.history.__len__() == sort_max_age:
                         id = tracker.id + 1
-                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.save_all_images,bbox_centroid=video_option.bbox_centroid)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.inferenceParams.save_all_images,bbox_centroid=video_option.inferenceParams.bbox_centroid)
                         PersonImage.delete_instance(id)
         else :
             if tracker_reid.removed_stracks:
@@ -223,7 +225,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                 for id in unique_ids:
                     remove_track_exists_in_tracker = any(val.track_id == id for val in tracker_reid.tracked_stracks)
                     if not remove_track_exists_in_tracker and PersonImage.get_instance(id):
-                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.save_all_images,bbox_centroid=video_option.bbox_centroid)
+                        PersonImage.save(id=id, folder_name=folder_name_imgs, csv_box_name=csv_box_name,polygons_list=[video_data.polygons_in, video_data.polygons_out],FPS=FPS,save_img=video_option.save_img_bbox,save_all=video_option.inferenceParams.save_all_images,bbox_centroid=video_option.inferenceParams.bbox_centroid)
                         PersonImage.delete_instance(id)
             
         # Process detections
@@ -233,18 +235,19 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
         
         
         for i, det in enumerate(results):  # detections per image
-            if video_option.model_version == 'yolov10':
+            if video_option.inferenceParams.yolo_model_version == 'yolov10':
                 det = det.boxes.data.clone()  # get box data
             if len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0s.shape).round()
                 det_np = det.cpu().numpy()
-                det_np = filter_detections_inside_polygon(detections=det_np,polygon_pts=video_data.polygon_area, bbox_complete_match=video_option.bbox_centroid is not None)
+                det_np = filter_detections_inside_polygon(detections=det_np,polygon_pts=video_data.polygon_area, bbox_complete_match=video_option.inferenceParams.bbox_centroid is not None)
                 det_np = filter_model_detector_output(yolo_output=det_np, specific_area_coords=video_data.filter_area)
                 #if len(det_np) == 0:
                 #   continue #Esto no permite que el Tracker se actualice, y matar los remove
                 
-                box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det_np]
-                draw_boxes(img=im0, bbox=box_detection, extra_info=None,color=(255,0,0),position='Bottom')
+                # box_detection = [np.hstack([d[:4].astype(int),f"{d[4]:.2f}",0]) for d in det_np]
+                # box_detection = [np.hstack([d[:4].astype(int), round(d[4], 2), 0]) for d in det_np]
+                draw_boxes(img=im0, bbox=det_np, extra_info=None,color=(255,0,0),position='Bottom')
                 
                 # ..................USEa TRACK FUNCTION....................
                 # pass an empty array to sort
@@ -274,7 +277,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                     
                     extra_info[id_tracker]['distance'] = distance_to_bbox_bottom_line(line=video_data.polygons_in[:2],bbox=box[:4])
                     for other_box in bbox_id:
-                        if id_tracker != other_box[4]:
+                        if id_tracker != int(other_box[4]):
                             extra_info[id_tracker]['overlap'] += calculate_overlap(box[:4].astype(int), other_box[:4].astype(int))
                     
                     
@@ -293,13 +296,13 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                             log_file.write(f"DELETE: {id_tracker} History: {new_person.history_deque.__len__()}  \n")
                         PersonImage.delete_instance(id_tracker)
                 
-                draw_boxes(img=im0, bbox=bbox_id, extra_info=extra_info,color=(0,0,255),position='Top')
+                draw_boxes(img=im0, bbox=bbox_id, extra_info=None,color=(0,0,255),position='Top')
 
         if progress_callback and frame_index % progress_step == 0:
             progress_callback(frame_index / total_frames * 100)
             logger.info(f"Progress: {frame_index / total_frames * 100:.2f}%")
         # Conditional print
-        if not progress_callback:
+        if not progress_callback or video_option.debug_mode:
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
             
         
@@ -355,5 +358,8 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
         vid_writer.release()
         if video_option.compress_video:
             compress_and_replace_video(save_path)
+            
+    if video_option.debug_mode:
+        process_video_afterwards_for_debug(save_path, csv_box_name)
     
     return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str)
