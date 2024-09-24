@@ -2,6 +2,7 @@ import os
 import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 
+
 def find_video_in_s3(s3_bucket, s3_path, date):
     # Validate date format YYYYMMDD
     if len(date) != 8 or not date.isdigit():
@@ -29,15 +30,38 @@ def find_video_in_s3(s3_bucket, s3_path, date):
     print(f"No video found in S3 for date {date}.")
     return False, None
 
+class DownloadProgress:
+    def __init__(self, file_size):
+        self._file_size = file_size
+        self._bytes_downloaded = 0
+
+    def __call__(self, bytes_amount):
+        self._bytes_downloaded += bytes_amount
+        progress_percentage = (self._bytes_downloaded / self._file_size) * 100
+        print(f"Download progress: {progress_percentage:.2f}%", end='\r')
+
 def download_video_from_s3(s3_bucket, path_to_download_video, full_s3_video_path):
     s3_client = boto3.client('s3')
 
-    object_key = full_s3_video_path
-    # Download the file from S3
     try:
+        # Get the size of the file from S3
+        response = s3_client.head_object(Bucket=s3_bucket, Key=full_s3_video_path)
+        file_size = response['ContentLength']
+
         os.makedirs(os.path.dirname(path_to_download_video), exist_ok=True)
-        s3_client.download_file(s3_bucket, object_key, path_to_download_video)
-        print(f"Video downloaded to {path_to_download_video}.")
+
+        # Create an instance of DownloadProgress to track download progress
+        progress = DownloadProgress(file_size)
+
+        # Download the file with progress callback
+        s3_client.download_file(
+            s3_bucket, 
+            full_s3_video_path, 
+            path_to_download_video, 
+            Callback=progress
+        )
+
+        print(f"\nVideo downloaded to {path_to_download_video}.")
     except NoCredentialsError:
         print("AWS credentials not available.")
     except ClientError as e:
