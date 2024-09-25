@@ -5,6 +5,8 @@ from PIL import Image
 from shapely.geometry import LineString, Point, Polygon, box
 from reid.utils import point_side_of_line
 import pandas as pd
+from utils.in_out_logic import calculate_average_movement_vector,determine_direction_from_vector,draw_movement_vector
+from utils.debug_yolo import debug_results_yolo
 
 COLORS_10 =[(144,238,144),(178, 34, 34),(221,160,221),(  0,255,  0),(  0,128,  0),(210,105, 30),(220, 20, 60),
             (192,192,192),(255,228,196),( 50,205, 50),(139,  0,139),(100,149,237),(138, 43,226),(238,130,238),
@@ -173,21 +175,31 @@ def distance_to_bbox_bottom_line(line=[], bbox=[]):
         distance = -distance
     return distance
   
-def draw_configs(frame, configs, scale=1920):
+def draw_configs(frame, configs, scale=1920, position='topLeft'):
     if scale < 1920:
         # Coordinates and sizes for a 1280x720 resolution
-        x1, y1 = 7, 7  # Adjusted for smaller screen
         w = 166  # Adjusted width
         h = len(configs) * 16 + 7  # Adjusted height
         font_scale = 0.4
         line_height = 16
     else:
         # Coordinates and sizes for a 1920x1080 resolution
-        x1, y1 = 10, 10  # 10 pixels from the top and left edge for padding
         w = 250  # Default width for the rectangle
         h = len(configs) * 25 + 10  # Calculate height based on number of configs
         font_scale = 0.6
         line_height = 25
+
+    # Set coordinates for the rectangle based on position
+    if position == 'topLeft':
+        x1, y1 = 10, 10  # Default position: top-left
+    elif position == 'topRight':
+        x1, y1 = frame.shape[1] - w - 10, 10  # Top-right corner
+    elif position == 'bottomLeft':
+        x1, y1 = 10, frame.shape[0] - h - 150  # Bottom-left corner
+    elif position == 'bottomRight':
+        x1, y1 = frame.shape[1] - w - 10, frame.shape[0] - h - 150  # Bottom-right corner
+    else:
+        raise ValueError(f"Invalid position: {position}. Use 'topLeft', 'topRight', 'bottomLeft', or 'bottomRight'.")
 
     # The color of the rectangle: Black with full opacity
     color = (0, 0, 0, 255)
@@ -207,9 +219,17 @@ def draw_configs(frame, configs, scale=1920):
 
     return frame
 
-def process_video_afterwards_for_debug(video_path, csv_path):
+
+def process_video_afterwards_for_debug(video_path, csv_path, entrance_line_in_out=[], view_img=False, wait_for_key=False):
+    """
+    Processes the video frame by frame, draws bounding boxes, movement vectors,
+    and direction conclusions based on movement vectors calculated from bounding box histories.
+    """
     # Read the CSV file
     df = pd.read_csv(csv_path)
+    
+    category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_path)
+    
     
     # Open the video
     vid_cap = cv2.VideoCapture(video_path)
@@ -226,31 +246,78 @@ def process_video_afterwards_for_debug(video_path, csv_path):
     vid_writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
     
     frame_number = 0
-    
+    delay = int(1000 / fps)  # Calculate the delay for cv2.waitKey()
+
+    # Initialize id_histories dictionary to store bounding box histories for each ID
+    id_histories = {}
+
     while True:
         ret, frame = vid_cap.read()
         if not ret:
             break  # End of video
+        draw_configs(frame,unique_id_counts,scale=frame.shape[0], position='bottomRight')
         print(f'Processing frame {frame_number}')
         # Get all bounding boxes for the current frame
         boxes_in_frame = df[df['frame_number'] == frame_number]
         
-        # Overlay bounding boxes and direction on the frame
+        # Process each box in the frame
         for _, row in boxes_in_frame.iterrows():
-            # Get bounding box coordinates
+            # Get ID and bounding box coordinates
+            id = int(row['id'])
             x1, y1, x2, y2 = int(row['x1']), int(row['y1']), int(row['x2']), int(row['y2'])
-            direction = row['direction']
+            bbox = [x1, y1, x2, y2]
             
-            # Put the direction on top of the bounding box
-            text_position = (x1+15, y1 - 5 if y1 - 5 > 5 else y1 + 5)  # Ensure the text is within bounds
-            cv2.putText(frame, f'{direction}', text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
+            
+            ################## Put the direction on top of the bounding box
+            direction = row['direction']
+            (w, h), _ = cv2.getTextSize(direction, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            text_position = (x1+40, y1 - 5)  # Ensure the text is within bounds
+            cv2.rectangle(frame, (x1+40, y1 - 15), (x1 + 40 + w, y1), (255,0,0), -1)
+            cv2.putText(frame, f'{direction}', text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            ###################
+            
+            
+            # Update id_histories with the new bbox
+            if id not in id_histories:
+                id_histories[id] = []
+            id_histories[id].append(bbox)
+            
+            # Get the history for this ID
+            bbox_history = id_histories[id]
+            
+            # Calculate movement vector using the history
+            avg_movement_vector = calculate_average_movement_vector(bbox_history)
+            
+            # Determine direction based on movement vector and entrance line
+            direction = determine_direction_from_vector(avg_movement_vector, entrance_line_in_out)
+            
+            # Draw bounding boxes and direction labels
+            # frame = draw_bounding_boxes(frame, [bbox], id=id, direction=direction)
+            
+            # Draw movement vectors
+            frame = draw_movement_vector(frame, bbox_history, id=id)
+            
+        # Draw entrance line on the frame for reference and debug
+        x1, y1 = entrance_line_in_out[0]
+        x2, y2 = entrance_line_in_out[1]
+        cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255,0,0), 4)
+        
+        # Display the frame if view_img is True
+        if view_img:
+            cv2.imshow('Frame', frame)
+            if wait_for_key:
+                key = cv2.waitKey(0) & 0xFF  # Wait indefinitely for a key press if wait_for_key is True
+            else:
+                key = cv2.waitKey(delay if view_img else delay) & 0xFF  # Use the delay based on FPS for normal playback speed
+            if key == 27:  # If 'ESC' is pressed, break the loop
+                break
         
         # Write the modified frame to the output video
         vid_writer.write(frame)
         
         # Move to the next frame
         frame_number += 1
-    
+        
     # Release resources
     vid_cap.release()
     vid_writer.release()
@@ -276,17 +343,17 @@ def draw_boxes(img, bbox , offset=(0, 0),extra_info=None,color=None,position='To
             label += str(f"oc:{extra_info[id]['overlap']:.2f}")
             label += str(f"di:{extra_info[id]['distance']:.2f}")
 
-        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         if color is None:
             color = (255, 0, 20)
             # color_rect_text = (255, 144, 30)
 
         cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
         if position == 'Top':
-            cv2.rectangle(img, (x1, y1 - 10), (x1 + w, y1), color, -1)
-            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, [255, 255, 255], 1)
+            cv2.rectangle(img, (x1, y1 - 15), (x1 + w, y1), color, -1)
+            cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [255, 255, 255], 1)
         else:
-            cv2.rectangle(img, (x1, y2 - 10), (x1 + w, y2), color, -1)
-            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, [255, 255, 255], 1)
+            cv2.rectangle(img, (x1, y2 - 15), (x1 + w, y2), color, -1)
+            cv2.putText(img, label, (x1, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [255, 255, 255], 1)
 
     return img

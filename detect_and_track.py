@@ -340,7 +340,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                     vid_writer.release()  # release previous video writer
                 if vid_cap:  # video
                     fps = vid_cap.get(cv2.CAP_PROP_FPS) #TODO: Check this
-                    if fps > 60:
+                    if fps > 40:
                         fps = 15    
                     w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -361,6 +361,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
             compress_and_replace_video(save_path)
             
     if video_option.debug_mode:
-        process_video_afterwards_for_debug(save_path, csv_box_name)
+        entrance_line = video_data.polygons_in[:2]  # [(x1, y1), (x2, y2)]
+        process_video_afterwards_for_debug(save_path, csv_box_name, entrance_line_in_out=entrance_line, view_img=False, wait_for_key=False)
     
     return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str)

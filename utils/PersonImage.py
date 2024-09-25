@@ -6,6 +6,7 @@ from reid.BoundingBox import BoundingBox
 from shapely.geometry import Point, Polygon, LineString
 from IPython import embed
 from utils.types import Direction
+from utils.in_out_logic import calculate_average_movement_vector,determine_direction_from_vector
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -53,6 +54,17 @@ class PersonImage:
             return
         #
         
+        
+        #Calculate the average movement vector
+        bbox_history = list(instance.history_deque)
+        avg_movement_vector = calculate_average_movement_vector(bbox_history)
+
+        # Define the entrance line (assumed to be polygons_list[0])
+        entrance_line = polygons_list[0][:2]  # [(x1, y1), (x2, y2)]
+
+        # Determine direction
+        new_direction = determine_direction_from_vector(avg_movement_vector, entrance_line)
+        crossed_zone = any(bbox_inside_any_polygon(polygons_list, bbox) for bbox in bbox_history)
         #### Si soy FALSO IN, y comparo con CENTER CENTROID y es OUT, entonces es OUT
         #### Si soy FALSO OUT, y comparo con CENTER CENTROID y es IN, entonces es IN
         
@@ -69,7 +81,7 @@ class PersonImage:
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
                 if bbox_inside_any_polygon(polygons_list, bbox) or save_all:
-                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img)
+                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img,new_direction=new_direction)
                     cls.delete_instance(id)
                     return
             return
@@ -92,7 +104,7 @@ class PersonImage:
         if final_direction == initial_direction:
             # Cruzo la linea verde pero tiene direccion indecisa.
             # Guardar igualmente como direccion indecisa
-            save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction="Cross",FPS=FPS, save_img=save_img)
+            save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Cross.value,FPS=FPS, save_img=save_img,new_direction=new_direction)
             cls.delete_instance(id)
             return
             # total_in_out = [point_side_of_line(centroid, polygons_list[0][0], polygons_list[0][1]) for centroid in centroid_bottom]
@@ -110,8 +122,7 @@ class PersonImage:
             direction = Direction.In.value
         else:
             direction = Direction.Undefined.value
-
-        save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=direction,FPS=FPS, save_img=save_img)
+        save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=direction,FPS=FPS, save_img=save_img,new_direction=new_direction)
         cls.delete_instance(id)
     
     @classmethod

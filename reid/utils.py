@@ -97,7 +97,7 @@ def save_image_based_on_sub_frame(num_frame, sub_frame, id, folder_name='images_
     cv2.imwrite(save_path, sub_frame)
     return image_name
 
-def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction='',FPS=15, save_img=True):
+def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction='',FPS=15, save_img=True, new_direction=None):
     file_exists = os.path.isfile(filepath)
 
     # Open the file in append mode ('a') if it exists, otherwise in write mode ('w')
@@ -106,7 +106,7 @@ def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction
 
         # Write header if the file is being created for the first time
         if not file_exists:
-            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number','time_sec','time_video', 'overlap', 'distance_to_center','direction', 'conf_score','img_name'])
+            writer.writerow(['id', 'x1', 'y1', 'x2', 'y2', 'centroid_x', 'centroid_y', 'area', 'frame_number','time_sec','time_video', 'overlap', 'distance_to_center','direction','new_direction', 'conf_score','img_name'])
 
         for index, img in enumerate(sorted(personImage.list_images, key=lambda x: x.frame_number)):
             image_name = ''
@@ -121,6 +121,6 @@ def save_csv_bbox_alternative(personImage, filepath='',folder_name='', direction
             conf_score_rounded = round(conf_score, 2)
             time_sec = img.frame_number // FPS
             time_video = seconds_to_time(time_sec)
-            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number,time_sec,time_video, overlap_rounded, distance_to_center_rounded,direction, conf_score_rounded, image_name])
+            writer.writerow([personImage.id, int(x1), int(y1), int(x2), int(y2), int(centroid_x), int(centroid_y), area, img.frame_number,time_sec,time_video, overlap_rounded, distance_to_center_rounded,direction,new_direction, conf_score_rounded, image_name])
 
             
