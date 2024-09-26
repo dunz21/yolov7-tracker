@@ -5,6 +5,7 @@ from reid.VideoPipeline import VideoPipeline
 from reid.InferenceParams import InferenceParams
 import torch
 import requests
+import platform
 import os
 from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
 from pipeline.compress_results_upload import pipeline_compress_results_upload,delete_local_results_folder
@@ -113,15 +114,25 @@ if __name__ == '__main__':
                     )
                 else:
                     process_pipeline_mini(csv_box_name=videoPipeline.csv_box_name, img_folder_name=videoPipeline.img_folder_name,solider_weights=SOLIDER_WEIGHTS)
+                    
+                 
+                    
                 if DEBUG_MODE:
                     continue
                 pipeline_compress_results_upload(videoPipeline.base_results_folder, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_date']}", results_bucket)
                 if CLOUD_MACHINE:
                     delete_local_file(videoDataObj.source)
                     delete_local_results_folder(videoPipeline.base_results_folder)
+                
+                results_example = {
+                   'video': nextVideoInQueue['video_file_name'].split('.')[0],
+                    'date': nextVideoInQueue['video_date'],
+                    'time': nextVideoInQueue['video_time'],    
+                    'machine_name': platform.node()  # Add the machine name to the results
                     
-                results_example = f"{{'video': '{nextVideoInQueue['video_file_name'].split('.')[0]}', 'date' : '{nextVideoInQueue['video_date']}', 'time' : '{nextVideoInQueue['video_time']}' }}"
-                APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
+                }
+                APIConfig.post_queue_video_result(nextVideoInQueue['id'], nextVideoInQueue['video_file_name'], results_example)   
+                
             except Exception as e:
                 print("Error in detect")
                 print(f"Error: {e}")
@@ -130,13 +141,11 @@ if __name__ == '__main__':
                 results_example = {
                     'status': 'error',
                     'error_message': str(e),
-                    'traceback': traceback.format_exc()
-                }
-                APIConfig.post_queue_video_result(nextVideoInQueue['id'], 'yolov7', results_example)
+                    'traceback': traceback.format_exc(),
+                    'machine_name': platform.node()  # Add the machine name to the results
 
-                
-                
-                
+                }
+                APIConfig.post_queue_video_result(nextVideoInQueue['id'], nextVideoInQueue['video_file_name'], results_example)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'failed')
             
             
