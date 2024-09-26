@@ -26,6 +26,7 @@ import traceback
 if __name__ == '__main__':
     load_dotenv()
     PRODUCTION_MODE = strtobool(os.getenv('PRODUCTION_MODE', False))
+    CHANNEL_ID_FILTER = os.getenv('CHANNEL_ID_FILTER', None)
     KEEP_RESULTING_VIDEO = strtobool(os.getenv('KEEP_RESULTING_VIDEO', False))
     CLOUD_MACHINE = strtobool(os.getenv('CLOUD_MACHINE', True))
     DEBUG_MODE = strtobool(os.getenv('DEBUG_MODE', False))
@@ -41,7 +42,7 @@ if __name__ == '__main__':
     APIConfig.initialize(base_url_api)
 
     while True:
-        nextVideoInQueue = APIConfig.queue_videos()
+        nextVideoInQueue = APIConfig.queue_videos(CHANNEL_ID_FILTER)
         if not nextVideoInQueue:
             print("No more videos in the queue. Exiting.")
             break

@@ -20,8 +20,27 @@ class APIConfig:
         return cls.base_url
 
     @classmethod
-    def queue_videos(cls):
+    def queue_videos(cls, channel_id=None):
         url = f"{cls.get_base_url()}/api/queue-videos"
+        params = {}
+        
+        # If channel_id is provided, add it to the request parameters
+        if channel_id is not None:
+            params['channel_id'] = channel_id
+        
+        # Make the GET request with optional parameters
+        response = requests.get(url, params=params).json()
+        return response
+    
+    @classmethod
+    def get_zones(cls):
+        url = f"{cls.get_base_url()}/api/zones"
+        response = requests.get(url).json()
+        return response
+    @classmethod
+    
+    def get_inference_params(cls):
+        url = f"{cls.get_base_url()}/api/inference-params"
         response = requests.get(url).json()
         return response
 
