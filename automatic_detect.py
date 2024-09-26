@@ -85,7 +85,7 @@ if __name__ == '__main__':
         if not os.path.exists(videoDataObj.source):
             exists_video_s3, video_s3_path = find_video_in_s3(footage_bucket, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_file_name']}", videoDataObj.video_date.replace('-', ''))
             if exists_video_s3:
-                APIConfig.update_video_status(nextVideoInQueue['id'], 'downloading...')
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'downloading')
                 download_video_from_s3(footage_bucket,videoDataObj.source,video_s3_path)
             else:    
                 print(f"Video file {videoDataObj.source} does not exist. Skipping.")
