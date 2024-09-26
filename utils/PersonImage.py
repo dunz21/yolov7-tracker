@@ -80,7 +80,7 @@ class PersonImage:
             # No cruzo la linea verde, pero toque alguno de los polygonos
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
-                if bbox_inside_any_polygon(polygons_list, bbox) or save_all:
+                if bbox_inside_any_polygon(polygons_list, bbox):
                     save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img,new_direction=new_direction)
                     cls.delete_instance(id)
                     return
