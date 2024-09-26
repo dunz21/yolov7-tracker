@@ -90,7 +90,7 @@ if __name__ == '__main__':
             else:    
                 print(f"Video file {videoDataObj.source} does not exist. Skipping.")
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'not_found')
-            continue
+                continue
         
         with torch.no_grad():
             try:    
