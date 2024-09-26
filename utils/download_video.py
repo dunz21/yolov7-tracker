@@ -3,7 +3,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 
 
-def find_video_in_s3(s3_bucket, s3_path, date):
+def find_video_in_s3(s3_bucket, s3_path, date, exact=True):
     # Validate date format YYYYMMDD
     if len(date) != 8 or not date.isdigit():
         raise ValueError("Date must be in format YYYYMMDD.")
@@ -22,10 +22,19 @@ def find_video_in_s3(s3_bucket, s3_path, date):
 
     # Search for the video that matches the date
     for obj in response.get('Contents', []):
-        if date in obj['Key']:
-            full_s3_video_path = obj['Key']
-            print(f"Found video {full_s3_video_path} in S3.")
-            return True, full_s3_video_path
+        key = obj['Key']
+        if exact:
+            # Match the exact name (with date)
+            if key.endswith(date):
+                full_s3_video_path = key
+                print(f"Found video {full_s3_video_path} in S3.")
+                return True, full_s3_video_path
+        else:
+            # Match if the date is anywhere in the key
+            if date in key:
+                full_s3_video_path = key
+                print(f"Found video {full_s3_video_path} in S3.")
+                return True, full_s3_video_path
 
     print(f"No video found in S3 for date {date}.")
     return False, None
