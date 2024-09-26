@@ -24,15 +24,11 @@ def find_video_in_s3(s3_bucket, s3_path, date, exact=True):
     for obj in response.get('Contents', []):
         # Extract the file name excluding the path and date
         key = obj['Key']
-        filename = key.split('/')[-1]
-        base_name = filename.replace(date, '')
-        
         if exact:
             # If exact match is required, ensure that only the date part is variable
-            if base_name == filename:
-                full_s3_video_path = obj['Key']
-                print(f"Found exact video {full_s3_video_path} in S3.")
-                return True, full_s3_video_path
+            full_s3_video_path = obj['Key']
+            print(f"Found exact video {full_s3_video_path} in S3.")
+            return True, full_s3_video_path
         else:
             # If not exact, check if the date is part of the key
             if date in key:
