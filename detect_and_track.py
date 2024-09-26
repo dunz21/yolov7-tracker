@@ -301,6 +301,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
         if progress_callback and frame_index % progress_step == 0:
             progress_callback(frame_index / total_frames * 100)
             logger.info(f"Progress: {frame_index / total_frames * 100:.2f}%")
+            print(f"Progress: {frame_index / total_frames * 100:.2f}%", end='\r')
         # Conditional print
         if not progress_callback or video_option.debug_mode:
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS. Mem: {PersonImage.get_memory_usage():.0f}Mb NumInstances: {PersonImage._instances.__len__()}')
