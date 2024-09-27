@@ -40,20 +40,20 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
         save_visits_to_api(list_visits_group_by_hour=visits_per_hour, store_id=store_id, date=video_date)
         logger.info(f"Step 9 completed: Saved visits per hour to MySQL")
 
-        # Step 10: Extract short visits
-        logger.info("Step 10.1: Extract short visits")
-        short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
-        logger.info(f"Step 10.1 completed: Extracted short visits")
+        # # Step 10: Extract short visits
+        # logger.info("Step 10.1: Extract short visits")
+        # short_visits_clips = extract_short_visits(video_path=video_path, db_path=db_base_path)
+        # logger.info(f"Step 10.1 completed: Extracted short visits")
         
-        # Step 11: Process clips to S3
-        logger.info("Step 10.2: Process clips to S3")
-        clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
-        logger.info(f"Step 10.2 completed: Processed clips to S3")
+        # # Step 11: Process clips to S3
+        # logger.info("Step 10.2: Process clips to S3")
+        # clips_urls = process_clips_to_s3(short_video_clips=short_visits_clips, client_id=client_id, store_id=store_id, date=video_date, pre_url=pre_url, bucket_name=bucket_name)
+        # logger.info(f"Step 10.2 completed: Processed clips to S3")
         
-        # Step 12: Save short visits to MySQL
-        logger.info("Step 10.3: Save short visits to MySQL")
-        save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
-        logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
+        # # Step 12: Save short visits to MySQL
+        # logger.info("Step 10.3: Save short visits to MySQL")
+        # save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
+        # logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
         
         
         logger.info("Step 10.4: Prepare event timestamps data")
@@ -186,7 +186,7 @@ def process_pipeline_by_dates(base_result_path='',base_footage_path='', client_i
             if 'sankey' in processes_to_execute:
                 save_or_update_sankey(db_path=db_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
             if 'process_pipeline_mini' in processes_to_execute:
-                process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder,override_db_name=os.path.join(folder_path, 'prueba_1.db'))
+                process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder)
             if 'process_save_bd_pipeline' in processes_to_execute:
                 process_save_bd_pipeline(db_base_path=db_path, video_path=video_file, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=15,zone_type_id=zone_type_id)
 
@@ -200,8 +200,8 @@ if __name__ == '__main__':
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
     base_footage_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '')
-    start_date = '20240824'
-    end_date = '20240827'
+    start_date = '20240923'
+    end_date = '20240925'
     
     
     # Para sacar la data del sankey, primero procesar KUNA con el channel correcto y eso videos moverlo a otra carpeta de channel_camera_id
@@ -215,7 +215,10 @@ if __name__ == '__main__':
     
     
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 1, 10, 8, 1,['process_save_bd_pipeline'] #LDP
-    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 3, 16, 3, 1,['process_save_bd_pipeline'] # KUNA
+    
+    
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 22, 1, 1,['process_pipeline_mini','process_save_bd_pipeline'] # Costanera
+    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 24, 4, 1,['process_pipeline_mini','process_save_bd_pipeline'] # Talca
     
     
 
