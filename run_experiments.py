@@ -5,7 +5,7 @@ from reid.InferenceParams import InferenceParams
 import torch
 import requests
 import os
-from pipeline.main import process_complete_pipeline,process_pipeline_mini,process_save_bd_pipeline
+from pipeline.main import process_pipeline_mini,process_save_bd_pipeline
 from config.api import APIConfig
 import time
 import traceback

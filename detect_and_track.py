@@ -289,7 +289,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
                         overlap=extra_info[id_tracker]['overlap'],
                         distance_to_center=extra_info[id_tracker]['distance'])
                     
-                    new_person.list_images.append(objBbox)
+                    new_person.addBoundingBox(objBbox)
                     new_person.history_deque.append(box[:4])
                     if(new_person.history_deque.__len__() > 500):
                         with open(f'{str(save_dir)}/tracker.txt', 'a') as log_file:

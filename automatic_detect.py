@@ -111,6 +111,7 @@ if __name__ == '__main__':
                         start_time_video=videoDataObj.video_time,
                         frame_rate=videoDataObj.frame_rate_video,
                         solider_weights=SOLIDER_WEIGHTS,
+                        camera_channel_id=videoDataObj.camera_channel_id,
                         zone_type_id=nextVideoInQueue['zone_type_id']
                     )
                 else:
@@ -120,8 +121,8 @@ if __name__ == '__main__':
                     
                 if DEBUG_MODE:
                     continue
-                pipeline_compress_results_upload(videoPipeline.base_results_folder, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_date']}", results_bucket)
-                if CLOUD_MACHINE:
+                correct_upload = pipeline_compress_results_upload(videoPipeline.base_results_folder, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_date']}", results_bucket)
+                if CLOUD_MACHINE and correct_upload:
                     delete_local_file(videoDataObj.source)
                     delete_local_results_folder(videoPipeline.base_results_folder)
                 

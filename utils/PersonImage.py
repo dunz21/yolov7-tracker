@@ -7,6 +7,8 @@ from shapely.geometry import Point, Polygon, LineString
 from IPython import embed
 from utils.types import Direction
 from utils.in_out_logic import calculate_average_movement_vector,determine_direction_from_vector
+import random
+
 class PersonImage:
     _instances = {}  # Class-level dictionary to store instances
     _max_instances = 1000  # Max number of instances to store
@@ -42,7 +44,30 @@ class PersonImage:
             self.ready = False
             self._initialized = True  # Mark as initialized
 
+    def addBoundingBox(self, objBbox, max_images=20):
+        """
+        Adds a BoundingBox to the list and ensures that the total number of
+        BoundingBoxes with non-None img_frame does not exceed max_images.
+        
+        Parameters:
+        - objBbox: The BoundingBox object to add.
+        - max_images: The maximum allowed number of BoundingBoxes with an img_frame.
+        """
+        # Append the new BoundingBox to the list
+        self.list_images.append(objBbox)
 
+        # Count the number of BoundingBoxes with non-None img_frame
+        num_images = sum(1 for bbox in self.list_images if bbox.img_frame is not None)
+
+        # If the count exceeds max_images, remove img_frame from a random BoundingBox
+        if num_images > max_images:
+            # Get indices of BoundingBoxes with non-None img_frame
+            indices = [i for i, bbox in enumerate(self.list_images) if bbox.img_frame is not None]
+            # Randomly select one index to remove img_frame
+            idx_to_remove = random.choice(indices)
+            # Set img_frame to None to free up memory
+            self.list_images[idx_to_remove].img_frame = None
+            
     @classmethod
     def save(cls, id, folder_name='images_subframe', csv_box_name='bbox.csv', polygons_list=[],FPS=15, save_img=True, save_all=False,bbox_centroid=None):
         """
@@ -81,7 +106,7 @@ class PersonImage:
             # Se supone que la unica forma de entrar aca, y seria solo 1 vez (se supone) es que aparezanas primero en remove tracks
             for bbox in instance.history_deque:
                 if bbox_inside_any_polygon(polygons_list, bbox):
-                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS, save_img=save_img,new_direction=new_direction)
+                    save_csv_bbox_alternative(personImage=instance, filepath=csv_box_name,folder_name=folder_name, direction=Direction.Undefined.value,FPS=FPS,save_img=False,new_direction=new_direction)
                     cls.delete_instance(id)
                     return
             return

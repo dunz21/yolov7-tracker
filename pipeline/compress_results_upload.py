@@ -55,6 +55,7 @@ def zip_dir(zip_file_path, dir_path):
 
 def upload_results(local_path, s3_path, bucket_name):
     s3_client = boto3.client('s3')
+    upload_success = True
     
     # Iterate over files in the local directory
     for root, _, files in os.walk(local_path):
@@ -71,7 +72,10 @@ def upload_results(local_path, s3_path, bucket_name):
                 print(f"Uploaded {local_file_path} to s3://{bucket_name}/{s3_key}")
             except Exception as e:
                 print(f"Failed to upload {local_file_path}: {e}")
+                upload_success = False  # Mark upload as failed
                 
+    return upload_success
+
 def delete_local_results_folder(folder_path):
     try:
         if os.path.exists(folder_path):
@@ -85,7 +89,5 @@ def delete_local_results_folder(folder_path):
                 
 def pipeline_compress_results_upload(folder_path, s3_path, bucket_name):
     compressed_folder = compress_files_in_folder(folder_path)
-    upload_results(compressed_folder, s3_path, bucket_name)                
-
-
-
+    success = upload_results(compressed_folder, s3_path, bucket_name)
+    return success

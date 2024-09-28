@@ -10,20 +10,21 @@ from pipeline.etl_process_short_visits_clips import extract_short_visits,process
 from pipeline.event_timestamp_post_yolo import save_event_timestamps
 from pipeline.sankey_post_yolo import save_or_update_sankey
 from pipeline.reid_matches_post_yolo import save_or_update_reid_matches
+from pipeline.video_viewer_upload import compress_and_upload_video
 from utils.debug_yolo import debug_results_yolo
 import logging
 from datetime import datetime
 from config.api import APIConfig
 
 
-def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', zone_type_id=1):
+def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', camera_channel_id= '' ,zone_type_id=1):
     logger = logging.getLogger(__name__)
     db_base_path = process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder_name,solider_weights=solider_weights,zone_type_id=zone_type_id)
-    process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=frame_rate,zone_type_id=zone_type_id)
+    process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=frame_rate,camera_channel_id=camera_channel_id,zone_type_id=zone_type_id)
     logger.info("Process pipeline completed successfully")
     
     
-def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',zone_type_id=1):
+def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',camera_channel_id= '',zone_type_id=1):
     logger = logging.getLogger(__name__)
     
     pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
@@ -55,7 +56,6 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
         # save_short_visits_to_api(short_video_clips_urls=clips_urls, date=video_date, store_id=store_id)
         # logger.info(f"Step 10.3 completed: Saved short visits to MySQL")
         
-        
         logger.info("Step 10.4: Prepare event timestamps data")
         save_event_timestamps(db_path=db_base_path, date=video_date, start_video_time=start_time_video, store_id=store_id)
         logger.info(f"Step 10.4 completed: Saved event timestamps to MySQL")
@@ -68,6 +68,9 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
     save_or_update_sankey(db_path=db_base_path, store_id=store_id, date=video_date, zone_type_id=zone_type_id)
     logger.info(f"Step 10.6 ompleted: Saved event timestamps to MySQL")
 
+    logger.info("Step 10.7: Compress and upload video to video viewer")
+    compress_and_upload_video(video_path, client_id, store_id, camera_channel_id)
+    logger.info(f"Step 10.7 completed: Compressed and uploaded video to video viewer")
     
     logger.info("Process pipeline completed successfully")
 
