@@ -68,9 +68,14 @@ docker run --rm \
 ```
 
 ### ECR AWS
-
+```
 docker compose -f docker-compose-automatic-detect.yaml build
-
 docker tag mivo/yolov7-tracker:latest 182436672416.dkr.ecr.us-east-1.amazonaws.com/mivo/yolov7-tracker:latest
-
 docker push 182436672416.dkr.ecr.us-east-1.amazonaws.com/mivo/yolov7-tracker:latest
+```
+
+```
+# Obtain Pass
+aws ecr get-login-password --region us-east-1
+
+```
