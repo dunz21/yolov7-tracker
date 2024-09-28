@@ -17,7 +17,7 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 from distutils.util import strtobool
 import traceback
-
+from utils.download_artifacts import check_and_download_files_from_s3
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
 
@@ -26,6 +26,7 @@ import traceback
 
 if __name__ == '__main__':
     load_dotenv()
+    check_and_download_files_from_s3()
     PRODUCTION_MODE = strtobool(os.getenv('PRODUCTION_MODE', False))
     CHANNEL_ID_FILTER = os.getenv('CHANNEL_ID_FILTER', None)
     KEEP_RESULTING_VIDEO = strtobool(os.getenv('KEEP_RESULTING_VIDEO', False))
