@@ -127,11 +127,11 @@ if __name__ == '__main__':
                     delete_local_results_folder(videoPipeline.base_results_folder)
                 
                 results_example = {
-                   'video': nextVideoInQueue['video_file_name'].split('.')[0],
+                    'processed_time': videoPipeline.metadata['time'],
+                    'video': nextVideoInQueue['video_file_name'].split('.')[0],
                     'date': nextVideoInQueue['video_date'],
                     'time': nextVideoInQueue['video_time'],    
                     'machine_name': platform.node()  # Add the machine name to the results
-                    
                 }
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], nextVideoInQueue['video_file_name'], results_example)   
                 

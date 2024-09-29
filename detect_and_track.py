@@ -355,6 +355,9 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
 
     print(f'Done. ({time.time() - t0:.3f}s)')
     logger.info(f'Done. ({time.time() - t0:.3f}s)')
+    metadata = {
+        'time': f"{time.time() - t0:.3f}s",
+    }
     
     if video_option.keep_resulting_video:
         vid_writer.release()
@@ -365,4 +368,4 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
         entrance_line = video_data.polygons_in[:2]  # [(x1, y1), (x2, y2)]
         process_video_afterwards_for_debug(save_path, csv_box_name, entrance_line_in_out=entrance_line, view_img=False, wait_for_key=False)
     
-    return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str)
+    return VideoPipeline(csv_box_name, save_path, folder_name_imgs, save_dir_str, metadata=metadata)
