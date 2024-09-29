@@ -8,7 +8,7 @@
       "name": "Python: Module server.server",
       "type": "python",
       "request": "launch",
-      "module": "pipeline.postprocessing_debug", // Use "module" instead of "program"
+      "module": "pipeline.main", // Use "module" instead of "program"
       "console": "integratedTerminal",
       "justMyCode": true,
       "cwd": "/home/diego/Documents/yolov7-tracker" // Correct path here

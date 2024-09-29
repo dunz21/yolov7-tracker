@@ -58,7 +58,7 @@ def extract_reid_matches(db_path='', max_distance=0.4, min_time_diff='00:00:10',
         # Execute the query
         params = (fps, max_distance, min_time_diff, max_time_diff, limit)
         reid_matches = pd.read_sql_query(query, conn, params=params)
-        print("Running query reid with parameters:", params, f'found {len(reid_matches)} visits matching criteria.')
+        print("Running query reid with parameters:", params, f'found {len(reid_matches)} visits matching criteria for extract_reid_matches.')
         # return reid_matches.to_dict(orient='records')
         return reid_matches
     except Exception as e:

@@ -22,7 +22,6 @@ Todo lo anterior se puede separar
 ## complete_re_ranking
 
 ## etl_process_visits_per_time (Requiere credenciales MySQL)
-## etl_process_short_visits_clips (Requeire S3)
 
 
 Todo esto va a guardado en la BD SQLite para posterior uso

@@ -218,7 +218,7 @@ def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='
     chunks = _chunk_array(full_path, 5)
 
     # all_data = []
-    temp_csv = 'features_temp.csv'
+    temp_csv = f'features_temp_{time.time()}.csv'
     for chunk in chunks:
         features_array, image_names = model_selection(name=model_name, folder_path=chunk, weights=weights)
         
