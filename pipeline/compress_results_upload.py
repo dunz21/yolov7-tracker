@@ -15,6 +15,20 @@ def compress_files_in_folder(folder_path):
         with zipfile.ZipFile(zip_file, 'w') as zipf:
             pass
 
+    # Compress the entire 'imgs' folder as one zip file
+    imgs_folder_path = os.path.join(folder_path, 'imgs')
+    if os.path.exists(imgs_folder_path):
+        # Create a zip archive for the imgs folder
+        with zipfile.ZipFile(zip_files['imgs'], 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through all the files and directories in the imgs folder
+            for root, _, files in os.walk(imgs_folder_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Add each file to the zip, keeping its directory structure
+                    zipf.write(file_path, os.path.relpath(file_path, folder_path))
+        # Optionally delete the imgs folder after zipping
+        shutil.rmtree(imgs_folder_path)
+
     # List files and directories in the provided folder
     for item in os.listdir(folder_path):
         item_path = os.path.join(folder_path, item)
@@ -37,9 +51,9 @@ def compress_files_in_folder(folder_path):
                 with zipfile.ZipFile(zip_files['rest'], 'a') as zipf:
                     zipf.write(item_path, item, compress_type=zipfile.ZIP_STORED)
                 os.remove(item_path)
-        elif os.path.isdir(item_path):
-            # Process directories
-            zip_dir(zip_files['imgs'], item_path)
+        elif os.path.isdir(item_path) and item != 'imgs':
+            # Process directories other than 'imgs'
+            zip_dir(zip_files['rest'], item_path)
             # Recursively delete directory after zipping
             shutil.rmtree(item_path)
 

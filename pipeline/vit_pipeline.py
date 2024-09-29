@@ -498,7 +498,12 @@ def get_features_from_model(model_name='', folder_path='',optional_save_csv='fea
     list_folders = get_folders(folder_path)
     _,_,_,_,result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
-    list_folders_in_out = [os.path.join(base_path, folder) for folder in result[Direction.In.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Out.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Undefined.value]] + [os.path.join(base_path, folder) for folder in result[Direction.Cross.value]]
+    list_folders_in_out = [
+        os.path.join(base_path, folder) 
+        for direction in [Direction.In, Direction.Out] # TODO: Remove undefined and cross
+        # for direction in [Direction.In, Direction.Out, Direction.Undefined, Direction.Cross] 
+        for folder in result[direction.value]
+    ]
     features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
     return features
 
