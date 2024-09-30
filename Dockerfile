@@ -5,7 +5,7 @@ FROM nvidia/cuda:12.3.2-runtime-ubuntu22.04 as base
 WORKDIR /app
 
 # Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg tzdata
+RUN apt-get update && apt-get install -y ffmpeg tzdata nano
 
 # Set the timezone to America/Santiago
 ENV TZ=America/Santiago
