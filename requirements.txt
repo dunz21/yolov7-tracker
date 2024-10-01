@@ -16,6 +16,7 @@ tqdm
 requests
 yacs
 boto3
+vastai
 pymysql
 
 torch==2.0.1

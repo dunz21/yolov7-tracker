@@ -161,7 +161,7 @@ def process_pipeline_by_dates(base_result_path='',base_footage_path='', client_i
             
             # Add your processing logic here
             db_path = os.path.join(folder_path, f'{folder_name}_bbox.db')
-            if not os.path.exists(db_path):
+            if not os.path.exists(db_path) and 'process_save_bd_pipeline' not in processes_to_execute:
                 print(f"DB path {db_path} does not exist for folder {folder_name}. Skipping.")
                 continue
             
@@ -187,8 +187,8 @@ if __name__ == '__main__':
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
     base_footage_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '')
-    start_date = '20240913'
-    end_date = '20240913'
+    start_date = '20240914'
+    end_date = '20240915'
     
     
     # Para sacar la data del sankey, primero procesar KUNA con el channel correcto y eso videos moverlo a otra carpeta de channel_camera_id
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 22, 1, 1,['process_pipeline_mini','process_save_bd_pipeline'] # Costanera
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 4, 17, 2, 1,['process_pipeline_mini'] # Leonisa Apumanque
-    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 4, 19, 2, 1,['process_pipeline_mini'] # Leonisa Parque Arauco
+    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 4, 18, 4, 1,['process_pipeline_mini','process_save_bd_pipeline'] # 
     
     
 

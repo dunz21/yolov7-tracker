@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from distutils.util import strtobool
 import traceback
 from utils.download_artifacts import check_and_download_files_from_s3
+from utils.vastai_utils import destroy_instance_from_env
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
 
@@ -36,6 +37,7 @@ if __name__ == '__main__':
     results_root_folder_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '/home/diego/mydrive/results')
     results_bucket = os.getenv('RESULTS_BUCKET_NAME')
     footage_bucket = os.getenv('FOOTAGE_BUCKET_NAME')
+    machine_name = os.getenv('MACHINE_NAME')
     
     print_mode(PRODUCTION_MODE)
     
@@ -87,19 +89,19 @@ if __name__ == '__main__':
         if not os.path.exists(videoDataObj.source):
             exists_video_s3, video_s3_path = find_video_in_s3(footage_bucket, f"{videoDataObj.client_id}/{videoDataObj.store_id}/{videoDataObj.camera_channel_id}/{nextVideoInQueue['video_file_name']}", videoDataObj.video_date.replace('-', ''))
             if exists_video_s3:
-                APIConfig.update_video_status(nextVideoInQueue['id'], 'downloading')
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'downloading',machine_name=machine_name)
                 download_video_from_s3(footage_bucket,videoDataObj.source,video_s3_path)
             else:    
                 print(f"Video file {videoDataObj.source} does not exist. Skipping.")
-                APIConfig.update_video_status(nextVideoInQueue['id'], 'not_found')
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'not_found',machine_name=machine_name)
                 continue
         
         with torch.no_grad():
             try:    
-                APIConfig.update_video_status(nextVideoInQueue['id'], 'processing')
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'processing',machine_name=machine_name)
                 print(f"Processing video {videoDataObj.source}")
                 videoPipeline = detect(videoDataObj, videoOptionObj, progress_callback=lambda progress: APIConfig.update_video_process_status(nextVideoInQueue['id'], progress))
-                APIConfig.update_video_status(nextVideoInQueue['id'], 'finished')
+                APIConfig.update_video_status(nextVideoInQueue['id'], 'finished',machine_name=machine_name)
                 if PRODUCTION_MODE:
                     process_complete_pipeline(
                         csv_box_name=videoPipeline.csv_box_name,
@@ -135,6 +137,9 @@ if __name__ == '__main__':
                 }
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], nextVideoInQueue['video_file_name'], results_example)   
                 
+                finished_queue_videos_process = APIConfig.get_finished_queue_videos(machine_name)
+                if finished_queue_videos_process and CLOUD_MACHINE:
+                    destroy_instance_from_env()
             except Exception as e:
                 print("Error in detect")
                 print(f"Error: {e}")
@@ -149,6 +154,11 @@ if __name__ == '__main__':
                 }
                 APIConfig.post_queue_video_result(nextVideoInQueue['id'], nextVideoInQueue['video_file_name'], results_example)
                 APIConfig.update_video_status(nextVideoInQueue['id'], 'failed')
+                # In case of an error, delete the video file if it was downloaded, to make space for the next video
+                if CLOUD_MACHINE:
+                    delete_local_file(videoDataObj.source)
+                    
+                    
             
             
             

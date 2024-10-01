@@ -43,11 +43,27 @@ class APIConfig:
         url = f"{cls.get_base_url()}/api/inference-params"
         response = requests.get(url).json()
         return response
+    
+    @classmethod
+    def get_finished_queue_videos(cls, machine_name):
+        url = f"{cls.get_base_url()}/api/queue-videos/finished-queue"
+        params = {'machine_name': machine_name}
+        headers = {'Accept': 'application/json'}  # Specify that the client expects a JSON response
+
+        response = requests.get(url, params=params, headers=headers)
+        return response
 
     @classmethod
-    def update_video_status(cls, video_id, status):
+    def update_video_status(cls, video_id, status, machine_name=None):
         url = f"{cls.get_base_url()}/api/queue-videos/{video_id}/status"
-        response = requests.put(url, data={'status': status})
+        data = {
+            'status': status,
+            'machine_name': machine_name  # Add machine_name to the data payload
+        }
+        # Filter out None values if machine_name is not provided
+        data = {key: value for key, value in data.items() if value is not None}
+        headers = {'Content-Type': 'application/json'}  # Ensure headers specify JSON
+        response = requests.put(url, json=data, headers=headers)  # Use json instead of data for correct content type
         return response
     
     @classmethod
