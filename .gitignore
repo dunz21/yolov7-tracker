@@ -15,3 +15,5 @@ logs/*
 output/*
 env
 .env
+*.json
+*.sh

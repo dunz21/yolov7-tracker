@@ -67,6 +67,11 @@ docker run --rm \
 
 ```
 
+### Login
+```
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 182436672416.dkr.ecr.us-east-1.amazonaws.com
+```
+
 ### ECR AWS
 ```
 docker compose -f docker-compose-automatic-detect.yaml build

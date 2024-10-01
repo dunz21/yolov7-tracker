@@ -4,3 +4,5 @@ env
 *.pth
 *.pt
 .env
+*.sh
+*.json

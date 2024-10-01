@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from distutils.util import strtobool
 import traceback
 from utils.download_artifacts import check_and_download_files_from_s3
-from utils.vastai_utils import destroy_instance_from_env
+from utils.vastai_utils import destroy_instance
 #PARA PROD
 # API + COMPLETE PIPELINE + NO SAVE VIDEO
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
                 
                 finished_queue_videos_process = APIConfig.get_finished_queue_videos(machine_name)
                 if finished_queue_videos_process and CLOUD_MACHINE:
-                    destroy_instance_from_env()
+                    destroy_instance()
             except Exception as e:
                 print("Error in detect")
                 print(f"Error: {e}")
