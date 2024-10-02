@@ -8,6 +8,7 @@ shapely
 seaborn
 IPython
 python-dotenv
+cython
 cython_bbox
 scikit-learn==1.2.2
 torchaudio
