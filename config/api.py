@@ -50,7 +50,7 @@ class APIConfig:
         params = {'machine_name': machine_name}
         headers = {'Accept': 'application/json'}  # Specify that the client expects a JSON response
 
-        response = requests.get(url, params=params, headers=headers)
+        response = requests.get(url, params=params, headers=headers).json()
         return response
 
     @classmethod
