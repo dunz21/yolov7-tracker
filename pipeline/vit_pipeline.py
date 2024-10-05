@@ -27,6 +27,8 @@ from scipy.spatial.distance import cdist
 import torch.nn.functional as F
 import sqlite3
 from utils.types import Direction
+from utils.types import QueueVideoStatus
+
 # NO ES IMPORTANTE
 def evaluate_clustering(features, image_names, num_clusters=2):
     """
@@ -208,7 +210,7 @@ def folder_analysis(folders):
     return 0,0,0,0,result
 
 # 2.- Generate Feature Solider and save to csv
-def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='',  optional_save_csv=None, db_path=None):
+def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='', optional_save_csv=None, db_path=None, progress_callback=None, progress_interval=5):
     full_path = []
     for folder in list_folders_in_out:
         entries = os.listdir(folder)
@@ -217,30 +219,18 @@ def save_folders_to_solider_csv(list_folders_in_out=[], weights='', model_name='
         full_path.append(folder)
     chunks = _chunk_array(full_path, 5)
 
-    # all_data = []
     temp_csv = f'features_temp_{time.time()}.csv'
-    for chunk in chunks:
+    total_chunks = len(chunks)
+    for idx, chunk in enumerate(chunks):
         features_array, image_names = model_selection(name=model_name, folder_path=chunk, weights=weights)
-        
-        # # Process each image and its features
-        # for image_name, features in zip(image_names, features_array):
-        #     id = image_name.split('_')[1]
-        #     direction = image_name.split('_')[3].replace('.jpg','') # Assuming image names end with '.jpg'
-        #     feature_list = [str(f) for f in features]  # Convert features to a list of strings
-        #     row_data = [image_name, id, direction] + feature_list
-        #     all_data.append(row_data)
-
-        # Optionally, you can also write to CSV in chunks
         _save_solider_csv_by_chunks(features_array, image_names, temp_csv)
-
-    # Define the DataFrame columns
-    # columns = ['img_name', 'id', 'direction'] + [f'feature_{i+1}' for i in range(len(features_array[0]))]
-    # Create a DataFrame from the collected data
-    # df = pd.DataFrame(all_data, columns=columns)
-    # df = _parseDataSolider(df)
+        if progress_callback:
+            progress = ((idx + 1) / total_chunks) * 100
+            if progress % progress_interval == 0:
+                progress_callback(progress, QueueVideoStatus.REID_FEATURES.value)
 
     df = pd.read_csv(temp_csv)
-    if db_path is not None:    
+    if db_path is not None:
         conn = sqlite3.connect(db_path)
         df.to_sql('features', conn, if_exists='replace', index=False)
         conn.close()
@@ -494,17 +484,24 @@ def export_to_html(list_image_in, list_in, list_image_out, list_out, total_folde
         file.write(combined_html)
 
 
-def get_features_from_model(model_name='', folder_path='',optional_save_csv='features.csv', weights='', db_path=''):
+def get_features_from_model(model_name='', folder_path='', optional_save_csv='features.csv', weights='', db_path='', progress_callback=None):
     list_folders = get_folders(folder_path)
-    _,_,_,_,result = folder_analysis(list_folders)
+    _, _, _, _, result = folder_analysis(list_folders)
     base_path = os.path.dirname(list_folders[0])
     list_folders_in_out = [
-        os.path.join(base_path, folder) 
-        for direction in [Direction.In, Direction.Out] # TODO: Remove undefined and cross
-        # for direction in [Direction.In, Direction.Out, Direction.Undefined, Direction.Cross] 
+        os.path.join(base_path, folder)
+        for direction in [Direction.In, Direction.Out]  # TODO: Remove undefined and cross
+        # for direction in [Direction.In, Direction.Out, Direction.Undefined, Direction.Cross]
         for folder in result[direction.value]
     ]
-    features = save_folders_to_solider_csv(list_folders_in_out=list_folders_in_out,optional_save_csv=optional_save_csv,weights=weights,model_name=model_name,db_path=db_path)
+    features = save_folders_to_solider_csv(
+        list_folders_in_out=list_folders_in_out,
+        optional_save_csv=optional_save_csv,
+        weights=weights,
+        model_name=model_name,
+        db_path=db_path,
+        progress_callback=progress_callback
+    )
     return features
 
 # FINAL PIPLELINE

@@ -124,8 +124,7 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
     if dataset.video_flag[0]:
         vid_cap = dataset.cap
         total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    else:
-        total_frames = dataset.nf  # number of images if no videos
+        original_fps = vid_cap.get(cv2.CAP_PROP_FPS)
 
     progress_step = int(total_frames * (progress_interval / 100))  # Calculate frames per progress update
 
@@ -356,7 +355,12 @@ def detect(video_data: VideoData, video_option: VideoOption, progress_callback=N
     print(f'Done. ({time.time() - t0:.3f}s)')
     logger.info(f'Done. ({time.time() - t0:.3f}s)')
     metadata = {
-        'time': f"{time.time() - t0:.3f}s",
+        'time_start' : t0,
+        'time_end' : time.time(),
+        'time_yolo': f"{time.time() - t0:.3f}s",
+        'total_frames': total_frames,
+        'total_duration': total_frames / original_fps,
+        'fps' : original_fps,
     }
     
     if video_option.keep_resulting_video:

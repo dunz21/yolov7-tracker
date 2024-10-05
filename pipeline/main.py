@@ -14,20 +14,19 @@ from utils.debug_yolo import debug_results_yolo
 import logging
 from datetime import datetime
 from config.api import APIConfig
+import time
 
 
-def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', camera_channel_id= '' ,zone_type_id=1):
+def process_complete_pipeline(csv_box_name='', video_path='', img_folder_name='',client_id='',store_id='',video_date='',start_time_video='',frame_rate='',solider_weights='model_weights.pth', camera_channel_id= '' ,zone_type_id=1, progress_callback=None):
     logger = logging.getLogger(__name__)
-    db_base_path = process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder_name,solider_weights=solider_weights,zone_type_id=zone_type_id)
-    process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=frame_rate,camera_channel_id=camera_channel_id,zone_type_id=zone_type_id)
+    db_base_path, time_reid_features, time_reranking = process_pipeline_mini(csv_box_name=csv_box_name, img_folder_name=img_folder_name,solider_weights=solider_weights,zone_type_id=zone_type_id,progress_callback=progress_callback)
+    time_video_encoding, time_video_upload = process_save_bd_pipeline(db_base_path=db_base_path, video_path=video_path, client_id=client_id,store_id=store_id,video_date=video_date,start_time_video=start_time_video,frame_rate=frame_rate,camera_channel_id=camera_channel_id,zone_type_id=zone_type_id,progress_callback=progress_callback)    
     logger.info("Process pipeline completed successfully")
+    return time_reid_features, time_reranking, time_video_encoding, time_video_upload
     
     
-def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',camera_channel_id= '',zone_type_id=1):
+def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_id='',video_date='',start_time_video='',frame_rate='',camera_channel_id= '',zone_type_id=1, progress_callback=None):
     logger = logging.getLogger(__name__)
-    
-    pre_url = 'https://d12y8bglvlc9ab.cloudfront.net'
-    bucket_name='videos-mivo'
 
     if zone_type_id==1:
         # Step 8: Extract visits per hour
@@ -53,13 +52,14 @@ def process_save_bd_pipeline(db_base_path='', video_path='', client_id='',store_
     logger.info(f"Step 10.6 ompleted: Saved event timestamps to MySQL")
 
     logger.info("Step 10.7: Compress and upload video to video viewer")
-    compress_and_upload_video(video_path, client_id, store_id, camera_channel_id)
+    time_video_encoding, time_video_upload = compress_and_upload_video(video_path, client_id, store_id, camera_channel_id,progress_callback=progress_callback)
     logger.info(f"Step 10.7 completed: Compressed and uploaded video to video viewer")
+    return time_video_encoding, time_video_upload
     
-    logger.info("Process pipeline completed successfully")
+    # logger.info("Process pipeline completed successfully")
 
 
-def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='model_weights.pth',override_db_name=None, zone_type_id=1):
+def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='model_weights.pth',override_db_name=None, zone_type_id=1, progress_callback=None):
     logger = logging.getLogger(__name__)
     
     category_summary, unique_id_counts = debug_results_yolo(csv_path=csv_box_name)
@@ -97,16 +97,20 @@ def process_pipeline_mini(csv_box_name='', img_folder_name='',solider_weights='m
     
     if zone_type_id == 1: # Only for entrance, prevent to run for exterior
         # Step 6: Extract features from model
+        start_reid_features = time.time()
         logger.info("Step 6: Extract features from model")
-        features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}", weights=solider_weights, db_path=db_base_path)
+        features = get_features_from_model(model_name='solider', folder_path=f"{img_folder_name}", weights=solider_weights, db_path=db_base_path, progress_callback=progress_callback)
         logger.info(f"Step 6 completed: Extracted features from model")
+        time_reid_features = time.time() - start_reid_features
         
         # Step 7: Complete re-ranking using the extracted features
+        start_reranking = time.time()
         logger.info("Step 7: Complete re-ranking using the extracted features")
         complete_re_ranking(features, n_images=8, max_number_back_to_compare=57, K1=8, K2=3, LAMBDA=0, db_path=db_base_path)
         logger.info(f"Step 7 completed: Completed re-ranking")
+        time_reranking = time.time() - start_reranking
         
-    return db_base_path
+    return db_base_path, time_reid_features, time_reranking
     
 ### DIEGO TEST ###
 
@@ -181,14 +185,14 @@ def process_pipeline_by_dates(base_result_path='',base_footage_path='', client_i
             
 if __name__ == '__main__':
     
-    PRODUCTION_MODE = True
+    PRODUCTION_MODE = False
     
     base_url_api = 'https://api-v1.mivo.cl' if PRODUCTION_MODE else os.getenv('BASE_URL_API', 'http://localhost:1001')
     APIConfig.initialize(base_url_api)
     base_result_path = os.getenv('RESULTS_ROOT_FOLDER_PATH', '')
     base_footage_path = os.getenv('FOOTAGE_ROOT_FOLDER_PATH', '')
-    start_date = '20240914'
-    end_date = '20240915'
+    start_date = '20241003'
+    end_date = '20241003'
     
     
     # Para sacar la data del sankey, primero procesar KUNA con el channel correcto y eso videos moverlo a otra carpeta de channel_camera_id
@@ -206,7 +210,8 @@ if __name__ == '__main__':
     
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 22, 1, 1,['process_pipeline_mini','process_save_bd_pipeline'] # Costanera
     # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 4, 17, 2, 1,['process_pipeline_mini'] # Leonisa Apumanque
-    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 4, 18, 4, 1,['process_pipeline_mini','process_save_bd_pipeline'] # 
+    client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 22, 1, 1,['process_pipeline_mini','process_save_bd_pipeline'] # 
+    # client_id, store_id, camera_channel_id, zone_type_id, processes_to_execute = 7, 24, 4, 1,['process_pipeline_mini','process_save_bd_pipeline'] # 
     
     
 

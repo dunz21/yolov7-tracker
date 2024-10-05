@@ -67,9 +67,9 @@ class APIConfig:
         return response
     
     @classmethod
-    def update_video_process_status(cls, video_id, progress):
+    def update_video_process_status(cls, video_id, progress,status):
         url = f"{cls.get_base_url()}/api/queue-videos/{video_id}/progress"
-        response = requests.put(url, data={'progress': progress})
+        response = requests.put(url, data={'progress': progress, 'status': status})
         return response
 
     @classmethod
@@ -180,14 +180,22 @@ class APIConfig:
             print(f"Failed to insert reid matches. Status code: {response.status_code}, Response: {response.text}")
                 
     @classmethod
-    def post_queue_video_result(cls, queue_video_id, model_name, results):
+    def post_queue_video_result(cls, queue_video_id, time_start=None, time_end=None, timings=None, total_frames=None, total_duration=None, fps=None, metadata=None, error=None, results=None):
         url = f"{cls.get_base_url()}/api/queue-video-results"
         headers = {'Content-Type': 'application/json'}
         data = {
             'queue_video_id': queue_video_id,
-            'model_name': model_name,
+            'time_start': time_start,
+            'time_end': time_end,
+            'timings': timings,
+            'total_frames': total_frames,
+            'total_duration': total_duration,
+            'fps': fps,
+            'metadata': metadata,
+            'error': error,
             'results': results
         }
+        data = {k: v for k, v in data.items() if v is not None}
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 201:
             print(f"Successfully posted queue video result with ID {queue_video_id}")
